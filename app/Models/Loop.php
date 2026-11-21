@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
+use App\Support\Images\ImageVariantResolver;
 use Database\Factories\LoopFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,7 +13,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -124,6 +124,9 @@ class Loop extends Model
         'cover_image_path',
         'type',
         'status',
+        // TASK-1872 correctif 07 — delegation de la composition, Boucle par
+        // Boucle. `null` = herite du reglage de l'Organization.
+        'owner_may_compose',
         'archived_at',
         'archived_by',
         'visibility',
@@ -138,6 +141,9 @@ class Loop extends Model
         return [
             'type' => 'string',
             'status' => 'string',
+            // Nullable a dessein : `null` n'est pas `false`, il veut dire
+            // « rien decide pour cette Boucle, voir son Organization ».
+            'owner_may_compose' => 'boolean',
             'archived_at' => 'datetime',
             'visibility' => 'string',
             'access_mode' => 'string',
@@ -170,7 +176,22 @@ class Loop extends Model
             return null;
         }
 
-        return Storage::disk('public')->url($this->cover_image_path);
+        // TASK-1873 — 960 px de large par defaut ; `cover_image_srcset` porte
+        // les autres tailles. Jamais recadree : les ratios 21/9 et 16/5 restent
+        // tenus par `object-cover` dans `x-loops.cover`.
+        return app(ImageVariantResolver::class)->url($this->cover_image_path, 'cover_md');
+    }
+
+    /** TASK-1873 — vignette (480 px) : miniature de l'ecran d'edition. */
+    public function getCoverImageThumbUrlAttribute(): ?string
+    {
+        return $this->cover_image_path ? app(ImageVariantResolver::class)->url($this->cover_image_path, 'cover_sm') : null;
+    }
+
+    /** TASK-1873 — `srcset` des variantes pretes, null tant qu'il n'y en a aucune. */
+    public function getCoverImageSrcsetAttribute(): ?string
+    {
+        return app(ImageVariantResolver::class)->srcset($this->cover_image_path, ['cover_sm', 'cover_md', 'cover_lg']);
     }
 
     public function scopePublic($query)
@@ -294,7 +315,6 @@ class Loop extends Model
         return route('loops.show', $this);
     }
 
-
     /**
      * Every active owner. A Loop may have several; they all have equal rights.
      *
@@ -341,6 +361,25 @@ class Loop extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(LoopMessage::class);
+    }
+
+    /**
+     * TASK-1864 — les messages HUMAINS visibles, du plus recent au plus ancien.
+     *
+     * Meme semantique que « Derniers messages » (`humanVisible()`). Destinee a
+     * un chargement anticipe BORNE par Boucle (`->limit(n)` dans la contrainte
+     * de `load()`, que Laravel traduit en fenetre `ROW_NUMBER()` par Boucle) :
+     * jamais toute la conversation pour n'en garder que la fin.
+     *
+     * Pas de `latestOfMany()` : il ajoute un `MAX()` sur la cle primaire, et la
+     * cle est un UUID — `max(uuid)` n'existe pas sous PostgreSQL.
+     */
+    public function recentHumanMessages(): HasMany
+    {
+        return $this->hasMany(LoopMessage::class)
+            ->humanVisible()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
     }
 
     public function roadmapItems(): HasMany

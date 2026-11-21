@@ -11,12 +11,13 @@ use App\Models\LoopNotificationPreference;
 use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\User;
-use App\Services\Loops\LoopEventService;
 use App\Services\LoopMessageService;
+use App\Services\Loops\LoopEventService;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmailDeliverer;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -114,7 +115,7 @@ class TASK1802LoopEventNotificationTest extends TestCase
         return app(LoopMessageService::class)->sendEventMessage($this->boucle, $createur, $event, $kind);
     }
 
-    /** @return \Illuminate\Database\Eloquent\Collection<int, MemberNotification> */
+    /** @return Collection<int, MemberNotification> */
     private function notificationsDeLEvenement()
     {
         return MemberNotification::query()
@@ -122,7 +123,7 @@ class TASK1802LoopEventNotificationTest extends TestCase
             ->get();
     }
 
-    public function test_un_nouvel_evenement_previent_les_membres_SAUF_son_auteur(): void
+    public function test_un_nouvel_evenement_previent_les_membres_sau_f_son_auteur(): void
     {
         $this->annoncer($this->creerEvenement());
 
@@ -138,23 +139,25 @@ class TASK1802LoopEventNotificationTest extends TestCase
     }
 
     /**
-     * TASK-1802 (demande Cyril, 10/11) — « il faut que ce soit les
-     * proprietaires ou animateurs de Boucle qui puissent poster un
-     * evenement, uniquement. » `events.create` a quitte le socle `member`
-     * (`config/loop_permissions.php`) : un membre simple ne peut DESORMAIS
-     * plus proposer de rencontre du tout — verifie ici a la source, et plus
-     * largement par `TASK1088EventCardTest`/`TASK1706AgendaCreateEventTest`.
+     * TASK-1872 correctif 05 (demande Cyril, 21/11) — « les membres de la
+     * boucle doivent avoir l'autorisation de publier des evenements ».
      *
-     * La notification, elle, reste role-agnostique ENTRE les deux roles qui
-     * PEUVENT creer : un evenement propose par l'ANIMATEUR previent les
-     * memes personnes, de la meme facon, qu'un propose par le proprietaire.
+     * ⚠️ TASK-1802 (10/11) avait retire `events.create` du socle `member` sur
+     * la demande INVERSE. La demande du 21/11 est posterieure et l'emporte ;
+     * la trace reste ici pour que le va-et-vient se lise comme une suite de
+     * decisions, et non comme une regression.
+     *
+     * Ce que ce test defend vraiment n'a pas change, et c'est le sujet du
+     * fichier : la notification est ROLE-AGNOSTIQUE. Un Evenement propose par
+     * un membre previent les memes personnes, de la meme facon, qu'un propose
+     * par l'animateur ou le proprietaire.
      */
-    public function test_un_membre_simple_ne_peut_plus_proposer_mais_l_animateur_le_peut(): void
+    public function test_un_membre_simple_peut_proposer_et_l_animateur_aussi(): void
     {
         $service = app(LoopEventService::class);
-        $this->assertFalse(
+        $this->assertTrue(
             $service->canCreate($this->membre, $this->boucle),
-            'un membre simple ne doit plus pouvoir proposer un Evenement',
+            'un membre simple doit pouvoir proposer un Evenement',
         );
 
         $animateur = User::factory()->create(['organization_id' => $this->organization->id]);
@@ -216,7 +219,7 @@ class TASK1802LoopEventNotificationTest extends TestCase
         $this->assertNotContains(
             $parti->id,
             $notifications->pluck('recipient_id')->all(),
-            "le membre parti vers une autre Organization ne doit pas recevoir de notification",
+            'le membre parti vers une autre Organization ne doit pas recevoir de notification',
         );
     }
 
@@ -240,7 +243,7 @@ class TASK1802LoopEventNotificationTest extends TestCase
         );
     }
 
-    public function test_les_trois_canaux_sont_declares_ACTIFS_par_defaut(): void
+    public function test_les_trois_canaux_sont_declares_actif_s_par_defaut(): void
     {
         $cle = NotificationCatalogue::LOOP_EVENT_CREATED;
 
@@ -256,7 +259,7 @@ class TASK1802LoopEventNotificationTest extends TestCase
         }
     }
 
-    public function test_la_sourdine_PAR_BOUCLE_empeche_toute_notification(): void
+    public function test_la_sourdine_pa_r_boucl_e_empeche_toute_notification(): void
     {
         $reglage = new LoopNotificationPreference(['collective_enabled' => false]);
         $reglage->organization_id = (string) $this->organization->id;
@@ -288,7 +291,7 @@ class TASK1802LoopEventNotificationTest extends TestCase
      * `loop-chat.blade.php` qui le rend en `<a href>` — voir
      * `TASK1802EventChatLinkTest` pour la preuve du rendu.
      */
-    public function test_le_message_de_creation_porte_le_lien_dans_les_metadonnees_SI_en_ligne(): void
+    public function test_le_message_de_creation_porte_le_lien_dans_les_metadonnees_s_i_en_ligne(): void
     {
         $message = $this->annoncer($this->creerEvenement([
             'format' => LoopEvent::FORMAT_ONLINE,
@@ -305,7 +308,7 @@ class TASK1802LoopEventNotificationTest extends TestCase
         $this->assertSame(LoopEvent::FORMAT_ONLINE, $message->metadata['format']);
     }
 
-    public function test_le_message_de_creation_ne_porte_AUCUN_lien_sur_place(): void
+    public function test_le_message_de_creation_ne_porte_aucu_n_lien_sur_place(): void
     {
         $message = $this->annoncer($this->creerEvenement());
 
@@ -345,7 +348,7 @@ class TASK1802LoopEventNotificationTest extends TestCase
         $this->assertStringContainsString('[description-redacted]', $journal->body_html);
     }
 
-    public function test_le_courriel_porte_le_lien_de_connexion_SI_en_ligne(): void
+    public function test_le_courriel_porte_le_lien_de_connexion_s_i_en_ligne(): void
     {
         $event = $this->creerEvenement([
             'format' => LoopEvent::FORMAT_ONLINE,

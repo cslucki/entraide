@@ -1623,4 +1623,21 @@ return [
     'articles_badge' => 'Loop article',
     'articles_empty' => 'No loop article yet.',
     'articles_empty_filtered' => 'No article for this loop.',
+    // TASK-1864 — bascule Grille / Liste du catalogue, et ligne de la liste.
+    'view_switch_label' => 'Display',
+    'view_grid' => 'Grid',
+    'view_list' => 'List',
+    'catalog_row_no_message' => 'No messages yet.',
+    // TASK-1865 — apercu d'une Boucle (tiroir de la grille, volets de la liste).
+    'preview_members_title' => 'Members',
+    'preview_members_more' => 'And :count other member.|And :count other members.',
+    'preview_members_more_link' => 'See them in the Loop',
+    'preview_locked' => 'Messages and the member list are reserved for members of this Loop.',
+    // TASK-1866 — tiroir d'apercu de la grille.
+    'preview_loading' => 'Loading the preview…',
+    'preview_error' => 'This Loop\'s preview could not be loaded. You can open it directly.',
+    // TASK-1867 — volet de detail de la liste G.
+    'list_pane_label' => 'Loop preview',
+    'list_pane_empty' => 'Select a Loop',
+    'list_pane_announce' => 'Preview: :name',
 ];

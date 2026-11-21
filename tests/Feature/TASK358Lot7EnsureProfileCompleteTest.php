@@ -29,7 +29,7 @@ class TASK358Lot7EnsureProfileCompleteTest extends TestCase
             'phone' => '0123456789',
             'city' => 'Paris',
             'country_code' => 'FR',
-            'bio' => 'Développeur web.',
+            'bio' => 'Développeur web, avec une presentation assez longue pour franchir le plancher de cent caracteres. Ecrite assez longuement pour franchir le plancher de cent caracteres impose par TASK-1872.',
         ]);
     }
 
@@ -42,7 +42,7 @@ class TASK358Lot7EnsureProfileCompleteTest extends TestCase
             'phone' => '0123456789',
             'city' => 'Paris',
             'country_code' => 'FR',
-            'bio' => 'Développeur web.',
+            'bio' => 'Développeur web, avec une presentation assez longue pour franchir le plancher de cent caracteres. Ecrite assez longuement pour franchir le plancher de cent caracteres impose par TASK-1872.',
         ];
 
         foreach ($missing as $key) {
@@ -98,7 +98,7 @@ class TASK358Lot7EnsureProfileCompleteTest extends TestCase
             'first_name' => null,
             'city' => null,
             'country_code' => null,
-            'bio' => 'Bio remplie.',
+            'bio' => 'Bio remplie, et assez longue pour franchir le plancher de cent caracteres impose au profil. Ecrite assez longuement pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'location' => 'Paris',
             'phone' => '0123456789',
         ]);
@@ -168,7 +168,7 @@ class TASK358Lot7EnsureProfileCompleteTest extends TestCase
             'phone' => '0987654321',
             'city' => 'Lyon',
             'country_code' => 'FR',
-            'bio' => 'Autre profil.',
+            'bio' => 'Autre profil, avec une presentation assez longue pour franchir le plancher de cent caracteres. Ecrite assez longuement pour franchir le plancher de cent caracteres impose par TASK-1872.',
         ]);
 
         $this->actingAs($user)->get(route('services.create'))->assertStatus(200);

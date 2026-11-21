@@ -151,6 +151,7 @@ use App\Livewire\Admin\RssArticleFiche;
 use App\Livewire\Admin\RssEditorialHistory;
 use App\Livewire\Admin\RssSourceArticles;
 use App\Livewire\Admin\RssSources;
+use App\Livewire\Admin\ImageOptimizer;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
 use App\Livewire\EditFeedPost;
@@ -652,6 +653,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/loops/articles', [LoopArticlesController::class, 'index'])->name('loops.articles');
         Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
         Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+        // TASK-1865 — apercu d'une Boucle (fragment HTML) pour le tiroir de la
+        // grille et les volets de la liste. `no_store` : il porte l'etat
+        // d'adhesion, comme le catalogue (TASK-1277).
+        Route::get('/loops/{loop}/apercu', [LoopController::class, 'preview'])->middleware('cache.headers:no_store')->name('loops.preview');
         // L'agenda de l'Organization : il agrege ce qui a ete organise dans les
         // Boucles. Declare avant /loops/{loop} n'est pas necessaire — le segment
         // differe — mais reste groupe avec elles.
@@ -1325,6 +1330,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/outils/import-rss/boucles/{organizationId}', [AdminRssImportController::class, 'boucles'])
         ->name('outils.import-rss.boucles');
 
+    // TASK-1873 — console d'optimisation des images, `/admin/images`.
+    // Composant Livewire pleine page. SuperAdmin : groupe `admin` (`is_admin`,
+    // 403 sinon), `AdminMiddleware` persistant pour les requetes Livewire, et
+    // garde `boot()` dans le composant. « Optimiser » enregistre un lot et le
+    // MET EN FILE : aucune conversion dans la requete.
+    Route::get('/images', ImageOptimizer::class)->name('images');
+
     // TASK-1790 — le parcours individuel : source -> articles -> fiche.
     //
     // Trois composants Livewire plein-ecran, meme motif que `OrganizationFeed`/
@@ -1890,6 +1902,8 @@ Route::prefix('/org/{organization}')
                 Route::get('/loops/articles', [LoopArticlesController::class, 'index'])->name('loops.articles');
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
+                // TASK-1865 — voir la route courte `loops.preview`.
+                Route::get('/loops/{loop}/apercu', [LoopController::class, 'preview'])->middleware('cache.headers:no_store')->name('loops.preview');
                 // L'agenda de l'Organization. Voir la note sur la route courte :
                 // depuis TASK-1656 il porte le geste de REPONSE a une invitation.
                 Route::get('/agenda', [LoopEventAgendaController::class, 'index'])->name('events.agenda');

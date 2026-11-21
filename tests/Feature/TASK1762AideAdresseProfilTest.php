@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\UserSlugService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -90,6 +91,10 @@ class TASK1762AideAdresseProfilTest extends TestCase
     public function test_le_message_d_erreur_porte_desormais_la_longueur(): void
     {
         $reponse = $this->actingAs($this->membre)->put(route('profile.update'), [
+            // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
+            'city' => 'Lyon',
+            'country_code' => 'FR',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'first_name' => $this->membre->first_name,
             'name' => $this->membre->name,
             'email' => $this->membre->email,
@@ -131,7 +136,7 @@ class TASK1762AideAdresseProfilTest extends TestCase
     /** 🔴 Et qui a choisi lit SON adresse, pas l'identifiant. */
     public function test_avec_un_slug_la_mention_montre_le_slug(): void
     {
-        app(\App\Services\UserSlugService::class)->attribuer($this->membre, 'camille-moreau');
+        app(UserSlugService::class)->attribuer($this->membre, 'camille-moreau');
 
         $html = $this->page();
 

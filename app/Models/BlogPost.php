@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
+use App\Support\Images\ImageVariantResolver;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class BlogPost extends Model
@@ -232,7 +232,21 @@ class BlogPost extends Model
             return null;
         }
 
-        return Storage::disk('public')->url($this->image);
+        // TASK-1873 — 960 px de large : la taille des cartes et du bandeau
+        // mobile. Le `srcset` complet est porte par `image_srcset`.
+        return app(ImageVariantResolver::class)->url($this->image, 'cover_md');
+    }
+
+    /** TASK-1873 — vignette (480 px) : listes compactes, edition. */
+    public function getImageThumbUrlAttribute(): ?string
+    {
+        return $this->image ? app(ImageVariantResolver::class)->url($this->image, 'cover_sm') : null;
+    }
+
+    /** TASK-1873 — `srcset` des variantes pretes, null tant qu'il n'y en a aucune. */
+    public function getImageSrcsetAttribute(): ?string
+    {
+        return app(ImageVariantResolver::class)->srcset($this->image, ['cover_sm', 'cover_md', 'cover_lg']);
     }
 
     /** Who may read an article — orthogonal to its editorial status. */

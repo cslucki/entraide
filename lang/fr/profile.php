@@ -99,6 +99,8 @@ return [
     'show_phone' => 'Afficher mon numéro de téléphone sur mon profil public et dans l’annuaire',
     'location' => 'Localisation (Ville, Département)',
     'location_placeholder' => 'Ex: Lyon, Rhône',
+    // TASK-1872 correctif 10 — la contrainte se dit AVANT d'etre rencontree.
+    'bio_min_hint' => 'Au moins :min caractères, pour que les autres membres sachent à qui ils s\'adressent.',
     'bio' => 'Présentation',
     'bio_help' => 'Décrivez qui vous êtes, vos expertises, votre parcours. Cette présentation apparaît sur votre profil public et rassure les membres avant de vous contacter.',
     'bio_placeholder' => 'Ex : Consultante RH indépendante depuis 2015, je m’occupe de recrutement, de formation et d’accompagnement managérial pour les PME...',
@@ -205,4 +207,8 @@ return [
     // TASK-1734 — la carte « Securite des comptes » du profil.
     'account_access_title' => 'Sécurité des comptes',
     'account_access_intro' => 'Pour passer d\'une organisation à l\'autre, utilisez « Mes organisations » dans le menu de votre avatar. Les parcours avancés — lier deux comptes d\'adresses différentes, passer sur un compte non proposé, retirer un accès — vivent ici.',
+
+    // TASK-1871 — la synthese d'erreurs en tete du formulaire.
+    'error_summary_title' => 'Votre profil n\'a pas été enregistré : corrigez les points suivants.',
+    'field_required' => '(obligatoire)',
 ];

@@ -274,8 +274,12 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertStringNotContainsString(':organization', $html, 'A translation placeholder was left unsubstituted.');
         $this->assertStringContainsString('Entraide Locale', $html);
 
-        // 48h, not the 30 days inherited from loop_invitations (Cyril, 30/09).
-        $this->assertTrue($invitation->expires_at->between(now()->addHours(47), now()->addHours(49)));
+        // VALIDITY_HOURS (7 jours depuis TASK-1868), not the 30 days
+        // inherited from loop_invitations (Cyril, 30/09).
+        $this->assertTrue($invitation->expires_at->between(
+            now()->addHours(OrganizationInvitation::VALIDITY_HOURS - 1),
+            now()->addHours(OrganizationInvitation::VALIDITY_HOURS + 1),
+        ));
     }
 
     /**
@@ -1254,9 +1258,13 @@ class TASK1659OrganizationInvitationTest extends TestCase
         $this->assertSame(1, OrganizationInvitation::where('recipient_email', 'relance@example.test')->count());
         $fresh = $invitation->fresh();
         $this->assertSame($originalToken, $fresh->token, 'A resend must keep the token already in the recipient\'s mailbox valid.');
-        // "Relancer" must push the deadline back out to a fresh 48h window
-        // (Cyril, 30/09), not just resend the same link with its original
-        // clock still running.
-        $this->assertTrue($fresh->expires_at->between(now()->addHours(47), now()->addHours(49)));
+        // "Relancer" must push the deadline back out to a fresh
+        // VALIDITY_HOURS window (Cyril, 30/09 ; 7 jours depuis TASK-1868),
+        // not just resend the same link with its original clock still
+        // running.
+        $this->assertTrue($fresh->expires_at->between(
+            now()->addHours(OrganizationInvitation::VALIDITY_HOURS - 1),
+            now()->addHours(OrganizationInvitation::VALIDITY_HOURS + 1),
+        ));
     }
 }

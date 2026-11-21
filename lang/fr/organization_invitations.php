@@ -32,6 +32,7 @@ return [
     // Deuxieme etape : definir son mot de passe
     'password_title' => 'Choisissez votre mot de passe',
     'password_intro' => 'Votre accès est créé. Définissez un mot de passe pour pouvoir vous reconnecter ensuite.',
+    'password_email_label' => 'Adresse email',
     'password_label' => 'Mot de passe',
     'password_confirm_label' => 'Confirmez le mot de passe',
     'password_cta' => 'Enregistrer et continuer',

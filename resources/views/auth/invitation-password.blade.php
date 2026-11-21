@@ -22,6 +22,26 @@
                 <form method="POST" action="{{ route('invitation.password.store') }}" class="mt-6 space-y-5">
                     @csrf
 
+                    {{--
+                        TASK-1868 — visible, prerempli, NON modifiable
+                        (`readonly`, pas `disabled` : un champ `disabled`
+                        n'est pas soumis, et certains navigateurs n'associent
+                        pas son contenu au mot de passe pose juste en dessous).
+                        `autocomplete="username"` est ce que Chrome/Firefox
+                        cherchent pour proposer d'ENREGISTRER puis de
+                        REUTILISER la paire email+mot de passe apres
+                        deconnexion. Jamais lu par `InvitationPasswordController
+                        ::store()` : l'identite vient exclusivement de la
+                        session, pas de ce champ.
+                    --}}
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ __('organization_invitations.password_email_label') }}
+                        </label>
+                        <input id="email" type="email" name="email" value="{{ $email }}" readonly tabindex="-1" autocomplete="username"
+                               class="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 shadow-sm text-sm cursor-not-allowed">
+                    </div>
+
                     <div>
                         <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             {{ __('organization_invitations.password_label') }}

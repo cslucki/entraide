@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Ai\CapabilityRegistry;
 use App\Ai\Constitution;
-use App\Ai\NervousSystemCoverage;
 use App\Ai\Context\ContextBuilder;
 use App\Ai\Context\DossierAccessScope;
+use App\Ai\NervousSystemCoverage;
 use App\Ai\ProviderResolver;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAiPrompt;
@@ -23,8 +23,6 @@ use App\Models\LoopInvitation;
 use App\Models\LoopMember;
 use App\Models\Message;
 use App\Models\Organization;
-use App\Services\Dossiers\DossierFileIndexingDispatcher;
-use App\Services\Dossiers\OrganizationFileInventory;
 use App\Models\OrganizationAiConstitution;
 use App\Models\OrganizationAiDoctrine;
 use App\Models\OrganizationAiSetting;
@@ -38,14 +36,19 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Jobs\ProcessImageVariants;
+use App\Support\Images\ImageVariantService;
+use App\Services\Admin\OrganizationDashboardMetrics;
 use App\Services\Ai\AiUserCreditSettings;
 use App\Services\Ai\DTO\AiConsumptionFilters;
 use App\Services\Ai\OrganizationAiConsumption;
 use App\Services\Ai\OrganizationAiEconomicUsage;
 use App\Services\Ai\OrganizationDoctrineSandbox;
 use App\Services\Dossiers\DerivedChunkEligibility;
+use App\Services\Dossiers\DossierFileIndexingDispatcher;
 use App\Services\Dossiers\DossierSemanticSearchGate;
 use App\Services\Dossiers\DossierSemanticSearchService;
+use App\Services\Dossiers\OrganizationFileInventory;
 use App\Services\Dossiers\OrganizationRagOverview;
 use App\Services\GuestShell\GuestPageContextResolver;
 use App\Services\GuestShell\GuestShellDisplayModeResolver;
@@ -62,6 +65,7 @@ use App\Services\TranslationService;
 use App\Services\UserDataLifecycleRegistry;
 use App\Support\Ai\AiQualityReport;
 use App\Support\Ai\NervousSystemMap;
+use App\Support\Loops\CouvertureDeBoucle;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
 use App\Support\Loops\LoopTypeRegistry;
@@ -69,6 +73,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -81,9 +86,9 @@ class OrgAdminController extends Controller
     // deux methodes vivaient en `private` la-bas ; elles sont desormais dans
     // `App\Support\Loops\CouvertureDeBoucle`, en UN exemplaire. Cyril,
     // 29/10 : « surtout ne pas les dupliquer ».
-    use \App\Support\Loops\CouvertureDeBoucle;
+    use CouvertureDeBoucle;
 
-    public function dashboard(Organization $organization, \App\Services\Admin\OrganizationDashboardMetrics $metrics): View
+    public function dashboard(Organization $organization, OrganizationDashboardMetrics $metrics): View
     {
         // TASK-1504 : tout ce que la page affiche vient d'UNE autorite ; la vue
         // ne calcule rien. Les quatre compteurs d'origine y sont, inchanges.
@@ -500,6 +505,10 @@ class OrgAdminController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'type' => ['required', 'string'],
+            // TASK-1872 correctif 07 — deleguer la composition de CETTE
+            // Boucle a son proprietaire. Meme champ, memes trois etats que
+            // sur l'ecran SuperAdmin : une seule semantique pour les deux.
+            'owner_may_compose' => ['nullable', 'in:0,1'],
         ] + $this->reglesDeCouverture());
 
         if (! $registry->exists($data['type'])) {
@@ -516,6 +525,14 @@ class OrgAdminController extends Controller
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'type' => $data['type'],
+            // TASK-1872 correctif 07 — la chaine vide du `<select>` veut dire
+            // « herite du reglage de l'Organization », et doit atterrir en
+            // `null`. Sans ce test elle deviendrait `false` au cast booleen,
+            // c'est-a-dire un REFUS explicite pose par un formulaire ou
+            // personne n'a rien choisi.
+            'owner_may_compose' => ($data['owner_may_compose'] ?? '') === ''
+                ? null
+                : (bool) $data['owner_may_compose'],
         ];
 
         // TASK-1725 — `false` veut dire « n'y touche pas », et il faut le
@@ -1196,7 +1213,7 @@ class OrgAdminController extends Controller
         // (groupe, statut, recherche) survivent au changement de page.
         $perPage = 100;
         $currentPage = max(1, (int) $request->input('page', 1));
-        $entries = new \Illuminate\Pagination\LengthAwarePaginator(
+        $entries = new LengthAwarePaginator(
             $entries->slice(($currentPage - 1) * $perPage, $perPage)->values(),
             $entries->count(),
             $perPage,
@@ -1564,6 +1581,9 @@ class OrgAdminController extends Controller
 
             $organization->update(['logo_path' => $path]);
 
+            // TASK-1873 — variante WebP 256 px du logo, hors requete.
+            ProcessImageVariants::forUpload('organization_logo', $path ?: null, $organization->id);
+
             return redirect()->route('organization.admin.identity', [
                 'organization' => $organization->slug,
             ])->with('success', __('admin.organization_logo_updated'));
@@ -1578,6 +1598,7 @@ class OrgAdminController extends Controller
     {
         if (str_starts_with($path, 'organization-logos/') && Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
+            app(ImageVariantService::class)->forget($path);
         }
     }
 

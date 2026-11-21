@@ -115,10 +115,13 @@ class TASK1707LoopOwnerProfileLinkTest extends TestCase
 
     public function test_la_liste_des_boucles_lie_aussi_le_nom_du_proprietaire(): void
     {
+        // TASK-1866 — la grille montre des tuiles denses : le nom du
+        // proprietaire vit dans le tiroir, servi par `loops.preview` (charge
+        // par l'URL org-scopee, comme le fait le tiroir). C'est la qu'il se verifie.
         $this->assertContains(
             $this->profilAttendu(),
-            $this->liens('/loops'),
-            'Sur la carte de la liste, le nom du proprietaire ne mene pas a son profil.'
+            $this->liens('/loops/'.$this->boucle->id.'/apercu'),
+            'Dans l\'apercu de la liste, le nom du proprietaire ne mene pas a son profil.'
         );
     }
 
@@ -131,7 +134,8 @@ class TASK1707LoopOwnerProfileLinkTest extends TestCase
      */
     public function test_aucun_lien_ne_passe_par_la_route_non_bornee(): void
     {
-        foreach (['/loops/'.$this->boucle->slug, '/loops'] as $chemin) {
+        // TASK-1866 — `/loops` -> l'apercu du tiroir, ou vit desormais le nom.
+        foreach (['/loops/'.$this->boucle->slug, '/loops/'.$this->boucle->id.'/apercu'] as $chemin) {
             foreach ($this->liens($chemin) as $href) {
                 $this->assertStringContainsString(
                     '/org/'.$this->organization->slug.'/',

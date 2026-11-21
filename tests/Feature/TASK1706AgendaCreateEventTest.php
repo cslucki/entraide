@@ -13,6 +13,7 @@ use App\Services\Loops\LoopEventService;
 use App\Support\Loops\LoopTypeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -155,19 +156,33 @@ class TASK1706AgendaCreateEventTest extends TestCase
     }
 
     /**
-     * TASK-1802 (demande Cyril, 10/11) — renverse l'ancien
-     * `test_un_membre_simple_peut_organiser_comme_dans_la_boucle` : un membre
-     * simple n'a plus `events.create`, dans la Boucle comme dans l'agenda —
-     * les deux lisent la meme regle, donc la meme reponse.
+     * TASK-1872 correctif 05 (demande Cyril, 21/11) — « les membres de la
+     * boucle doivent avoir l'autorisation de publier des evenements ».
+     *
+     * ⚠️ Deuxieme renversement de ce test. Il affirmait d'abord que le membre
+     * pouvait organiser ; TASK-1802 (10/11) l'a inverse ; la demande du 21/11,
+     * posterieure, l'emporte a son tour. La trace reste ecrite ici : ce
+     * va-et-vient est une suite de decisions prises, pas une regression qui
+     * serait passee deux fois.
+     *
+     * Ce que le test continue de garder, et qui est le vrai sujet : l'agenda
+     * et la Boucle lisent la MEME regle, donc rendent la MEME reponse. C'est
+     * cela qui ne doit jamais diverger.
      */
-    public function test_un_membre_simple_ne_peut_plus_organiser(): void
+    public function test_un_membre_simple_peut_organiser_comme_dans_la_boucle(): void
     {
         $html = $this->agenda($this->membre);
 
-        $this->assertSame('role', $this->refus($html), 'Un membre simple ne doit plus pouvoir organiser.');
+        $this->assertNull($this->refus($html), 'Un refus est affiche a un membre qui peut organiser.');
 
-        // Et la mesure est faite a la SOURCE : le service dit bien non.
-        $this->assertFalse(app(LoopEventService::class)->canCreate($this->membre, $this->boucle));
+        $this->assertSame(
+            1,
+            preg_match('/<a[^>]*data-agenda-create[\s>]/', $html),
+            'Le bouton de creation n\'est pas propose au membre.'
+        );
+
+        // Et la mesure est faite a la SOURCE : le service dit bien oui.
+        $this->assertTrue(app(LoopEventService::class)->canCreate($this->membre, $this->boucle));
     }
 
     /** Membre d'aucune Boucle : le premier refus, avec le chemin pour en sortir. */
@@ -247,7 +262,7 @@ class TASK1706AgendaCreateEventTest extends TestCase
 
     // ── 2. Le formulaire ────────────────────────────────────────────────────
 
-    private function formulaire(User $qui): \Illuminate\Testing\TestResponse
+    private function formulaire(User $qui): TestResponse
     {
         app()->forgetInstance('current_organization');
         app()->instance('current_organization', $this->org);
@@ -289,7 +304,7 @@ class TASK1706AgendaCreateEventTest extends TestCase
 
     // ── 3. L'enregistrement ─────────────────────────────────────────────────
 
-    private function enregistrer(User $qui, array $donnees = []): \Illuminate\Testing\TestResponse
+    private function enregistrer(User $qui, array $donnees = []): TestResponse
     {
         app()->forgetInstance('current_organization');
         app()->instance('current_organization', $this->org);

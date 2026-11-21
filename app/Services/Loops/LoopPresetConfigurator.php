@@ -45,9 +45,12 @@ class LoopPresetConfigurator
      * Composer les Cards de cette Boucle.
      *
      * SuperAdmin et Admin d'Organization : toujours, par `loops.manage_cards`,
-     * que le resolveur leur accorde a l'etape 3 ou 4. Proprietaire : seulement
-     * si son Organization l'y autorise — et c'est une decision de
-     * l'Organization, pas de la Boucle.
+     * que le resolveur leur accorde a l'etape 3 ou 4.
+     *
+     * Proprietaire : si la BOUCLE le dit, sinon si son Organization le dit.
+     * TASK-1872 a ajoute le premier niveau — la phrase « c'est une decision
+     * de l'Organization, pas de la Boucle » qui tenait ici n'est plus vraie,
+     * et la laisser aurait coute une relecture a quelqu'un.
      */
     public function canConfigure(User $user, Loop $loop): bool
     {
@@ -55,10 +58,43 @@ class LoopPresetConfigurator
             return true;
         }
 
-        $organization = $loop->organization;
+        /* TASK-1872 correctif 07 — L'INTERRUPTEUR DE LA BOUCLE PRIME, DANS
+           LES DEUX SENS.
+           ================================================================
+           Constat de Cyril, 21/11 : « uniquement l'administrateur de
+           l'organisation peut modifier les outils de la boucle ». La cause
+           n'etait ni le menu, ni un droit serveur — cette methode laissait
+           DEJA passer le proprietaire, mais sous condition
+           `allowsOwnerComposition()`, laquelle vaut « non » par defaut et
+           qu'AUCUN ecran ne permettait de changer. La fonctionnalite etait
+           morte-nee.
 
-        if (! $organization instanceof Organization || ! $organization->allowsOwnerComposition()) {
+           Un administrateur peut desormais la deleguer BOUCLE PAR BOUCLE,
+           depuis les deux ecrans d'edition de Boucle. Trois etats, et le
+           `null` est le plus important :
+
+             true   oui pour CETTE Boucle, quoi que dise l'Organization ;
+             false  non pour CETTE Boucle, meme si l'Organization l'autorise
+                    ailleurs — sans quoi l'interrupteur ne saurait pas
+                    refuser, et ne serait qu'un demi-interrupteur ;
+             null   rien decide ici : on retombe sur l'Organization, donc sur
+                    le comportement d'avant cette TASK, a l'identique.
+
+           C'est pour ce dernier point que la colonne est NULLABLE : aucune
+           Boucle existante ne change de comportement tant qu'un
+           administrateur n'a rien bascule. */
+        $delegation = $loop->owner_may_compose;
+
+        if ($delegation === false) {
             return false;
+        }
+
+        if ($delegation !== true) {
+            $organization = $loop->organization;
+
+            if (! $organization instanceof Organization || ! $organization->allowsOwnerComposition()) {
+                return false;
+            }
         }
 
         // Le proprietaire, et lui seul : un animateur anime, il ne recompose pas.
@@ -132,7 +168,7 @@ class LoopPresetConfigurator
             'preset_label' => $this->types->label($loop->type, $loop->organization),
             // Le maximum d'outils **mis en avant**. Ce n'est plus un nombre
             // d'emplacements a se disputer : activer n'en consomme aucun.
-            'max_primary' => \App\Services\Loops\LoopCardCompositionService::MAX_PRIMARY,
+            'max_primary' => LoopCardCompositionService::MAX_PRIMARY,
             'frame' => $byPlacement(LoopCardRegistry::PLACEMENT_FRAME),
             'primary' => $actifs->filter(fn ($c) => in_array($c['key'], $principaux, true))
                 ->sortBy(fn ($c) => array_search($c['key'], $principaux, true))

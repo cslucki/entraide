@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessImageVariants;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierFileIndexingDispatcher;
 use App\Services\Knowledge\LoopConversationKnowledgeDispatcher;
@@ -80,6 +81,9 @@ class TASK1511SchedulerIndexingTest extends TestCase
                 // dispatches par l'ordonnanceur et jamais consommes, ce qui est
                 // exactement le defaut silencieux que cette suite garde.
                 LoopConversationKnowledgeDispatcher::DEDICATED_QUEUE,
+                // TASK-1873 : la derivation des images. Meme raison : un job
+                // d'image dispatche sans worker resterait en file a jamais.
+                ProcessImageVariants::QUEUE,
             ],
             $queues,
             'la liste est une allowlist fermee : y ajouter une queue est une decision, pas un detail'

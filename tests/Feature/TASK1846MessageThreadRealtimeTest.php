@@ -45,6 +45,21 @@ class TASK1846MessageThreadRealtimeTest extends TestCase
 
     private Transaction $transaction;
 
+    /**
+     * TASK-1869 — « Epingler » n'existe plus dans une transaction d'entraide.
+     *
+     * Les tests qui exercent l'EPINGLAGE comme mutation diffusable montent
+     * donc une conversation directe, ou le geste vit toujours. Le reste du
+     * fichier — edition, reactions, et surtout les cas de sondage qui
+     * OPPOSENT justement entraide et conversation directe — reste inchange
+     * sur `$this->transaction`.
+     *
+     * Le depinglage, lui, reste teste sur l'entraide : il n'a pas ete ferme
+     * (arbitrage MASTER 2), c'est le seul geste de nettoyage d'un epinglage
+     * historique, et il doit continuer de diffuser.
+     */
+    private Transaction $conversationDirecte;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -58,6 +73,16 @@ class TASK1846MessageThreadRealtimeTest extends TestCase
             'seller_id' => $this->seller->id,
             'status' => 'accepted',
             'points_proposed' => 50,
+        ]);
+
+        $this->conversationDirecte = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->buyer->id,
+            'seller_id' => $this->seller->id,
+            'status' => 'accepted',
+            'points_proposed' => 0,
+            'service_id' => null,
+            'request_id' => null,
         ]);
 
         config()->set('conversation_realtime.enabled', true);
@@ -86,22 +111,27 @@ class TASK1846MessageThreadRealtimeTest extends TestCase
         );
     }
 
+    // TASK-1869 — sur une CONVERSATION DIRECTE : l'epinglage a quitte
+    // l'entraide, mais il reste une mutation diffusable la ou il vit encore.
     public function test_epingler_un_message_diffuse_apres_commit(): void
     {
-        $message = Message::factory()->forTransaction($this->transaction)->create([
+        $message = Message::factory()->forTransaction($this->conversationDirecte)->create([
             'sender_id' => $this->seller->id,
         ]);
 
         Event::fake([ConversationMessageCreated::class]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('pinMessage', $message->id);
 
         Event::assertDispatchedTimes(ConversationMessageCreated::class, 1);
         $this->assertNotNull($message->fresh()->pinned_at);
     }
 
+    // TASK-1869 — reste volontairement sur l'ENTRAIDE : `unpinMessage()` n'a
+    // pas ete ferme (arbitrage MASTER 2), et le detachement d'un epinglage
+    // historique doit continuer de diffuser comme avant.
     public function test_desepingler_diffuse_apres_commit_et_ne_fait_rien_si_rien_n_etait_epingle(): void
     {
         $message = Message::factory()->forTransaction($this->transaction)->create([
@@ -276,18 +306,22 @@ class TASK1846MessageThreadRealtimeTest extends TestCase
 
     // ── 3. Drapeau OFF : zero diffusion sur les trois mutations ─────────────
 
+    // TASK-1869 — sur une CONVERSATION DIRECTE. Ce test prouve que le drapeau
+    // eteint coupe la diffusion ; il faut donc que les trois mutations
+    // s'executent REELLEMENT. Laisse sur l'entraide, l'epinglage n'y muterait
+    // plus rien et le test serait devenu vert pour la mauvaise raison.
     public function test_drapeau_desactive_aucune_diffusion_sur_les_trois_mutations(): void
     {
         config()->set('conversation_realtime.enabled', false);
 
-        $message = Message::factory()->forTransaction($this->transaction)->create([
+        $message = Message::factory()->forTransaction($this->conversationDirecte)->create([
             'sender_id' => $this->buyer->id,
         ]);
 
         Event::fake([ConversationMessageCreated::class]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('editMessage', $message->id)
             ->set('editingBody', 'Corps corrige, drapeau OFF')
             ->call('saveEdit')

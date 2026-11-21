@@ -103,6 +103,8 @@ return [
     'show_phone' => 'Show my phone number on my public profile and directory',
     'location' => 'Location (City, Region)',
     'location_placeholder' => 'e.g. Lyon, Rhône',
+    // TASK-1872 correctif 10 — state the constraint before it is hit.
+    'bio_min_hint' => 'At least :min characters, so other members know who they are talking to.',
     'bio' => 'About me',
     'bio_help' => 'Describe who you are, your expertise and background. This introduction appears on your public profile and reassures members before they contact you.',
     'bio_placeholder' => 'e.g. Independent HR consultant since 2015, I handle recruitment, training and management support for SMEs...',
@@ -205,4 +207,8 @@ return [
     // TASK-1734 — the profile "Account security" card.
     'account_access_title' => 'Account security',
     'account_access_intro' => 'To move between organizations, use "My organizations" in your avatar menu. Advanced paths — linking two accounts with different addresses, switching to an unlisted account, removing an access — live here.',
+
+    // TASK-1871 — the error summary at the top of the form.
+    'error_summary_title' => 'Your profile was not saved: please fix the points below.',
+    'field_required' => '(required)',
 ];

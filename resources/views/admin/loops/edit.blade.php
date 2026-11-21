@@ -101,9 +101,38 @@
                     @error('visibility')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                 </div>
 
+                {{-- TASK-1872 correctif 07 — deleguer la personnalisation des
+                     outils, Boucle par Boucle.
+
+                     Le proprietaire passait DEJA `canConfigure()`, mais sous
+                     condition d'un reglage d'Organization ferme par defaut et
+                     qu'aucun ecran ne permettait d'ouvrir. Cet interrupteur
+                     est cette commande, au grain le plus fin.
+
+                     TROIS etats : une case a cocher ne saurait pas distinguer
+                     « refuse ici » de « rien decide ici ». Le troisieme —
+                     l'heritage — est le defaut, et c'est lui qui garantit
+                     qu'aucune Boucle existante ne change de comportement tant
+                     que personne n'a choisi.
+
+                     Mêmes libelles que l'ecran d'Organization : deux portes,
+                     une seule semantique. --}}
+                <div>
+                    <label for="owner_may_compose" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('admin.org_admin_loop_composition') }}</label>
+                    <p class="text-xs text-gray-400 mb-1">{{ __('admin.org_admin_loop_composition_hint') }}</p>
+                    @php($_delegation = old('owner_may_compose', $boucle->owner_may_compose === null ? '' : (int) $boucle->owner_may_compose))
+                    <select name="owner_may_compose" id="owner_may_compose" data-marqueur="champ-composition"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
+                        <option value="" @selected((string) $_delegation === '')>{{ __('admin.org_admin_loop_composition_inherit') }}</option>
+                        <option value="1" @selected((string) $_delegation === '1')>{{ __('admin.org_admin_loop_composition_allow') }}</option>
+                        <option value="0" @selected((string) $_delegation === '0')>{{ __('admin.org_admin_loop_composition_deny') }}</option>
+                    </select>
+                    @error('owner_may_compose')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                </div>
+
                 {{-- TASK-1725 — inserer, remplacer ou supprimer la couverture.
 
-                     L'apercu passe par `cover_image_url`, l'accesseur du modele :
+                     L'apercu passe par `cover_image_thumb_url` (TASK-1873), accesseur du modele :
                      cette vue ne reconstruit aucun chemin de stockage.
 
                      La case de retrait n'apparait QUE s'il y a une image a
@@ -114,7 +143,7 @@
                     <p class="text-xs text-gray-400 mb-2">{{ __('admin.org_admin_loop_cover_hint') }}</p>
 
                     @if($boucle->cover_image_path)
-                        <img src="{{ $boucle->cover_image_url }}" alt=""
+                        <img src="{{ $boucle->cover_image_thumb_url }}" alt=""
                              data-marqueur="apercu-couverture"
                              class="mb-2 h-28 w-full rounded-lg object-cover sm:w-64">
                     @endif

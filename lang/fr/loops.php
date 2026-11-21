@@ -1674,4 +1674,21 @@ return [
     'articles_badge' => 'Article de boucle',
     'articles_empty' => 'Aucun article de boucle pour le moment.',
     'articles_empty_filtered' => 'Aucun article pour cette boucle.',
+    // TASK-1864 — bascule Grille / Liste du catalogue, et ligne de la liste.
+    'view_switch_label' => 'Affichage',
+    'view_grid' => 'Grille',
+    'view_list' => 'Liste',
+    'catalog_row_no_message' => 'Aucun message pour l\'instant.',
+    // TASK-1865 — apercu d'une Boucle (tiroir de la grille, volets de la liste).
+    'preview_members_title' => 'Membres',
+    'preview_members_more' => 'Et :count autre membre.|Et :count autres membres.',
+    'preview_members_more_link' => 'Les voir dans la Boucle',
+    'preview_locked' => 'Les messages et la liste des membres sont réservés aux membres de cette Boucle.',
+    // TASK-1866 — tiroir d'apercu de la grille.
+    'preview_loading' => 'Chargement de l’aperçu…',
+    'preview_error' => 'L’aperçu de cette Boucle n’a pas pu être chargé. Vous pouvez l’ouvrir directement.',
+    // TASK-1867 — volet de detail de la liste G.
+    'list_pane_label' => 'Aperçu de la Boucle',
+    'list_pane_empty' => 'Sélectionnez une Boucle',
+    'list_pane_announce' => 'Aperçu : :name',
 ];

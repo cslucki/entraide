@@ -149,7 +149,7 @@ class LoopDossiersCard extends Component
      * prenant un modele serait exposee par Livewire comme action, avec liaison
      * implicite — troisieme lecon de la serie.
      */
-    private function articleUrls(\Illuminate\Support\Collection $articles): \Illuminate\Support\Collection
+    private function articleUrls(Collection $articles): Collection
     {
         $slug = $this->loop->organization?->slug;
 
@@ -251,9 +251,12 @@ class LoopDossiersCard extends Component
         // propose donc pas un geste que le serveur refusera.
         $readOnly = $this->loop->isArchived();
 
-        $canCreateArticle = ! $readOnly
-            && $resolver->can($user, $this->loop, 'dossiers.create_article')
-            && $user->can('update', $dossier);
+        // TASK-1872 correctif 04 — la MEME porte que le serveur, et une seule.
+        // La Card demandait `dossiers.create_article` ET `update` : le second
+        // exige le role `owner`, donc elle cachait le bouton au membre que le
+        // produit autorise desormais a ecrire. `createArticle` porte les deux
+        // conditions, archivage compris.
+        $canCreateArticle = ! $readOnly && $user->can('createArticle', $dossier);
 
         // TASK-1684 : `uploadFiles`, pas `manageFiles`. Le MASTER a ouvert le
         // DEPOT a tout membre actif ; `manageFiles` gouverne l'ADMINISTRATION
@@ -449,7 +452,7 @@ class LoopDossiersCard extends Component
         // sont dans la MEME liste que les fichiers deposes : « ce ne sont pas
         // des fichiers a part ». Une seconde tuile donnait a croire a un
         // second type de partage.
-        return \App\Models\DossierFile::query()
+        return DossierFile::query()
             ->withoutTrashed()
             ->where('organization_id', $dossier->organization_id)
             ->where(function ($q) use ($dossier) {
@@ -524,7 +527,7 @@ class LoopDossiersCard extends Component
             return [];
         }
 
-        return $fichiers->mapWithKeys(function (\App\Models\DossierFile $f) use ($organization, $dossier) {
+        return $fichiers->mapWithKeys(function (DossierFile $f) use ($organization, $dossier) {
             $partage = $f->dossier_id !== $dossier->id;
 
             $url = $partage
@@ -543,7 +546,7 @@ class LoopDossiersCard extends Component
 
     private function sharedFiles(Dossier $dossier): Collection
     {
-        return \App\Models\DossierFile::query()
+        return DossierFile::query()
             ->withoutTrashed()
             ->where('organization_id', $dossier->organization_id)
             ->whereHas('loopShares', fn ($q) => $q

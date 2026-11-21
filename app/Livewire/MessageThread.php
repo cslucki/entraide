@@ -229,9 +229,41 @@ class MessageThread extends Component
             ->exists();
     }
 
+    /**
+     * TASK-1869 — « Repondre a » et « Epingler » n'appartiennent pas a une
+     * transaction d'entraide.
+     *
+     * Ces deux gestes sont ceux d'une CONVERSATION : le ChatLoop et la
+     * messagerie privee. Le fil d'une entraide, lui, sert a mener un echange
+     * de services jusqu'a sa cloture — ses actions sont metier.
+     *
+     * La vue ne montre plus les boutons ; cette methode est ce qui le REND
+     * VRAI. Une requete Livewire forgee vise directement `replyTo` ou
+     * `pinMessage` sans passer par aucun bouton : l'affichage n'a jamais ete
+     * une permission.
+     *
+     * Ce que cette garde ne touche pas, volontairement :
+     * - `unpinMessage()`, laisse ouvert pour detacher un epinglage HISTORIQUE
+     *   (arbitrage MASTER 2) — il ne cree rien et n'expose rien ;
+     * - les reponses et epinglages deja enregistres, qui restent affiches tels
+     *   qu'ils ont ete ecrits ;
+     * - `toggleReaction()`, la copie, la modification et la suppression.
+     */
+    private function gestesDeConversationAutorises(Transaction $transaction): bool
+    {
+        return $transaction->isDirectConversation();
+    }
+
     public function replyTo(string $messageId): void
     {
         $transaction = $this->transaction();
+
+        // TASK-1869 — refus silencieux, le meme motif que les gardes
+        // d'appartenance de ce composant : rien n'est ecrit, rien n'est
+        // revele, et le fil se re-rend inchange.
+        if (! $this->gestesDeConversationAutorises($transaction)) {
+            return;
+        }
 
         $message = Message::where('id', $messageId)
             ->where('transaction_id', $transaction->id)
@@ -505,7 +537,17 @@ class MessageThread extends Component
             return;
         }
 
-        $replyToId = $this->replyToMessageId;
+        // TASK-1869 — `replyToMessageId` est une propriete PUBLIQUE Livewire :
+        // elle voyage avec l'etat du composant et peut etre posee par le
+        // client sans jamais appeler `replyTo()`. Fermer la methode ne suffit
+        // donc pas — c'est ICI, au moment ou la citation deviendrait une
+        // ligne en base, que l'entraide la laisse tomber.
+        //
+        // Rien n'est refuse a l'utilisateur : le message part normalement,
+        // simplement sans `reply_to_id`.
+        $replyToId = $this->gestesDeConversationAutorises($transaction)
+            ? $this->replyToMessageId
+            : null;
 
         if ($replyToId !== null) {
             $parent = Message::where('id', $replyToId)
@@ -771,6 +813,15 @@ class MessageThread extends Component
         $transaction = $this->transaction();
 
         if (! in_array($user->id, [$transaction->buyer_id, $transaction->seller_id])) {
+            return;
+        }
+
+        // TASK-1869 — aucun NOUVEL epinglage sur une entraide. Le controle
+        // est ici, apres l'appartenance et avant toute ecriture : un epinglage
+        // ecrase celui en place (`update()` en masse juste en dessous), donc
+        // un refus tardif aurait deja detache le message historique que
+        // l'arbitrage MASTER 2 demande de preserver.
+        if (! $this->gestesDeConversationAutorises($transaction)) {
             return;
         }
 

@@ -115,7 +115,7 @@
                     <div class="flex flex-wrap gap-3">
                         @foreach($service->images as $img)
                         <button type="button" @click="imageUrl = @js($img->url); imageOpen = true" class="group block h-20 w-20 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:border-gray-700 dark:bg-gray-700 dark:focus:ring-offset-gray-800">
-                            <img src="{{ $img->url }}" alt="" class="h-full w-full object-cover">
+                            <img src="{{ $img->thumbnail_url }}" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover">
                         </button>
                         @endforeach
                     </div>

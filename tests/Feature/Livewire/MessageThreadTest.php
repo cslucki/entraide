@@ -34,6 +34,27 @@ class MessageThreadTest extends TestCase
 
     private Transaction $transaction;
 
+    /**
+     * TASK-1869 — la MESSAGERIE PRIVEE, a cote de l'entraide.
+     *
+     * `$this->transaction` est une transaction d'ENTRAIDE
+     * (`points_proposed = 50`), et depuis cette TASK « Repondre a » et
+     * « Epingler » n'y existent plus : ce sont des gestes de conversation.
+     *
+     * Les tests qui exercent ces deux gestes COMME FONCTIONNALITE montent donc
+     * desormais ce fil-ci, ou ils gardent tout leur sens. Les autres — envoi,
+     * statut, reactions, pieces jointes, apercus de lien, isolation — restent
+     * sur l'entraide : leur couverture metier est due la-bas, et la deplacer
+     * n'aurait rien prouve de plus.
+     *
+     * Deux tests restent volontairement sur l'entraide alors qu'ils parlent
+     * d'epinglage : l'affichage du bandeau et le detachement. Ils mesurent
+     * exactement ce que l'arbitrage MASTER 2 demande de preserver — un
+     * epinglage HISTORIQUE reste lisible et detachable, seul le NOUVEL
+     * epinglage est ferme.
+     */
+    private Transaction $conversationDirecte;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -46,6 +67,18 @@ class MessageThreadTest extends TestCase
             'seller_id' => $this->seller->id,
             'status' => 'accepted',
             'points_proposed' => 50,
+        ]);
+
+        // TASK-1869 — `isDirectConversation()` exige les trois a la fois :
+        // aucun service, aucune demande, zero point.
+        $this->conversationDirecte = Transaction::factory()->create([
+            'organization_id' => $this->organization->id,
+            'buyer_id' => $this->buyer->id,
+            'seller_id' => $this->seller->id,
+            'status' => 'accepted',
+            'points_proposed' => 0,
+            'service_id' => null,
+            'request_id' => null,
         ]);
 
         app()->instance('current_organization', $this->organization);
@@ -181,14 +214,14 @@ class MessageThreadTest extends TestCase
     public function test_reply_to_message_creates_reply_to_id(): void
     {
         $parent = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->seller->id,
             'body' => 'Message parent',
             'type' => 'user',
         ]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('replyTo', $parent->id)
             ->assertSet('replyToMessageId', $parent->id)
             ->set('newMessage', 'Ma réponse')
@@ -197,7 +230,7 @@ class MessageThreadTest extends TestCase
             ->assertSet('replyToMessageId', null);
 
         $this->assertDatabaseHas('messages', [
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->buyer->id,
             'body' => 'Ma réponse',
             'reply_to_id' => $parent->id,
@@ -207,14 +240,14 @@ class MessageThreadTest extends TestCase
     public function test_cancel_reply_clears_state(): void
     {
         $parent = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->seller->id,
             'body' => 'Message parent',
             'type' => 'user',
         ]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('replyTo', $parent->id)
             ->assertSet('replyToMessageId', $parent->id)
             ->call('cancelReply')
@@ -238,7 +271,7 @@ class MessageThreadTest extends TestCase
         ]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('replyTo', $otherMessage->id)
             ->assertSet('replyToMessageId', null);
     }
@@ -246,23 +279,23 @@ class MessageThreadTest extends TestCase
     public function test_cannot_send_reply_on_completed_transaction(): void
     {
         $parent = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->seller->id,
             'body' => 'Message parent',
             'type' => 'user',
         ]);
 
-        $this->transaction->update(['status' => 'completed']);
+        $this->conversationDirecte->update(['status' => 'completed']);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('replyTo', $parent->id)
             ->assertSet('replyToMessageId', $parent->id)
             ->set('newMessage', 'Réponse trop tard')
             ->call('sendMessage');
 
         $this->assertDatabaseMissing('messages', [
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->buyer->id,
             'body' => 'Réponse trop tard',
         ]);
@@ -351,7 +384,7 @@ class MessageThreadTest extends TestCase
         Storage::fake('public');
 
         $parent = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->seller->id,
             'body' => 'Message parent',
             'type' => 'user',
@@ -360,7 +393,7 @@ class MessageThreadTest extends TestCase
         $image = UploadedFile::fake()->image('reply.jpg');
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('replyTo', $parent->id)
             ->set('newMessage', 'Réponse avec image')
             ->set('photo', $image)
@@ -437,14 +470,14 @@ class MessageThreadTest extends TestCase
         ]);
 
         $parent = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->seller->id,
             'body' => 'Message parent',
             'type' => 'user',
         ]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('replyTo', $parent->id)
             ->set('newMessage', 'Réponse avec lien https://reply-example.com/page')
             ->call('sendMessage');
@@ -492,14 +525,14 @@ class MessageThreadTest extends TestCase
     public function test_buyer_can_pin_message(): void
     {
         $msg = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->buyer->id,
             'body' => 'Message à épingler',
             'type' => 'user',
         ]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('pinMessage', $msg->id);
 
         $fresh = $msg->fresh();
@@ -514,14 +547,14 @@ class MessageThreadTest extends TestCase
     public function test_seller_can_pin_message(): void
     {
         $msg = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->seller->id,
             'body' => 'Message à épingler',
             'type' => 'user',
         ]);
 
         Livewire::actingAs($this->seller)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('pinMessage', $msg->id);
 
         $fresh = $msg->fresh();
@@ -533,6 +566,11 @@ class MessageThreadTest extends TestCase
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
     #[Group('ci-known-red')]
+    // TASK-1869 — reste volontairement sur l'ENTRAIDE. L'epinglage y est pose
+    // directement en base, comme l'aurait laisse une transaction d'avant cette
+    // TASK : ce test mesure donc exactement l'arbitrage MASTER 2 — un
+    // epinglage historique reste lisible dans le bandeau, meme la ou le geste
+    // d'epingler n'existe plus.
     public function test_pinned_message_is_shown_in_banner_in_messages(): void
     {
         Message::create([
@@ -599,7 +637,7 @@ class MessageThreadTest extends TestCase
         ]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('pinMessage', $msg->id);
 
         $fresh = $msg->fresh();
@@ -823,21 +861,21 @@ class MessageThreadTest extends TestCase
         Storage::fake('public');
 
         $parent = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->seller->id,
             'body' => 'Message parent',
             'type' => 'user',
         ]);
 
         $pinnable = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->seller->id,
             'body' => 'Épinglé',
             'type' => 'user',
         ]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('pinMessage', $pinnable->id)
             ->call('replyTo', $parent->id)
             ->set('newMessage', 'Réaction + reply')
@@ -848,7 +886,7 @@ class MessageThreadTest extends TestCase
         $this->assertSame($parent->id, $reply->reply_to_id);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('toggleReaction', $pinnable->id, 'thumbs_up');
 
         $this->assertDatabaseHas('reactions', [
@@ -864,21 +902,21 @@ class MessageThreadTest extends TestCase
     public function test_pin_replaces_previous_pin_in_messages(): void
     {
         $first = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->buyer->id,
             'body' => 'Premier pin',
             'type' => 'user',
         ]);
 
         $second = Message::create([
-            'transaction_id' => $this->transaction->id,
+            'transaction_id' => $this->conversationDirecte->id,
             'sender_id' => $this->buyer->id,
             'body' => 'Second pin',
             'type' => 'user',
         ]);
 
         Livewire::actingAs($this->buyer)
-            ->test(MessageThread::class, ['transaction' => $this->transaction])
+            ->test(MessageThread::class, ['transaction' => $this->conversationDirecte])
             ->call('pinMessage', $first->id)
             ->call('pinMessage', $second->id);
 
@@ -895,6 +933,10 @@ class MessageThreadTest extends TestCase
     // qu'il puisse signifier quelque chose ; **le groupe doit se vider**, il
     // n'est pas un endroit ou ranger un test qui gene.
     #[Group('ci-known-red')]
+    // TASK-1869 — reste volontairement sur l'ENTRAIDE : `unpinMessage()` n'a
+    // pas ete ferme, c'est le seul geste de nettoyage d'un epinglage
+    // historique (arbitrage MASTER 2). Le fermer aurait condamne ces messages
+    // a rester epingles pour toujours.
     public function test_buyer_can_unpin_message(): void
     {
         $msg = Message::create([

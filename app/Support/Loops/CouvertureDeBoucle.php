@@ -2,7 +2,9 @@
 
 namespace App\Support\Loops;
 
+use App\Jobs\ProcessImageVariants;
 use App\Models\Loop;
+use App\Support\Images\ImageVariantService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -93,17 +95,24 @@ trait CouvertureDeBoucle
 
         $filename = Str::random(32).'.'.$request->file('cover_image')->extension();
 
-        return $request->file('cover_image')->storeAs(
+        $path = $request->file('cover_image')->storeAs(
             'loop-covers/'.$loop->id,
             $filename,
             'public',
         );
+
+        // TASK-1873 — l'original reste tel quel ; ses variantes WebP sont
+        // derivees hors requete, sur la queue `images`.
+        ProcessImageVariants::forUpload('loop_cover', $path ?: null, $loop->organization_id);
+
+        return $path;
     }
 
     protected function supprimerCouverture(string $path): void
     {
         if (str_starts_with($path, 'loop-covers/') && Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
+            app(ImageVariantService::class)->forget($path);
         }
     }
 }

@@ -162,6 +162,15 @@ return [
         'budget_min' => 'budget minimum',
         'budget_max' => 'budget maximum',
         'phone' => 'numéro de téléphone',
+        // TASK-1872 correctif 01 — ces quatre champs deviennent obligatoires,
+        // donc leur nom se met a PARAITRE dans un message d'erreur. Sans ces
+        // lignes, Laravel ecrivait « Le champ country code est obligatoire » :
+        // le nom de la colonne, pas celui du champ a l'ecran. Le libelle doit
+        // etre celui que la personne vient de lire au-dessus du champ.
+        'first_name' => 'prénom',
+        'city' => 'ville',
+        'country_code' => 'pays',
+        'bio' => 'présentation',
     ],
 
     'custom' => [

@@ -33,6 +33,19 @@
     'isPinned' => false,
     'isEdited' => false,
     'showReactions' => false,
+    // TASK-1870 — COMMENT on entre en mode selection sur telephone.
+    //
+    // `false` (defaut) : le simple appui selectionne, comme depuis T1771.
+    //   C'est ce que gardent les transactions d'entraide et tout autre
+    //   consommateur de cette bulle qui ne demande rien.
+    // `true` : il faut un APPUI LONG ; le simple appui ne selectionne plus,
+    //   il ne sert qu'a CHANGER de bulle quand la barre est deja ouverte.
+    //   Allume par le ChatLoop et la messagerie privee (TASK-1870).
+    //
+    // Le defaut est volontairement le comportement actuel : cette bulle est
+    // partagee, et une nouvelle facon d'entrer en selection ne doit atteindre
+    // que les surfaces qui la demandent.
+    'longPressSelection' => false,
     // TASK-1772 — les noms EXACTS mentionnes dans ce message, deja resolus
     // par l'appelant. La bulle ne cherche aucun nom : on les lui donne, sans
     // quoi chaque bulle ferait sa requete (N+1 sur un fil de trente).
@@ -412,6 +425,17 @@ $_teindreLesMentions = static function (string $html) use ($_mentionDebut, $_men
 $_actionsDuMessage = $messageId && ($showReplyButton || $showPinButton || $showCopyButton || $showEditButton || $showDeleteButton);
 $_menuAppuiLong = $_actionsDuMessage || ($showReactions && $messageId);
 
+// TASK-1870 — le geste d'ENTREE en selection passe a l'appui long, sur les
+// seules surfaces qui le demandent (ChatLoop et messagerie privee).
+//
+// Rien de T1770/T1771 n'est restaure : ces detecteurs-la ecoutaient
+// `touchstart`/`touchmove`/`touchend`/`touchcancel` et arbitraient EUX-MEMES
+// si le doigt defilait. C'est cet arbitrage maison qui perdait. Ici, ce sont
+// les Pointer Events, et c'est le NAVIGATEUR qui tranche : `touch-action:
+// pan-y` lui fait emettre `pointercancel` des qu'il decide que le geste est
+// un defilement vertical.
+$_gestePressionLongue = $_menuAppuiLong && $longPressSelection;
+
 // Le pied de bulle porte-t-il autre chose que les actions ? S'il ne porte
 // qu'elles, il doit disparaitre ENTIER sur telephone : le masquer a moitie
 // laisserait ses 4 px de `mt-1` sur chacun des trente messages.
@@ -516,6 +540,99 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
         },
         hover: false,
         showMore: false,
+        @if($_gestePressionLongue)
+        /* ==============================================================
+           TASK-1870 — L'APPUI LONG, EN POINTER EVENTS.
+           ==============================================================
+           Trois etats, et rien de plus : un minuteur, le point de depart
+           du doigt, et un drapeau qui dit qu'un appui long vient
+           d'aboutir.
+
+           Ce drapeau est la reponse a l'echec n°3 de T1771 (« le menu
+           s'affiche et repart ») : apres un appui long, le navigateur
+           emet encore un `click` de compatibilite. Il n'a plus rien a
+           rappeler ici — le clic court ne selectionne plus — mais il
+           pourrait toujours atteindre la barre ou un parent, donc on
+           l'absorbe UNE fois. Une seule : le drapeau retombe aussitot,
+           et le prochain vrai appui est traite normalement. */
+        minuteurPression: null,
+        departX: 0,
+        departY: 0,
+        pressionLongueAboutie: false,
+
+        /** Seuil en ms. Garde SECONDAIRE : le navigateur annule deja au defilement. */
+        seuilPressionLongue: 500,
+        /** Tolerance du doigt, en px, avant d'abandonner. */
+        toleranceMouvement: 10,
+
+        demarrerPression(e) {
+            // Le bureau ne change pas : la souris garde le clic simple.
+            if (! this.surTelephone() || e.pointerType === 'mouse') { return; }
+            // Un lien, un bouton, un champ : c'est a eux, pas au geste.
+            if (e.target.closest('a,button,input,textarea,select,[role=button]')) { return; }
+
+            this.annulerPression();
+            this.pressionLongueAboutie = false;
+            this.departX = e.clientX;
+            this.departY = e.clientY;
+
+            // Le pointeur reste suivi meme si le doigt sort de la bulle :
+            // on ne depend donc PAS de `pointerleave` pour annuler, et
+            // `pointerup`/`pointercancel` nous reviennent a coup sur.
+            try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+
+            this.minuteurPression = setTimeout(() => {
+                this.minuteurPression = null;
+                this.pressionLongueAboutie = true;
+                this.selectionner();
+            }, this.seuilPressionLongue);
+        },
+
+        /** Le doigt a trop bouge : ce n'etait pas un appui, c'est un geste. */
+        surveillerPression(e) {
+            if (! this.minuteurPression) { return; }
+            if (Math.abs(e.clientX - this.departX) > this.toleranceMouvement
+                || Math.abs(e.clientY - this.departY) > this.toleranceMouvement) {
+                this.annulerPression();
+            }
+        },
+
+        /** Doigt leve : si le minuteur court encore, c'etait un appui COURT. */
+        terminerPression(e) {
+            this.annulerPression();
+            try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_) {}
+        },
+
+        annulerPression() {
+            if (this.minuteurPression) { clearTimeout(this.minuteurPression); }
+            this.minuteurPression = null;
+        },
+
+        /**
+         * TASK-1870 — ce que fait un `click` quand l'appui long est en place.
+         *
+         * Trois chemins, dans cet ordre :
+         *   1. clic de synthese juste apres un appui long -> absorbe, une fois ;
+         *   2. bureau -> comportement INCHANGE, le clic selectionne ;
+         *   3. telephone -> ne selectionne QUE si la barre est deja ouverte,
+         *      pour passer d'une bulle a l'autre. Sinon rien : c'est tout
+         *      l'objet de cette TASK.
+         */
+        clicSurBulle(e) {
+            if (this.pressionLongueAboutie) {
+                this.pressionLongueAboutie = false;
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+
+            if (e.target.closest('a,button,input,textarea,select,[role=button]')) { return; }
+
+            if (! this.surTelephone()) { this.selectionner(); return; }
+
+            if (this.$store.bpSelection.ouvert) { this.selectionner(); }
+        },
+        @endif
         /**
          * TASK-1771 — entrer (ou sortir) du mode selection.
          *
@@ -671,6 +788,27 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
              que l'oeil appelle « le message », gouttiere exclue. --}}
         @if($_menuAppuiLong)
         data-bp-selectable
+        @endif
+        @if($_gestePressionLongue)
+        {{-- TASK-1870 — l'appui long, sur CETTE surface seulement.
+
+             `touch-action: pan-y` n'est pas un detail de style : c'est lui
+             qui fait emettre `pointercancel` par le navigateur des qu'il
+             decide que le doigt defile. Le geste s'annule donc par la
+             decision du navigateur, pas par un seuil que l'on aurait
+             devine — c'est exactement ce qui manquait a T1770/T1771.
+
+             Le `contextmenu` est retenu pendant le geste : sans lui,
+             Android ouvre son menu natif par-dessus notre barre. --}}
+        data-bp-appui-long
+        style="touch-action: pan-y;"
+        x-on:pointerdown="demarrerPression($event)"
+        x-on:pointermove="surveillerPression($event)"
+        x-on:pointerup="terminerPression($event)"
+        x-on:pointercancel="annulerPression()"
+        x-on:contextmenu="if (minuteurPression || pressionLongueAboutie) $event.preventDefault()"
+        x-on:click="clicSurBulle($event)"
+        @elseif($_menuAppuiLong)
         x-on:click="if (! $event.target.closest('a,button,input,textarea,select,[role=button]')) selectionner()"
         @endif
     >

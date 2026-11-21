@@ -33,6 +33,12 @@ class InvitationPasswordController extends Controller
 
         return view('auth.invitation-password', [
             'organization' => $request->user()->organization,
+            // TASK-1868 — affiche pour que le gestionnaire de mots de passe
+            // du navigateur associe cette adresse au mot de passe pose
+            // ci-dessous. Jamais lu depuis la requete en retour : `store()`
+            // tire exclusivement l'identite de `$request->user()`, la seule
+            // adresse qui compte etant celle deja en base.
+            'email' => $request->user()->email,
         ]);
     }
 

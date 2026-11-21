@@ -23,6 +23,7 @@ use App\Services\Loops\LoopPresetConfigurator;
 use App\Services\LoopService;
 use App\Support\Ai\AiExecutionPath;
 use App\Support\Ai\AiRefusedException;
+use App\Support\Loops\CouvertureDeBoucle;
 use App\Support\Loops\HelpRequestHandoff;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
@@ -42,7 +43,7 @@ use Illuminate\View\View;
 
 class LoopController extends Controller
 {
-    use \App\Support\Loops\CouvertureDeBoucle;
+    use CouvertureDeBoucle;
 
     /**
      * Combien d'outils la barre de ChatLoop montre directement.
@@ -341,11 +342,107 @@ class LoopController extends Controller
         $filterDomains = $loops->pluck('categories')->flatten()->unique('id')
             ->sortBy(fn ($c) => $c->displayName('loops'))->values();
 
+        // TASK-1864 — deux presentations du MEME catalogue : `grid` (cartes,
+        // par defaut) et `list`. Toute autre valeur retombe sur `grid` : le
+        // parametre choisit un gabarit, jamais un perimetre — la liste des
+        // Boucles et leurs droits ne dependent pas de lui.
+        $catalogView = request()->query('view') === 'list' ? 'list' : 'grid';
+
+        if ($catalogView === 'list') {
+            // Le dernier message humain, et SEULEMENT pour les Boucles dont
+            // cette personne est membre : un non-membre ne lit jamais un
+            // apercu de conversation (« privee » = contenu reserve aux
+            // membres, TASK-1075). Une requete pour toutes ces Boucles, bornee
+            // a UN message par Boucle (`limit(1)` -> fenetre par Boucle) —
+            // jamais la conversation entiere tronquee apres coup.
+            $loops->where('is_member', true)->load([
+                'recentHumanMessages' => fn ($query) => $query
+                    ->where('organization_id', $organizationId)
+                    ->limit(1)
+                    ->with('sender'),
+            ]);
+        }
+
         // `organization` part avec le reste : les onglets de type se nomment
         // **dans la portee**, et un type cree par cette Organization doit y
         // avoir son onglet — `all()` sans portee ne le connait pas.
-        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization'))
+        return view('loops.index', compact('loops', 'filterDomains', 'archivedLoops', 'organization', 'catalogView'))
             ->with('canCreate', $canCreate);
+    }
+
+    /**
+     * TASK-1865 — l'APERCU d'une Boucle : un fragment HTML (sans layout), charge
+     * a la demande par le tiroir de la grille et les volets de la liste.
+     *
+     * Aucune regle n'est ecrite ici, toutes sont deleguees :
+     * - tenant : appartenance (`assertUserBelongsToOrganization`) ET Boucle de
+     *   cette Organization, verifiee ICI — le binding `{loop}` ne filtre pas
+     *   par tenant sur la route nue (AppServiceProvider). Pas de bypass
+     *   SuperAdmin : inspecter un tenant n'est pas y lire un apercu ;
+     * - perimetre : `VisibleLoops`, restreint a CETTE Boucle — donc active
+     *   seulement, et avec les annotations d'acces du catalogue ;
+     * - contenu reserve : `LoopPolicy::viewWorkspace`, seule autorite. Sans
+     *   elle, ni message ni membre nominatif n'est meme CHARGE.
+     */
+    public function preview(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View
+    {
+        $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
+        $organization = $this->resolveOrganization();
+        $this->assertUserBelongsToOrganization($organization);
+
+        if ($loop->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $user = auth()->user();
+
+        $item = app(VisibleLoops::class)
+            ->query((string) $organization->id, $user)
+            ->whereKey($loop->getKey())
+            ->first();
+
+        // Archivee, inactive ou hors catalogue : rien a montrer, et rien a dire
+        // de son existence.
+        abort_if($item === null, 404);
+
+        // Le perimetre des membres a MONTRER (TASK-1802) : adhesion active,
+        // tenant explicite, titulaire encore dans l'Organization de la Boucle.
+        // Le compteur affiche emploie exactement le meme, dans les deux etats.
+        $membersQuery = fn () => LoopMember::query()
+            ->where('loop_id', $item->id)
+            ->where('organization_id', $organization->id)
+            ->where('status', 'active')
+            ->currentlyInLoopOrganization();
+
+        $memberCount = $membersQuery()->count();
+
+        $canRead = $user->can('viewWorkspace', $item);
+        $messages = collect();
+        $members = collect();
+
+        if ($canRead) {
+            $messages = $item->recentHumanMessages()
+                ->where('organization_id', $organization->id)
+                ->limit(5)
+                ->with('sender')
+                ->get();
+
+            $members = $membersQuery()
+                ->with('user')
+                ->orderByRaw("case when role = 'owner' then 0 else 1 end")
+                ->orderBy('joined_at')
+                ->orderBy('id')
+                ->limit(12)
+                ->get();
+        }
+
+        return view('loops.partials.preview', [
+            'item' => $item,
+            'canRead' => $canRead,
+            'messages' => $messages,
+            'members' => $members,
+            'memberCount' => $memberCount,
+        ]);
     }
 
     /**
@@ -384,22 +481,68 @@ class LoopController extends Controller
             $messagesParBoucle = LoopMessage::query()
                 ->whereIn('loop_id', $loopsMembre->pluck('id'))
                 ->where('organization_id', $organizationId)
-                ->whereNotNull('sender_id')
-                ->notDeleted()
+                ->humanVisible()
                 ->with('sender')
                 ->latest('created_at')
+                // TASK-1872 correctif 08 — DEPARTAGE DETERMINISTE.
+                //
+                // Deux messages de la meme seconde laissaient l'ordre au
+                // hasard du plan d'execution : la selection des trois pouvait
+                // changer d'un rafraichissement a l'autre, et l'inversion
+                // d'affichage ci-dessous aurait rendu ce hasard VISIBLE. Les
+                // identifiants sont des UUIDv7 (`HasUuids` rend `Str::uuid7()`
+                // dans cette version) : ils sont ordonnables dans le temps, et
+                // departagent donc sans inventer de critere etranger.
+                ->orderByDesc('id')
                 ->get()
                 ->groupBy('loop_id');
 
             $loopsAvecMessages = $loopsMembre
                 ->filter(fn ($loop) => $messagesParBoucle->has($loop->id))
-                ->map(fn ($loop) => [
-                    'loop' => $loop,
-                    'messages' => $messagesParBoucle->get($loop->id)->take(3),
-                ])
-                // La Boucle la plus RECEMMENT active d'abord — son propre
-                // message le plus recent, puisque `messages` est deja triee.
-                ->sortByDesc(fn (array $entree) => $entree['messages']->first()->created_at)
+                ->map(function ($loop) use ($messagesParBoucle) {
+                    // Les TROIS PLUS RECENTS : la selection se fait sur la
+                    // collection decroissante, et elle ne change pas.
+                    $troisPlusRecents = $messagesParBoucle->get($loop->id)->take(3);
+
+                    return [
+                        'loop' => $loop,
+                        /* TASK-1872 correctif 08 — la cle de tri des Boucles est
+                           CALCULEE ICI, avant toute inversion.
+                           ==========================================
+                           Demande de Cyril : « les messages au sein d'une
+                           boucle sont classes par ordre decroissant de date,
+                           il faudrait faire l'inverse. » Le classement des
+                           BOUCLES, lui, ne change pas : la plus recemment
+                           active reste en tete.
+
+                           Le code lisait cette activite sur `messages->first()`
+                           « puisque la collection est deja triee ». Inverser
+                           l'affichage aurait fait de `first()` le message le
+                           plus ANCIEN du groupe : les Boucles se seraient
+                           reordonnees en silence, sans que rien ne le
+                           signale. On fige donc la valeur pendant qu'elle est
+                           encore juste, au lieu de la rededuire apres coup. */
+                        'activite' => $troisPlusRecents->first()->created_at,
+                        /* Le message le PLUS RECENT, nomme.
+                           --------------------------------
+                           Le clic sur la couverture y mene — « emmene-moi la
+                           ou la conversation en est ». La vue le lisait sur
+                           `messages->first()`, ce qui etait juste tant que la
+                           collection etait decroissante ; apres inversion,
+                           elle aurait mene au plus ANCIEN des trois, sans
+                           erreur et sans rien signaler. Nommer la destination
+                           rend la vue INDEPENDANTE du sens d'affichage. */
+                        'dernier' => $troisPlusRecents->first(),
+                        // Du plus ANCIEN au plus recent : on lit un extrait de
+                        // conversation, et une conversation se lit dans le sens
+                        // ou elle s'est tenue.
+                        'messages' => $troisPlusRecents->reverse()->values(),
+                    ];
+                })
+                // La Boucle la plus RECEMMENT active d'abord — sur la valeur
+                // FIGEE plus haut, jamais relue sur `messages`, qui est
+                // desormais croissante.
+                ->sortByDesc(fn (array $entree) => $entree['activite'])
                 ->values();
         }
 

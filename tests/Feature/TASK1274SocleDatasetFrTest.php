@@ -182,10 +182,21 @@ class TASK1274SocleDatasetFrTest extends TestCase
 
     public function test_before_load_the_four_personas_are_blocked_by_profile_complete(): void
     {
+        // TASK-1871 — ce test part d'une URL SCOPEE (`servicesCreateUrl()`
+        // porte `/org/{slug}/...`), et la redirection forcee y reste
+        // desormais : elle ne renvoie plus sur la route nue.
+        //
+        // La propriete mesuree ici — les quatre personas sont BLOQUES par
+        // `profile.complete` — est inchangee, et elle est meme renforcee :
+        // on verifie en plus qu'on ne quitte pas l'Organization en chemin.
+        $urlAttendue = route('organization.profile.edit', [
+            'organization' => Test20260822DogfoodingPack::ORGANIZATION_SLUG,
+        ]);
+
         foreach ($this->personas as $key => $user) {
             $this->actingAs($user)
                 ->get($this->servicesCreateUrl())
-                ->assertRedirect(route('profile.edit'));
+                ->assertRedirect($urlAttendue);
         }
     }
 

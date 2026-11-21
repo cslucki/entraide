@@ -97,9 +97,39 @@
                     <x-input-error :messages="$errors->get('type')" class="mt-1" />
                 </fieldset>
 
+                {{-- TASK-1872 correctif 07 — deleguer la personnalisation des
+                     outils, Boucle par Boucle.
+
+                     Constat de Cyril : « uniquement l'administrateur de
+                     l'organisation peut modifier les outils de la boucle ».
+                     La cause n'etait ni le menu ni un droit serveur — le
+                     proprietaire passait DEJA `canConfigure()`, mais sous
+                     condition d'un reglage d'Organization ferme par defaut et
+                     qu'aucun ecran ne permettait d'ouvrir.
+
+                     TROIS etats, pas une case a cocher : une case ne sait pas
+                     distinguer « refuse ici » de « rien decide ici ». Le
+                     troisieme — l'heritage — est le defaut, et c'est lui qui
+                     garantit qu'aucune Boucle existante ne change de
+                     comportement tant que personne n'a choisi. --}}
+                <fieldset class="space-y-2">
+                    <legend class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('admin.org_admin_loop_composition') }}</legend>
+                    <p class="text-xs text-gray-400">{{ __('admin.org_admin_loop_composition_hint') }}</p>
+
+                    @php($_delegation = old('owner_may_compose', $currentLoop->owner_may_compose === null ? '' : (int) $currentLoop->owner_may_compose))
+                    <select name="owner_may_compose" data-marqueur="champ-composition"
+                            class="w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                        <option value="" @selected((string) $_delegation === '')>{{ __('admin.org_admin_loop_composition_inherit') }}</option>
+                        <option value="1" @selected((string) $_delegation === '1')>{{ __('admin.org_admin_loop_composition_allow') }}</option>
+                        <option value="0" @selected((string) $_delegation === '0')>{{ __('admin.org_admin_loop_composition_deny') }}</option>
+                    </select>
+
+                    <x-input-error :messages="$errors->get('owner_may_compose')" class="mt-1" />
+                </fieldset>
+
                 {{-- TASK-1725 — l'image de couverture.
 
-                     L'apercu est rendu depuis `cover_image_url`, l'accesseur du
+                     L'apercu est rendu depuis `cover_image_thumb_url` (TASK-1873), accesseur du
                      modele : la vue ne reconstruit aucun chemin de stockage.
 
                      La case de retrait n'apparait QUE s'il y a une image a
@@ -110,7 +140,7 @@
                     <p class="text-xs text-gray-400">{{ __('admin.org_admin_loop_cover_hint') }}</p>
 
                     @if($currentLoop->cover_image_path)
-                        <img src="{{ $currentLoop->cover_image_url }}" alt=""
+                        <img src="{{ $currentLoop->cover_image_thumb_url }}" alt=""
                              data-marqueur="apercu-couverture"
                              class="h-28 w-full rounded-xl object-cover sm:w-64">
                     @endif

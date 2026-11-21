@@ -9,25 +9,27 @@ use App\Models\LoopMember;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\Transaction;
+use App\Jobs\ProcessImageVariants;
 use App\Models\User;
-use App\Support\Entraide\BilanEntraide;
 use App\Rules\NomDePersonneAcceptable;
+use App\Rules\UniqueEmailInOrganization;
 use App\Services\UserSlugService;
+use App\Support\Entraide\BilanEntraide;
 use App\Support\Feed\FeedEventCatalogue;
 use App\Support\Feed\FeedEventEmitter;
 use App\Support\ProfileLinks;
+use App\Support\Tenancy\UserWriteLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use App\Rules\UniqueEmailInOrganization;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Intervention\Image\Laravel\Facades\Image;
-use App\Support\Tenancy\UserWriteLock;
-use Illuminate\Support\Facades\DB;
 
 class ProfileController extends Controller
 {
@@ -170,7 +172,9 @@ class ProfileController extends Controller
         $ogDescription = $user->bio
             ? Str::limit($user->bio, 160)
             : "Profil de {$user->name} sur Entraide";
-        $ogImage = $user->avatar_url;
+        // TASK-1873 — l'aperçu social garde l'ORIGINAL : la variante d'avatar
+        // (192 px) passe sous le minimum de 200 px de certains reseaux.
+        $ogImage = $user->avatar ? Storage::disk('public')->url($user->avatar) : $user->avatar_url;
         $jsonLd = json_encode([
             '@context' => 'https://schema.org',
             '@type' => 'Person',
@@ -301,7 +305,20 @@ class ProfileController extends Controller
         $organization = $this->profileOrganization($request);
 
         $rules = [
-            'first_name' => ['nullable', 'string', 'max:255', new NomDePersonneAcceptable],
+            // TASK-1872 correctif 01 — OBLIGATOIRE, et ce n'est pas un
+            // durcissement : c'est la fin d'une contradiction.
+            //
+            // `EnsureProfileComplete` refuse DEJA de publier un service ou une
+            // demande sans `first_name`, `city`, `country_code` ni `bio`.
+            // Cette regle-ci les acceptait vides. Le resultat etait le pire
+            // des deux mondes : on enregistrait un profil que le produit
+            // jugeait incomplet, puis on refusait l'action SANS dire quel
+            // champ manquait — l'ecran ne le marquait pas davantage.
+            //
+            // Demande de Cyril, 21/11 : « l'idee est de ne pas laisser des
+            // membres, sans presentation, faire certaines actions ». Les trois
+            // endroits disent donc desormais la meme chose.
+            'first_name' => ['required', 'string', 'max:255', new NomDePersonneAcceptable],
             // TASK-1712 — un nom de personne, pas un support publicitaire.
             //
             // `ProfileUpdateRequest` existe mais AUCUN controleur ne l'utilise :
@@ -336,9 +353,40 @@ class ProfileController extends Controller
             // TASK-1788 correctif 12 (demande Cyril) — 2000 releve a 3500 :
             // meme raisonnement, la video et les liens inseres depuis la
             // barre d'outils alourdissent encore le balisage compte ici.
-            'bio' => ['nullable', 'string', 'max:3500'],
-            'city' => ['nullable', 'string', 'max:255'],
-            'country_code' => ['nullable', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
+            // TASK-1872 correctif 01 — obligatoire, meme motif que
+            // `first_name` ci-dessus : `EnsureProfileComplete` l'exige deja.
+            /* TASK-1872 correctif 10 — un PLANCHER de 100 caracteres.
+               =========================================================
+               Chiffre demande par Cyril « selon les bonnes pratiques », et
+               choisi sur mesure plutot qu'au jugé. Trois raisons, dans cet
+               ordre :
+
+               1. **C'est deja la regle de la maison.** La description d'un
+                  service et celle d'une demande emploient le MEME editeur
+                  avec `minLength="100"`. Un troisieme seuil pour le meme
+                  geste d'ecriture serait une incoherence injustifiable.
+               2. **Le cout est mesure.** Sur le jumeau local : 74
+                  presentations renseignees, mediane a 307 caracteres, 1er
+                  quartile a 114. A 100, quinze d'entre elles (20%) devront
+                  etre rallongees — et seulement quand leur auteur touchera
+                  son profil. A 150 ce serait 27%, a 200 31%.
+               3. **En dessous, le champ ne fait pas son travail.** 50
+                  caracteres, c'est « Consultant independant. » Dans un
+                  annuaire d'entraide, la presentation est ce qui rend
+                  quelqu'un trouvable et abordable.
+
+               Ce qu'un minimum achete, et ce qu'il n'achete pas : un
+               plancher contre « . » et « test ». Pas de la qualite — au-dela
+               de ~150 il produit du remplissage, et c'est pourquoi on ne
+               monte pas plus haut meme si cela « ferait plus serieux ».
+
+               Compte sur le Markdown BRUT, comme le `max:3500` juste a cote
+               dont le commentaire d'origine precise que « le BALISAGE est
+               compte dans la limite ». Les deux bornes se lisent donc de la
+               meme facon. */
+            'bio' => ['required', 'string', 'min:100', 'max:3500'],
+            'city' => ['required', 'string', 'max:255'],
+            'country_code' => ['required', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
             'website' => ['nullable', 'url', 'max:255'],
             'linkedin_url' => ['nullable', 'url', 'max:255'],
             // TASK-1750 — la liste de liens supplementaires.
@@ -435,7 +483,7 @@ class ProfileController extends Controller
         // avec une photo en main. L'ecran les rend d'ailleurs exclusifs, mais
         // un formulaire renvoye ne se croit pas sur parole.
         if ($request->hasFile('avatar')) {
-            $data['avatar'] = $this->stockerAvatar($request->file('avatar'));
+            $data['avatar'] = $this->stockerAvatar($request->file('avatar'), $request->user()->organization_id);
         } elseif ($request->boolean('supprimer_avatar')) {
             // `null` et non une chaine vide : `getAvatarUrlAttribute()` teste
             // `if ($this->avatar)`, et rend les initiales generees des que la
@@ -639,7 +687,7 @@ class ProfileController extends Controller
             return back()->with('success', __('profile.avatar_removed'));
         }
 
-        $moi->update(['avatar' => $this->stockerAvatar($request->file('avatar'))]);
+        $moi->update(['avatar' => $this->stockerAvatar($request->file('avatar'), $moi->organization_id)]);
 
         return back()->with('success', __('profile.avatar_updated'));
     }
@@ -657,7 +705,7 @@ class ProfileController extends Controller
      * prefixe par `time()` : le modifier aurait change l'adresse des avatars
      * sans que personne ne l'ait demande.
      */
-    private function stockerAvatar(\Illuminate\Http\UploadedFile $file): string
+    private function stockerAvatar(UploadedFile $file, ?string $organizationId): string
     {
         $filename = time().'_'.$file->getClientOriginalName();
 
@@ -665,6 +713,10 @@ class ProfileController extends Controller
         $img->cover(300, 300);
 
         Storage::disk('public')->put('avatars/'.$filename, (string) $img->encode());
+
+        // TASK-1873 — la variante WebP 192 px, servie par `avatar_url`, est
+        // derivee hors requete ; ce fichier reste le repli.
+        ProcessImageVariants::forUpload('user_avatar', 'avatars/'.$filename, $organizationId);
 
         return 'avatars/'.$filename;
     }

@@ -5,13 +5,15 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\Organization;
-use App\Rules\UniqueEmailInOrganization;
-use App\Support\Tenancy\UserWriteLock;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
+use App\Jobs\ProcessImageVariants;
+use App\Support\Images\ImageVariantService;
+use App\Rules\UniqueEmailInOrganization;
 use App\Services\Ai\AiRerankSettings;
-use Illuminate\Http\RedirectResponse;
 use App\Support\ScenarioManager\SandboxGuard;
+use App\Support\Tenancy\UserWriteLock;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -180,6 +182,13 @@ class AdminOrganizationController extends Controller
             'multilingual_enabled' => 'nullable|boolean',
             'loops_enabled' => 'nullable|boolean',
             'members_can_create_loops' => 'nullable|boolean',
+            // TASK-1872 correctif 07 — « Autoriser les proprietaires de Boucle
+            // a modifier les outils » (demande Cyril, 21/11). La colonne
+            // existait depuis T1090 et gouvernait deja
+            // `LoopPresetConfigurator::canConfigure()` ; ce qui manquait etait
+            // la commande. Le vocabulaire de la colonne est conserve plutot
+            // que traduit en booleen : une seule semantique a suivre.
+            'loop_composition_policy' => ['nullable', Rule::in(Organization::COMPOSITION_POLICIES)],
             'subscriptions_enabled' => 'nullable|boolean',
             // TASK-1694 bug R — « Possibilite modifier emails types ».
             'system_emails_editable' => 'nullable|boolean',
@@ -232,6 +241,11 @@ class AdminOrganizationController extends Controller
         $data['multilingual_enabled'] = ($data['multilingual_enabled'] ?? '0') === '1';
         $data['loops_enabled'] = ($data['loops_enabled'] ?? '0') === '1';
         $data['members_can_create_loops'] = ($data['members_can_create_loops'] ?? '0') === '1';
+        // Case decochee = champ absent = verrouille. Meme forme que les
+        // booleens voisins, avec les deux valeurs de la colonne au lieu de 0/1.
+        $data['loop_composition_policy'] = ($data['loop_composition_policy'] ?? '') === Organization::COMPOSITION_OWNER_ALLOWED
+            ? Organization::COMPOSITION_OWNER_ALLOWED
+            : Organization::COMPOSITION_LOCKED;
         $data['subscriptions_enabled'] = ($data['subscriptions_enabled'] ?? '0') === '1';
         $data['system_emails_editable'] = ($data['system_emails_editable'] ?? '0') === '1';
         $data['availability_enabled'] = ($data['availability_enabled'] ?? '0') === '1';
@@ -433,7 +447,7 @@ class AdminOrganizationController extends Controller
         // La suppression d'une Organization ORDINAIRE est inchangee.
         if ($organization->scenario_sandbox_created_at !== null) {
             return back()->with('error', sprintf(
-                "« %s » est une sandbox de scenario : elle se retire depuis Outils -> Scenarios, par le bouton Retirer de sa version. Supprimer une Organization ici detacherait ses personas au lieu de les supprimer.",
+                '« %s » est une sandbox de scenario : elle se retire depuis Outils -> Scenarios, par le bouton Retirer de sa version. Supprimer une Organization ici detacherait ses personas au lieu de les supprimer.',
                 $organization->name
             ));
         }
@@ -490,7 +504,7 @@ class AdminOrganizationController extends Controller
 
             if ($conflits->isNotEmpty()) {
                 return back()->with('error', sprintf(
-                    "Suppression refusee : %d adresse(s) de cette organisation sont aussi portees par un compte exterieur (%s). "
+                    'Suppression refusee : %d adresse(s) de cette organisation sont aussi portees par un compte exterieur (%s). '
                     .'Detacher ces comptes les rendrait inconnectables. Supprimez ou transferez le compte en conflit, puis recommencez.',
                     $conflits->count(),
                     $conflits->take(3)->implode(', ')
@@ -539,12 +553,16 @@ class AdminOrganizationController extends Controller
         );
 
         $organization->update(['logo_path' => $path]);
+
+        // TASK-1873 — variante WebP 256 px du logo, hors requete.
+        ProcessImageVariants::forUpload('organization_logo', $path ?: null, $organization->id);
     }
 
     private function deleteLogoFile(string $path): void
     {
         if (str_starts_with($path, 'organization-logos/') && Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
+            app(ImageVariantService::class)->forget($path);
         }
     }
 }

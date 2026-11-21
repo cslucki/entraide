@@ -32,7 +32,7 @@
             @foreach($posts as $post)
             <article class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition">
                 @if($post->image)
-                <a href="{{ $_blogRoute('show', ['post' => $post]) }}"><img src="{{ $post->image_url }}" alt="{{ $post->title }}" class="w-full h-40 object-cover"></a>
+                <a href="{{ $_blogRoute('show', ['post' => $post]) }}"><img src="{{ $post->image_url }}" alt="{{ $post->title }}" @if($post->image_srcset) srcset="{{ $post->image_srcset }}" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" @endif loading="lazy" decoding="async" class="w-full h-40 object-cover"></a>
                 @endif
                 <div class="p-5">
                     <h2 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">

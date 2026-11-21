@@ -176,8 +176,10 @@ class TASK1277JoinRequestRedirectTest extends TestCase
         Loop::factory()->requestAccess()->create(['organization_id' => $this->org->id]); // une 2e Boucle : pas de redirection mono-Boucle
         $this->pendingRequest();
 
+        // TASK-1866 — l'etat de la demande vit dans le tiroir de la grille,
+        // recharge (`no-store`) a chaque ouverture : c'est la qu'il se verifie.
         $this->actingAs($this->applicant)
-            ->get(route('organization.loops.index', ['organization' => $this->org->slug]))
+            ->get(route('organization.loops.preview', ['organization' => $this->org->slug, 'loop' => $this->loop->id]))
             ->assertOk()
             ->assertSee(__('loops.cta_pending'));
     }
