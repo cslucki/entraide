@@ -59,6 +59,8 @@
 
     @if($batch->isPaused() && $progress['processing'] > 0)
         <p class="mt-3 text-sm text-amber-700 dark:text-amber-300">{{ __('admin.image_optimizer.pause_pending') }}</p>
+    @elseif($batch->isActive() && ! $workerAlive)
+        <p class="mt-3 text-sm font-medium text-red-700 dark:text-red-300" data-marqueur="worker-indisponible">{{ __('admin.image_optimizer.worker_down_batch') }}</p>
     @elseif($progress['waiting_for_worker'])
         <p class="mt-3 text-sm text-amber-700 dark:text-amber-300" data-marqueur="attente-worker">{{ __('admin.image_optimizer.waiting_worker') }}</p>
     @elseif($batch->isActive())

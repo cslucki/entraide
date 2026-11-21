@@ -31,6 +31,11 @@ class TASK1873UploadBranchingTest extends TestCase
     {
         parent::setUp();
         Storage::fake('public');
+
+        // Le `.env` LOCAL route les jobs d'images vers `database` (worker
+        // dedie) : sans cette ligne, le test de bout en bout dependrait du
+        // poste qui le lance. Ici, la connexion par defaut du banc (`sync`).
+        config(['image_variants.queue_connection' => null]);
     }
 
     private function withCurrentOrganization(Organization $organization): void

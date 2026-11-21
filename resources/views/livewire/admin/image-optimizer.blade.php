@@ -12,7 +12,19 @@
 <div>
     <x-slot:title>{{ __('admin.image_optimizer.title') }}</x-slot:title>
 
-    <p class="mb-5 text-sm text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.subtitle') }}</p>
+    <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.subtitle') }}</p>
+        {{-- Etat du traitement en arriere-plan : signe de vie du worker. --}}
+        <span @class([
+                'inline-flex shrink-0 items-center gap-1.5 self-start rounded-full px-3 py-1 text-xs font-semibold',
+                'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' => $workerAlive,
+                'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' => ! $workerAlive,
+              ]) data-marqueur="etat-worker" data-worker-alive="{{ $workerAlive ? '1' : '0' }}"
+              title="{{ $workerSeen ? __('admin.image_optimizer.worker_seen', ['when' => $workerSeen->diffForHumans()]) : __('admin.image_optimizer.worker_never') }}">
+            <span @class(['h-2 w-2 rounded-full', 'bg-green-500' => $workerAlive, 'bg-red-500' => ! $workerAlive])></span>
+            {{ $workerAlive ? __('admin.image_optimizer.worker_alive') : __('admin.image_optimizer.worker_down') }}
+        </span>
+    </div>
 
     {{-- Synthese : quatre chiffres au plus. --}}
     <section class="mb-2 grid grid-cols-2 gap-3 lg:grid-cols-4" data-marqueur="synthese">

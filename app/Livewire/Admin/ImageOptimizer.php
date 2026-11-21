@@ -8,6 +8,7 @@ use App\Support\Images\ActiveBatchExists;
 use App\Support\Images\ImageOptimizationBatches;
 use App\Support\Images\ImageOptimizationInventory;
 use App\Support\Images\ImageSource;
+use App\Support\Images\ImageWorkerHeartbeat;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
@@ -135,6 +136,8 @@ class ImageOptimizer extends Component
             'limits' => self::LIMITS,
             'current' => $current,
             'history' => $history,
+            'workerAlive' => app(ImageWorkerHeartbeat::class)->isAlive(),
+            'workerSeen' => app(ImageWorkerHeartbeat::class)->lastSeen(),
         ]);
     }
 

@@ -6,6 +6,7 @@ use App\Models\ImageOptimizationBatch;
 use App\Models\ImageOptimizationBatchItem;
 use App\Support\Images\ActiveBatchExists;
 use App\Support\Images\ImageOptimizationBatches;
+use App\Support\Images\ImageWorkerHeartbeat;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -72,6 +73,7 @@ class ImageBatchProgress extends Component
             'progress' => $progress,
             // Une pause laisse finir l'image en cours : on suit jusque-la.
             'polling' => $batch->isActive() && (! $batch->isPaused() || $progress['processing'] > 0),
+            'workerAlive' => app(ImageWorkerHeartbeat::class)->isAlive(),
             'problems' => $batch->items()
                 ->whereIn('status', [ImageOptimizationBatchItem::STATUS_FAILED, ImageOptimizationBatchItem::STATUS_MISSING])
                 ->orderBy('status')
