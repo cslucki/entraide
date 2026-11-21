@@ -151,7 +151,24 @@
     <section class="mb-6 {{ $card }} p-4 sm:p-5" data-marqueur="mode-manuel">
         <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.image_optimizer.manual_title') }}</h2>
         <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.image_optimizer.manual_hint', ['max' => $manualMax]) }}</p>
-        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">{{ __('admin.image_optimizer.surface') }} : <span class="font-semibold">{{ __('admin.image_optimizer.all_surfaces') }}</span> · {{ __('admin.image_optimizer.limit') }} : <span class="font-semibold">{{ $manualMax }}</span></p>
+        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">{{ __('admin.image_optimizer.surface') }} : <span class="font-semibold">{{ __('admin.image_optimizer.all_surfaces') }}</span></p>
+
+        {{-- TASK-1876 : 1, 5 ou 25 images, pour une recette progressive. --}}
+        <fieldset class="mt-3" data-marqueur="taille-lot-manuel">
+            <legend class="text-sm text-gray-700 dark:text-gray-300">{{ __('admin.image_optimizer.limit') }}</legend>
+            <div class="mt-1 grid grid-cols-3 gap-2 sm:inline-grid sm:w-60">
+                @foreach($manualLimits as $value)
+                    <label @class([
+                        'relative cursor-pointer rounded-lg border px-3 py-2 text-center text-sm font-semibold transition',
+                        'border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/40 dark:text-indigo-200' => $manualLimit === $value,
+                        'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700' => $manualLimit !== $value,
+                    ])>
+                        <input type="radio" wire:model.live="manualLimit" value="{{ $value }}" class="sr-only">{{ $value }}
+                    </label>
+                @endforeach
+            </div>
+        </fieldset>
+        @error('manualLimit')<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
 
         @if($manualSimulation !== null)
             <div class="mt-4 rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-900/50" data-marqueur="simulation-manuelle">
