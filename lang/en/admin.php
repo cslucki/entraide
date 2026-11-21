@@ -1523,6 +1523,13 @@ return [
         'dataset_translation_overrides_desc' => 'Two partial unique indexes, one for the global row. NULL = Platform override.',
         'dataset_ai_credit_setting_changes' => 'AI credit setting changes',
         'dataset_ai_credit_setting_changes_desc' => 'NULL = platform setting, as the migration states.',
+        // TASK-1873 — image optimization registry and batches.
+        'dataset_image_variants' => 'Optimized image variants',
+        'dataset_image_variants_desc' => 'NULL = avatar of an account without Organization. Technical registry: the row follows its image, do not assign by hand.',
+        'dataset_image_optimization_batches' => 'Image optimization batches',
+        'dataset_image_optimization_batches_desc' => 'NULL = batch launched on all Organizations (console filter).',
+        'dataset_image_optimization_batch_items' => 'Images of optimization batches',
+        'dataset_image_optimization_batch_items_desc' => 'NULL = avatar of an account without Organization. Follows its batch, do not assign by hand.',
         'dataset_system_email_templates' => 'System email templates',
         'dataset_system_email_templates_desc' => 'Unique on organization + locale + slug. NULL = system template.',
         // TASK-1694 bug U — l'archive, declaree en HistoryNullValid.

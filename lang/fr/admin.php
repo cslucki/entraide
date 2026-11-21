@@ -1538,6 +1538,13 @@ return [
         'dataset_translation_overrides_desc' => 'Deux index uniques partiels, dont un pour la ligne globale. NULL = surcharge de la Plateforme.',
         'dataset_ai_credit_setting_changes' => 'Changements de reglages credit IA',
         'dataset_ai_credit_setting_changes_desc' => 'NULL = reglage plateforme, comme l\'indique la migration.',
+        // TASK-1873 — registre et lots d'optimisation des images.
+        'dataset_image_variants' => 'Variantes d\'images optimisées',
+        'dataset_image_variants_desc' => 'NULL = avatar d\'un compte sans Organization. Registre technique : la ligne suit son image, ne pas rattacher à la main.',
+        'dataset_image_optimization_batches' => 'Lots d\'optimisation d\'images',
+        'dataset_image_optimization_batches_desc' => 'NULL = lot lancé sur toutes les Organizations (filtre de la console).',
+        'dataset_image_optimization_batch_items' => 'Images des lots d\'optimisation',
+        'dataset_image_optimization_batch_items_desc' => 'NULL = avatar d\'un compte sans Organization. Suit son lot, ne pas rattacher à la main.',
         'dataset_system_email_templates' => 'Gabarits d\'e-mail système',
         'dataset_system_email_templates_desc' => 'Unique sur organisation + langue + slug. NULL = gabarit système.',
         // TASK-1694 bug U — l'archive, declaree en HistoryNullValid.
