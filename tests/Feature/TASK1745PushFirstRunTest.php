@@ -180,12 +180,12 @@ class TASK1745PushFirstRunTest extends TestCase
         // proposition, pour la recette UNIQUEMENT. Même garde serveur que le
         // panneau de diagnostic qui l'héberge : hors local, le bouton
         // n'existe pas dans le HTML — rien à désactiver côté navigateur.
-        $this->actingAs($this->membre)->get('/notifications/preferences')->assertOk()
+        $this->actingAs($this->membre)->get('/notifications/appareil')->assertOk()
             ->assertDontSee('data-push-first-run-reset', false);
 
         app()->detectEnvironment(fn () => 'local');
 
-        $this->actingAs($this->membre)->get('/notifications/preferences')->assertOk()
+        $this->actingAs($this->membre)->get('/notifications/appareil')->assertOk()
             ->assertSee('data-push-first-run-reset', false)
             // Recette n°2 du 03/11 : le bouton doit porter les TROIS réponses
             // possibles — le script redécide après l'effacement et choisit

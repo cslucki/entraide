@@ -122,6 +122,7 @@ use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MyceliumController;
 use App\Http\Controllers\NotificationCenterController;
+use App\Http\Controllers\NotificationDeviceController;
 use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\OpenSourceController;
 use App\Http\Controllers\OrganizationFlowchartController;
@@ -508,6 +509,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
     Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
     Route::post('/notifications/preferences/loops', [NotificationPreferenceController::class, 'updateLoopPreferences'])->middleware('throttle:30,1')->name('notifications.preferences.loops.update');
+    // TASK-1877 — « Notifications sur cet appareil », sur sa PROPRE page.
+    // Declarees AVANT les routes `{notification}` par precaution d'ordre.
+    // Le test Web Push reel est borne a 3 essais par minute : chaque essai
+    // sort vers le fournisseur Push, et rien ne justifie davantage.
+    Route::get('/notifications/appareil', [NotificationDeviceController::class, 'edit'])->name('notifications.device.edit');
+    Route::post('/notifications/appareil/test', [NotificationDeviceController::class, 'test'])->middleware('throttle:3,1')->name('notifications.device.test');
     Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
     Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
     Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');
@@ -1852,6 +1859,9 @@ Route::prefix('/org/{organization}')
             Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
             Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
             Route::post('/notifications/preferences/loops', [NotificationPreferenceController::class, 'updateLoopPreferences'])->middleware('throttle:30,1')->name('notifications.preferences.loops.update');
+            // TASK-1877 — meme page « cet appareil », forme Organization.
+            Route::get('/notifications/appareil', [NotificationDeviceController::class, 'edit'])->name('notifications.device.edit');
+            Route::post('/notifications/appareil/test', [NotificationDeviceController::class, 'test'])->middleware('throttle:3,1')->name('notifications.device.test');
             Route::post('/notifications/{notification}/read', [NotificationCenterController::class, 'read'])->middleware('throttle:60,1')->name('notifications.read');
             Route::post('/notifications/{notification}/unread', [NotificationCenterController::class, 'markUnread'])->middleware('throttle:60,1')->name('notifications.unread');
             Route::post('/notifications/{notification}/open', [NotificationCenterController::class, 'open'])->middleware('throttle:60,1')->name('notifications.open');

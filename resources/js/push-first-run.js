@@ -42,8 +42,10 @@ import {
     CLE_DIVERGE,
     comparerCleVapid,
     confirmer,
+    estRevoque,
     etatServeur,
     libelleAppareil,
+    oublierAbonnementRevoque,
     supporte,
 } from './push-abonnement.js';
 
@@ -230,6 +232,20 @@ if (bloc) {
                 return dire('cle-perimee');
             }
 
+            // TASK-1877 — un abonnement RÉVOQUÉ par le fournisseur (constaté
+            // par le test Web Push) ne se reconfirme jamais : la règle 4
+            // ci-dessous le ferait revivre. On tente de l'oublier ; s'il est
+            // oublié, la proposition normale reprend comme sans abonnement.
+            if (await estRevoque(abonnement)) {
+                if (!(await oublierAbonnementRevoque(abonnement))) {
+                    return dire('revoque-non-oublie');
+                }
+
+                abonnement = null;
+            }
+        }
+
+        if (abonnement !== null) {
             let etat = null;
 
             try {

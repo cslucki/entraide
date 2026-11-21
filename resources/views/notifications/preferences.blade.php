@@ -60,9 +60,18 @@
 
                     <ul class="space-y-3">
                         @foreach($mesBoucles as $boucle)
+                            {{-- TASK-1877 (demande Cyril) — carte PLIEE par defaut : la
+                                 page liste toutes les Boucles et tous les evenements,
+                                 depliee elle s'etalait sur plusieurs ecrans. `<details>`
+                                 natif, sans script ; les cases repliees restent dans le
+                                 formulaire et sont bien soumises. --}}
                             <li data-loop-preference="{{ $boucle['id'] }}"
-                                class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">
-                                <p class="text-sm font-semibold text-[var(--bp-text)]">{{ $boucle['nom'] }}</p>
+                                class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-1 shadow-sm">
+                                <details data-preference-card class="group open:pb-2">
+                                <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[var(--bp-text)] [&::-webkit-details-marker]:hidden">
+                                    <span>{{ $boucle['nom'] }}</span>
+                                    <svg aria-hidden="true" class="h-4 w-4 shrink-0 text-[var(--bp-muted)] transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                </summary>
 
                                 <ul class="mt-2 space-y-2">
                                     {{-- TASK-1775 (arbitrage Cyril, 07/11) — l'in-app
@@ -100,6 +109,7 @@
                                         </li>
                                     @endforeach
                                 </ul>
+                                </details>
                             </li>
                         @endforeach
                     </ul>
@@ -113,31 +123,19 @@
             @endif
         </div>
 
-        {{-- TASK-1739 — « Notifications sur cet appareil ».
-
-             Placé AVANT les préférences par événement, et c'est voulu : sans
-             autorisation sur l'appareil, aucun réglage par événement ne peut
-             produire de notification Push. L'ordre de l'écran suit l'ordre
-             des conditions.
-
-             Hors du formulaire des préférences : un abonnement est un état
-             d'appareil, activer EST le geste, il n'y a rien à « enregistrer ».
-        --}}
-        @php
-            // TASK-1744 — combien d'événements cette personne a-t-elle
-            // réellement ouverts au Push ? Le panneau d'appareil en a besoin
-            // pour dire la vérité plutôt qu'une promesse : un appareil
-            // enregistré sans aucune case cochée ne reçoit RIEN, et c'est ce
-            // silence-là qui a fait échouer la première recette.
-            //
-            // Compté ici et non dans le contrôleur : `$etat` est déjà
-            // l'autorité de cet écran, et le partiel n'est inclus que d'ici.
-            $pushActifs = collect($etat)
-                ->filter(fn (array $canaux) => ($canaux[\App\Support\Notifications\NotificationCatalogue::CHANNEL_WEB_PUSH]['enabled'] ?? false) === true)
-                ->count();
-        @endphp
-
-        @include('notifications.partials.push-device', ['pushActifs' => $pushActifs])
+        {{-- TASK-1877 — « Notifications sur cet appareil » vit desormais sur
+             sa propre page (T1739 l'avait pose ici). Il reste un BOUTON, a la
+             meme place : sans autorisation sur l'appareil, aucun reglage
+             « Sur mes appareils » ci-dessous ne produit de notification, et
+             l'ordre de l'ecran continue de suivre l'ordre des conditions. --}}
+        <div class="mb-8">
+            <a href="{{ route($routeDevice, $routeParams) }}"
+               data-push-device-link
+               class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-5 text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-hover)]">
+                {{ __('push.device_settings_button') }}
+                <span aria-hidden="true">→</span>
+            </a>
+        </div>
 
         @if(session('notification_preferences_saved'))
             <div data-preferences-saved
@@ -178,9 +176,14 @@
 
                     <ul class="mt-2 space-y-2">
                 @foreach($evenements as $cle => $canaux)
+                    {{-- TASK-1877 — meme carte pliee que « Mes Boucles ». --}}
                     <li data-preference-key="{{ $cle }}"
-                        class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3 shadow-sm">
-                        <p class="text-sm font-semibold text-[var(--bp-text)]">{{ $libelleCle($cle) }}</p>
+                        class="rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-1 shadow-sm">
+                        <details data-preference-card class="group open:pb-2">
+                        <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[var(--bp-text)] [&::-webkit-details-marker]:hidden">
+                            <span>{{ $libelleCle($cle) }}</span>
+                            <svg aria-hidden="true" class="h-4 w-4 shrink-0 text-[var(--bp-muted)] transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
 
                         <ul class="mt-2 space-y-2">
                             @foreach($canaux as $canal => $reglage)
@@ -217,6 +220,7 @@
                                 {{ __('notifications.preferences_mandatory_hint') }}
                             </p>
                         @endif
+                        </details>
                     </li>
                 @endforeach
                     </ul>
@@ -237,10 +241,4 @@
             @endif
         </form>
     </x-page-container>
-
-    {{-- TASK-1739 — chargé sur CETTE page seulement : `pushManager` et la
-         demande de permission n'ont rien à peser ailleurs. --}}
-    @push('scripts')
-        @vite('resources/js/push-device.js')
-    @endpush
 </x-app-layout>

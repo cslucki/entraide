@@ -185,7 +185,7 @@ class TASK1739PushRoutesTest extends TestCase
 
     public function test_l_ecran_porte_le_bloc_et_la_clef_PUBLIQUE_seulement(): void
     {
-        $html = $this->actingAs($this->alice)->get(route('notifications.preferences.edit'))
+        $html = $this->actingAs($this->alice)->get(route('notifications.device.edit'))
             ->assertOk()->getContent();
 
         $this->assertStringContainsString('data-push-device', $html);
@@ -215,7 +215,7 @@ class TASK1739PushRoutesTest extends TestCase
      */
     public function test_l_ecran_dit_la_verite_sur_ce_que_la_personne_recevra(): void
     {
-        $html = $this->actingAs($this->alice)->get(route('notifications.preferences.edit'))
+        $html = $this->actingAs($this->alice)->get(route('notifications.device.edit'))
             ->assertOk()->getContent();
 
         // TASK-1744, arbitrage du 03/11 : les quatre cles sont ON par defaut.

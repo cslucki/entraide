@@ -44,7 +44,7 @@ class TASK1768CinquiemeEtatPushTest extends TestCase
         config()->set('webpush.enabled', false);
         config()->set('webpush.vapid.public_key', null);
 
-        $reponse = $this->actingAs($this->membre)->get(route('notifications.preferences.edit'));
+        $reponse = $this->actingAs($this->membre)->get(route('notifications.device.edit'));
 
         $reponse->assertOk();
         $reponse->assertSee('data-push-enabled="0"', false);
@@ -61,7 +61,7 @@ class TASK1768CinquiemeEtatPushTest extends TestCase
         config()->set('webpush.enabled', true);
         config()->set('webpush.vapid.public_key', str_repeat('B', 87));
 
-        $reponse = $this->actingAs($this->membre)->get(route('notifications.preferences.edit'));
+        $reponse = $this->actingAs($this->membre)->get(route('notifications.device.edit'));
 
         $reponse->assertOk();
         $reponse->assertSee('data-push-enabled="1"', false);

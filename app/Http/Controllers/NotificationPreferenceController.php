@@ -77,10 +77,9 @@ class NotificationPreferenceController extends Controller
             'routeUpdate' => $slug ? 'organization.notifications.preferences.update' : 'notifications.preferences.update',
             'routeParams' => $slug ? ['organization' => $slug] : [],
             'routeCentre' => $slug ? 'organization.notifications.index' : 'notifications.index',
-            // TASK-1739 — la route des abonnements d'appareil, dans la forme
-            // qui correspond a la page courante. Le bloc « cet appareil » y
-            // envoie ses trois verbes (GET/POST/DELETE sur la meme URL).
-            'routePush' => $slug ? 'organization.notifications.push.store' : 'notifications.push.store',
+            // TASK-1877 — le bloc « cet appareil » (T1739) a sa propre page ;
+            // cet ecran n'y mene plus que par un bouton.
+            'routeDevice' => $slug ? 'organization.notifications.device.edit' : 'notifications.device.edit',
         ]);
     }
 

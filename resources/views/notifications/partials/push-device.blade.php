@@ -37,6 +37,9 @@
          data-push-enabled="{{ config('webpush.enabled') ? '1' : '0' }}"
          data-push-vapid="{{ config('webpush.vapid.public_key') }}"
          data-push-url="{{ route($routePush, $routeParams) }}"
+         {{-- TASK-1877 — le test Web Push reel de CET appareil. Absent si la
+              page qui inclut le partiel ne le propose pas. --}}
+         data-push-test-url="{{ isset($routeTest) ? route($routeTest, $routeParams) : '' }}"
          {{-- TASK-1744 — meme garde que le panneau de diagnostic : l'attribut
               n'existe pas hors local. Un message d'erreur technique n'a rien
               a faire devant un membre, mais sans lui une recette se fait a
@@ -44,8 +47,10 @@
          data-push-debug="{{ app()->environment('local') ? '1' : '0' }}"
          class="mb-8 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] p-5">
 
-    <h2 class="text-lg font-semibold text-[var(--bp-text)]">{{ __('push.device_title') }}</h2>
-    <p class="mt-1 text-sm text-[var(--bp-muted)]">{{ __('push.device_intro') }}</p>
+    {{-- TASK-1877 — le titre est porte par le `<h1>` de la page dediee,
+         seule page qui inclut ce partiel : le repeter ici le dirait deux
+         fois a la suite. --}}
+    <p class="text-sm text-[var(--bp-muted)]">{{ __('push.device_intro') }}</p>
 
     <p class="mt-4 flex items-center gap-2 text-sm font-medium text-[var(--bp-text)]">
         <span data-push-dot class="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-gray-400"></span>
@@ -95,7 +100,20 @@
                 class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--bp-border)] px-5 text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-hover)] disabled:opacity-60">
             {{ __('push.disable') }}
         </button>
+        {{-- TASK-1877 — test Web Push REEL, vers CET appareil seulement.
+             Revele par le script dans l'etat « activees » uniquement : sans
+             abonnement, il n'y a rien a tester. --}}
+        @isset($routeTest)
+            <button type="button" data-push-test hidden style="display: none"
+                    class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--bp-border)] px-5 text-sm font-semibold text-[var(--bp-text)] transition hover:bg-[var(--bp-hover)] disabled:opacity-60">
+                {{ __('push.test_button') }}
+            </button>
+        @endisset
     </div>
+
+    {{-- TASK-1877 — le verdict du test. Il ne dit jamais « recue » : un
+         fournisseur qui accepte n'a rien affiche (arbitrage MASTER, R2). --}}
+    <p data-push-test-resultat role="status" hidden style="display: none" class="mt-3 text-sm font-medium"></p>
 
     {{-- TASK-1744 — l'aide remonte AVANT le panneau de diagnostic.
 
@@ -111,7 +129,9 @@
         <p data-push-help></p>
 
         @if(($pushActifs ?? 0) === 0)
-            <a href="#reglages-par-evenement" data-push-help-lien
+            {{-- TASK-1877 — le bloc a quitte la page des reglages : l'ancre
+                 devient un lien vers elle. --}}
+            <a href="{{ route($routePreferences ?? 'notifications.preferences.edit', $routeParams ?? []) }}#reglages-par-evenement" data-push-help-lien
                class="mt-1 inline-flex min-h-11 items-center font-semibold text-[var(--bp-primary)] underline">
                 {{ __('push.ready_none_action') }}
             </a>
@@ -119,97 +139,80 @@
     </div>
 
     {{-- =====================================================================
-         TASK-1740 — PANNEAU DE DIAGNOSTIC, TEMPORAIRE ET LOCAL SEULEMENT.
+         TASK-1740 — PANNEAU DE DIAGNOSTIC. TASK-1877 — PUBLIE (option B).
 
-         Pourquoi il existe : FCM répondait `201` et rien ne s'affichait sur
-         l'appareil. Entre « le fournisseur a accepté » et « Android a
-         affiché » se trouvent cinq maillons qu'on ne pouvait que SUPPOSER
-         depuis un téléphone — permission, origine, scope, exemplaire du
-         Service Worker réellement actif, et rattachement de l'abonnement.
-         Supposer, c'est ce qui a produit des essais répétés sans progrès.
+         Ne en recette locale : FCM repondait `201` et rien ne s'affichait,
+         avec cinq maillons qu'on ne pouvait que SUPPOSER depuis un
+         telephone — permission, origine, scope, exemplaire du Service Worker
+         reellement actif, rattachement de l'abonnement.
 
-         Pourquoi `local` seulement : c'est un outil de recette, pas une
-         fonctionnalité. La garde est côté SERVEUR — ni le panneau ni ses
-         boutons n'existent dans le HTML ailleurs qu'en local, donc il n'y a
-         rien à désactiver côté navigateur.
+         TASK-1877 (arbitrage MASTER du 21/11) : chaque membre doit pouvoir
+         depanner SES notifications sans administrateur. Le panneau est donc
+         rendu partout, REPLIE, et traduit. Ce qui reste local :
+         - les details bruts d'erreur (`data-push-debug`, plus haut) ;
+         - la ligne « Premier lancement » et la reinitialisation du report,
+           outils de recette de T1745.
+         Ce qu'il ne montre JAMAIS : l'endpoint complet ni une clef privee.
+         L'empreinte (8 caracteres) est calculee dans le navigateur, sur
+         l'abonnement de CE navigateur ; la clef VAPID affichee est publique.
 
-         Les libellés sont en clair et non traduits : volontaire, pour ne pas
-         faire entrer un outil temporaire dans les catalogues de langue.
+         T1744 — REPLIE par defaut : deplie, il repoussait le reste de
+         l'ecran deux pages plus bas sur un telephone.
          ===================================================================== --}}
-    {{-- TASK-1744 — REPLIÉ par défaut.
+    <details data-push-diag-panel class="mt-4 rounded-lg border border-dashed border-[var(--bp-border)] p-3">
+        <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-[var(--bp-muted)]">
+            {{ __('push.diag.title') }}
+        </summary>
 
-         Déplié, il mesure ~280 px et s'intercale entre l'état de l'appareil
-         et les réglages par événement. Sur un téléphone, il repoussait la
-         première case à cocher deux écrans plus bas : l'outil de recette
-         empêchait de faire la recette. Son contenu est intact, il reste à un
-         doigt. --}}
-    @if(app()->environment('local'))
-        <details data-push-diag-panel class="mt-4 rounded-lg border border-dashed border-amber-400 bg-amber-50/50 p-3 dark:bg-amber-900/10">
-            <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                Diagnostic (recette locale)
-            </summary>
+        <dl data-push-diag class="mt-2 space-y-1 font-mono text-[11px] leading-snug text-[var(--bp-text)]">
+            @foreach(array_merge([
+                'permission' => __('push.diag.permission'),
+                'origine' => __('push.diag.origin'),
+                'securise' => __('push.diag.secure'),
+                'scope' => __('push.diag.scope'),
+                'version' => __('push.diag.version'),
+                'abonnement' => __('push.diag.subscription'),
+                'empreinte' => __('push.diag.fingerprint'),
+                'base' => __('push.diag.server'),
+                'cle' => __('push.diag.key'),
+            ], app()->environment('local') ? [
+                // TASK-1745, recette 03/11 n°2 — la CAUSE de la decision du
+                // premier lancement, ecrite par `push-first-run.js`. Outil de
+                // recette : local seulement (TASK-1877).
+                'premier-lancement' => 'Premier lancement',
+            ] : []) as $cle => $libelle)
+                <div class="flex gap-2">
+                    <dt class="w-32 shrink-0 text-[var(--bp-muted)]">{{ $libelle }}</dt>
+                    <dd data-push-diag-value="{{ $cle }}" class="min-w-0 break-all">…</dd>
+                </div>
+            @endforeach
+        </dl>
 
-            <dl data-push-diag class="mt-2 space-y-1 font-mono text-[11px] leading-snug text-[var(--bp-text)]">
-                @foreach([
-                    'permission' => 'Permission',
-                    'origine' => 'Origine',
-                    'securise' => 'Contexte sûr',
-                    'scope' => 'Scope SW',
-                    'version' => 'SW actif',
-                    'abonnement' => 'Abonnement',
-                    'empreinte' => 'Empreinte',
-                    'base' => 'Connu du serveur',
-                    'cle' => 'Clé d’abonnement',
+        {{-- Les deux essais qui SEPARENT les causes (T1740).
 
-                    // TASK-1745, recette 03/11 n°2 — la CAUSE de la décision
-                    // du premier lancement, écrite par `push-first-run.js`
-                    // (`dire()`). « La barre ne s'affiche pas » ne disait pas
-                    // POURQUOI ; cette ligne le dit en continu :
-                    // `deja-abonne`, `report-en-cours`, `onglet-ordinaire`…
-                    'premier-lancement' => 'Premier lancement',
-                ] as $cle => $libelle)
-                    <div class="flex gap-2">
-                        <dt class="w-32 shrink-0 text-[var(--bp-muted)]">{{ $libelle }}</dt>
-                        <dd data-push-diag-value="{{ $cle }}" class="min-w-0 break-all">…</dd>
-                    </div>
-                @endforeach
-            </dl>
+             « Afficher en local » n'emprunte ni le reseau, ni FCM, ni le
+             chiffrement : s'il echoue, la panne est dans la permission ou
+             l'affichage systeme.
 
-            {{-- Les deux essais qui SÉPARENT les causes.
+             « Simuler une charge » fait traiter une charge par l'exemplaire
+             ACTIF du Service Worker, par le meme chemin que le push reel,
+             toujours sans reseau : s'il reussit alors que l'envoi reel
+             echoue, la panne est dans la LIVRAISON. --}}
+        <div class="mt-3 flex flex-wrap gap-2">
+            <button type="button" data-push-diag-local
+                    class="inline-flex min-h-11 items-center rounded-lg border border-[var(--bp-border)] px-3 text-xs font-semibold text-[var(--bp-text)]">
+                {{ __('push.diag.test_local') }}
+            </button>
+            <button type="button" data-push-diag-simuler
+                    class="inline-flex min-h-11 items-center rounded-lg border border-[var(--bp-border)] px-3 text-xs font-semibold text-[var(--bp-text)]">
+                {{ __('push.diag.simulate') }}
+            </button>
 
-                 « Afficher en local » n'emprunte ni le réseau, ni FCM, ni le
-                 chiffrement : il appelle `showNotification()` depuis la page.
-                 S'il échoue, la panne est dans la permission ou l'affichage
-                 système, et aucun envoi distant ne pouvait aboutir.
-
-                 « Simuler une charge » fait traiter une charge utile par
-                 l'exemplaire ACTIF du Service Worker, par exactement le même
-                 chemin d'affichage que le push réel, toujours sans réseau.
-                 S'il réussit alors que l'envoi distant échoue, la panne est
-                 dans la LIVRAISON, pas dans notre code. --}}
-            <div class="mt-3 flex flex-wrap gap-2">
-                <button type="button" data-push-diag-local
-                        class="inline-flex min-h-11 items-center rounded-lg border border-amber-500 px-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                    Tester l'affichage local
-                </button>
-                <button type="button" data-push-diag-simuler
-                        class="inline-flex min-h-11 items-center rounded-lg border border-amber-500 px-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                    Simuler une charge Push
-                </button>
-
-                {{-- TASK-1745 (point 6, recette 03/11) — efface le REPORT du
-                     premier lancement (`localStorage`), et rien d'autre : ni
-                     l'abonnement, ni le Service Worker, ni le cache. C'est le
-                     moyen sûr de revoir la proposition — l'alternative
-                     « vider les données du site » détruirait l'abonnement
-                     Push. Écouté par `push-first-run.js`, qui possède la clé.
-
-                     Recette n°2 (03/11) : la première version disait « fermez
-                     et rouvrez » sans regarder si la proposition POUVAIT
-                     revenir. Sur l'appareil de Cyril, le blocage n'était pas
-                     le report mais « déjà abonné » — et le bouton laissait
-                     deviner. Il REDÉCIDE maintenant après l'effacement et
-                     rend la réponse qui correspond à l'état réel. --}}
+            {{-- TASK-1745 (point 6, recette 03/11) — efface le REPORT du
+                 premier lancement (`localStorage`), et rien d'autre. Ecoute
+                 par `push-first-run.js`, qui possede la cle. Outil de
+                 recette : LOCAL seulement, y compris apres TASK-1877. --}}
+            @if(app()->environment('local'))
                 <button type="button" data-push-first-run-reset
                         data-reset-done="Report effacé — fermez et rouvrez l'application : la proposition reviendra"
                         data-reset-done-subscribed="Report effacé — mais cet appareil est DÉJÀ abonné, et la proposition ne s'affiche jamais sur un appareil abonné. « Désactiver sur cet appareil » d'abord, puis fermez et rouvrez l'application"
@@ -217,11 +220,38 @@
                         class="inline-flex min-h-11 items-center rounded-lg border border-amber-500 px-3 text-xs font-semibold text-amber-800 disabled:opacity-60 dark:text-amber-200">
                     Revoir la proposition du premier lancement
                 </button>
-            </div>
+            @endif
+        </div>
 
-            <p data-push-diag-resultat hidden class="mt-2 text-[11px] font-semibold"></p>
-        </details>
-    @endif
+        <p data-push-diag-resultat hidden class="mt-2 text-[11px] font-semibold"></p>
+
+        {{-- TASK-1877 — les textes du panneau, traduits cote serveur : le
+             script n'en fabrique aucun. `%s` est remplace par le script. --}}
+        <span hidden
+              data-push-diag-texts
+              data-api-absent="{{ __('push.diag.api_absent') }}"
+              data-yes="{{ __('push.diag.yes') }}"
+              data-no="{{ __('push.diag.no') }}"
+              data-none="{{ __('push.diag.none') }}"
+              data-no-answer="{{ __('push.diag.no_answer') }}"
+              data-push-supported="{{ __('push.diag.push_supported') }}"
+              data-sw-old="{{ __('push.diag.sw_old') }}"
+              data-server-silent="{{ __('push.diag.server_silent') }}"
+              data-key-hidden="{{ __('push.diag.key_hidden') }}"
+              data-key-match="{{ __('push.diag.key_match') }}"
+              data-key-diverge="{{ __('push.diag.key_diverge') }}"
+              data-permission-refused="{{ __('push.diag.permission_refused') }}"
+              data-local-title="{{ __('push.diag.local_title') }}"
+              data-local-body="{{ __('push.diag.local_body') }}"
+              data-local-done="{{ __('push.diag.local_done') }}"
+              data-local-failed="{{ __('push.diag.local_failed') }}"
+              data-simulate-needs-permission="{{ __('push.diag.simulate_needs_permission') }}"
+              data-simulate-title="{{ __('push.diag.simulate_title') }}"
+              data-simulate-body="{{ __('push.diag.simulate_body') }}"
+              data-simulate-old="{{ __('push.diag.simulate_old') }}"
+              data-simulate-done="{{ __('push.diag.simulate_done') }}"
+              data-simulate-refused="{{ __('push.diag.simulate_refused') }}"></span>
+    </details>
 
     {{-- Les messages passent par des attributs de données : ils sont
          traduits côté serveur, et le script n'en fabrique aucun. --}}
@@ -246,6 +276,13 @@
           data-text-enable-failed="{{ __('push.enable_failed') }}"
           data-text-disable-failed="{{ __('push.disable_failed') }}"
           data-text-key-stale="{{ __('push.key_stale') }}"
+          {{-- TASK-1877 — verdicts du test Web Push reel (R1/R2 MASTER). --}}
+          data-text-test-sent="{{ __('push.test_sent') }}"
+          data-text-test-failed="{{ __('push.test_failed') }}"
+          data-text-test-revoked="{{ __('push.test_revoked') }}"
+          data-text-test-revoked-cleanup-failed="{{ __('push.test_revoked_cleanup_failed') }}"
+          data-text-test-unknown="{{ __('push.test_unknown') }}"
+          data-text-test-throttled="{{ __('push.test_throttled') }}"
           data-text-device-registered="{{ __('push.device_registered') }}"
           data-text-device-registered-unlabeled="{{ __('push.device_registered_unlabeled') }}"
           data-count-zero="{{ trans_choice('push.devices_count', 0) }}"
