@@ -393,11 +393,22 @@
                      n'aurait simplement rien fait. --}}
                 <x-input-label for="bio" :required="true" :value="__('profile.bio')" />
                 <div class="mt-1">
+                    {{-- TASK-1872 correctif 10 — `minLength` passe a l'editeur,
+                         pas ecrit a la main : la prop existe, et `services/create`
+                         comme `requests/create` l'emploient deja avec la MEME
+                         valeur. Le navigateur annonce alors precisement ce qui
+                         manque (« …au moins 100 caracteres ; vous en avez saisi
+                         N »), au `blur`, avant toute soumission. --}}
                     <x-markdown-wysiwyg-editor name="bio" :value="old('bio', $user->bio)"
                                                :placeholder="__('profile.bio_placeholder')"
                                                rows="8" tall fullscreen required
+                                               minLength="100"
                                                :invalid="$errors->has('bio')" />
                 </div>
+                {{-- La contrainte se DIT avant d'etre rencontree. Decouvrir un
+                     minimum en se faisant refuser est la facon la plus surement
+                     agacante de l'appliquer. --}}
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-profile-bio-hint>{{ __('profile.bio_min_hint', ['min' => 100]) }}</p>
                 <x-input-error class="mt-2" field="bio" :messages="$errors->get('bio')" />
             </div>
 

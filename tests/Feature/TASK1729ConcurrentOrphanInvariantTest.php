@@ -574,7 +574,7 @@ class TASK1729ConcurrentOrphanInvariantTest extends TestCase
             // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
             'city' => 'Lyon',
             'country_code' => 'FR',
-            'bio' => 'Une presentation de profil, courte mais reelle.',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'name' => $user->name,
             'first_name' => $user->first_name ?? 'Camille',
             'email' => $user->email,

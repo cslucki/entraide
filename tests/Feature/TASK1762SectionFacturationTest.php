@@ -47,7 +47,7 @@ class TASK1762SectionFacturationTest extends TestCase
             // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
             'city' => 'Lyon',
             'country_code' => 'FR',
-            'bio' => 'Une presentation de profil, courte mais reelle.',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'first_name' => $u->first_name,
             'name' => $u->name,
             'email' => $u->email,
@@ -172,12 +172,13 @@ class TASK1762SectionFacturationTest extends TestCase
 
         $this->actingAs($membre)
             ->put(route('profile.update'), $this->formulaire($membre, [
-                'bio' => 'Une presentation.',
+                // TASK-1872 correctif 10 — au moins cent caracteres.
+                'bio' => 'Une presentation ecrite assez longuement pour franchir le plancher de cent caracteres impose au profil.',
                 'city' => 'Marseille',
             ]))
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('Une presentation.', $membre->fresh()->bio);
+        $this->assertSame('Une presentation ecrite assez longuement pour franchir le plancher de cent caracteres impose au profil.', $membre->fresh()->bio);
         $this->assertSame('Marseille', $membre->fresh()->city);
     }
 }

@@ -130,7 +130,7 @@ class TASK1871ProfilScopeEtErreursVisiblesTest extends TestCase
             ->put(route('organization.profile.update', ['organization' => 'ofsh']), [
                 // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
                 'first_name' => 'Camille',
-                'bio' => 'Une presentation de profil, courte mais reelle.',
+                'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                 'name' => 'Camille Durand',
                 'email' => $this->membre->email,
                 'phone' => '0600000000',
@@ -177,7 +177,7 @@ class TASK1871ProfilScopeEtErreursVisiblesTest extends TestCase
             ->put(route('organization.profile.update', ['organization' => 'ofsh']), [
                 // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
                 'first_name' => 'Camille',
-                'bio' => 'Une presentation de profil, courte mais reelle.',
+                'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                 'name' => 'Camille Durand',
                 'email' => $this->membre->email,
                 'phone' => '0600000000',
@@ -259,7 +259,7 @@ class TASK1871ProfilScopeEtErreursVisiblesTest extends TestCase
             ->put(route('organization.profile.update', ['organization' => 'ofsh']), [
                 // TASK-1872 correctif 01 — rendus obligatoires, cf. ProfileController::update().
                 'first_name' => 'Camille',
-                'bio' => 'Une presentation de profil, courte mais reelle.',
+                'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
                 'name' => 'Camille Durand',
                 'email' => $this->membre->email,
                 'phone' => '0600000000',

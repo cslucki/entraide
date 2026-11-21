@@ -57,7 +57,7 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
             'first_name' => 'Camille',
             'city' => 'Lyon',
             'country_code' => 'FR',
-            'bio' => 'Une presentation de profil, courte mais reelle.',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'name' => $user->name,
             'email' => $user->email,
             'phone' => '+33600000000',
@@ -193,7 +193,9 @@ class TASK1693ProfileSaveDestinationTest extends TestCase
             // par ce test etait silencieusement ecartee au profit de celle du
             // socle, et l'assertion ci-dessous ne trouvait plus son texte.
             ->put(route('profile.update'), array_merge($this->payload($user), [
-                'bio' => 'Ma nouvelle presentation publique.',
+                // TASK-1872 correctif 10 — au moins cent caracteres : la valeur doit
+                // rester DISTINCTE de celle du socle, c'est tout l'objet de ce test.
+                'bio' => 'Ma nouvelle presentation publique. Ecrite assez longuement pour franchir le plancher de cent caracteres.',
             ]))
             ->assertSessionHasNoErrors()
             ->assertRedirect($this->destinationAttendue($user));

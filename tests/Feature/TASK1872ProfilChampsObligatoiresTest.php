@@ -73,7 +73,7 @@ class TASK1872ProfilChampsObligatoiresTest extends TestCase
             'phone' => '+33600000000',
             'city' => 'Lyon',
             'country_code' => 'FR',
-            'bio' => 'Une presentation de profil, courte mais reelle.',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'slogan' => 'Je resous des problemes, pas des tickets.',
         ], $surcharge);
     }
@@ -133,6 +133,64 @@ class TASK1872ProfilChampsObligatoiresTest extends TestCase
                 'country_code' => 'Le champ pays',
                 'bio' => 'Le champ présentation',
             ]);
+    }
+
+    /* ─────────── CORRECTIF 10 : LE PLANCHER DE LA PRESENTATION ─────────── */
+
+    /**
+     * 100 caracteres, et le chiffre n'est pas arbitraire.
+     *
+     * C'est celui que `services/create` et `requests/create` imposent deja au
+     * MEME editeur. Mesure sur le jumeau local avant de le retenir : 74
+     * presentations renseignees, mediane a 307 caracteres, 1er quartile a
+     * 114 — quinze d'entre elles (20%) devront etre rallongees. A 150 ce
+     * serait 27%, a 200 31%.
+     *
+     * Les bornes sont testees des DEUX cotes : 99 refuse, 100 accepte. Un
+     * test qui n'essaierait qu'une valeur tres courte passerait aussi avec un
+     * seuil a 10.
+     */
+    public function test_la_presentation_exige_cent_caracteres(): void
+    {
+        $this->actingAs($this->membre)
+            ->put(route('profile.update'), $this->formulaire(['bio' => str_repeat('a', 99)]))
+            ->assertSessionHasErrors('bio');
+
+        $this->actingAs($this->membre)
+            ->put(route('profile.update'), $this->formulaire(['bio' => str_repeat('a', 100)]))
+            ->assertSessionHasNoErrors();
+    }
+
+    /**
+     * Le plancher est DERIVE de la regle serveur a l'ecran, pas recopie.
+     *
+     * `minLength` atterrit sur le `<textarea>` que TipTap masque ; le
+     * navigateur annonce alors precisement ce qui manque, au `blur`, avant
+     * toute soumission.
+     */
+    public function test_l_editeur_annonce_le_plancher_avant_la_soumission(): void
+    {
+        $html = $this->ecran();
+
+        $this->assertMatchesRegularExpression(
+            '/<textarea[^>]*name="bio"[^>]*minlength="100"/s',
+            $html,
+            'L\'editeur ne porte pas le plancher : il ne se decouvrirait qu\'au refus du serveur.'
+        );
+    }
+
+    /**
+     * Et la contrainte se LIT, avant d'etre rencontree.
+     *
+     * Decouvrir un minimum en se faisant refuser est la facon la plus
+     * surement agacante de l'appliquer.
+     */
+    public function test_la_contrainte_est_annoncee_a_l_ecran(): void
+    {
+        $this->assertStringContainsString(
+            e(__('profile.bio_min_hint', ['min' => 100])),
+            $this->ecran(),
+        );
     }
 
     /* ─────────── L'ECRAN LE DIT AVANT D'ENVOYER ─────────── */

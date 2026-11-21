@@ -352,7 +352,36 @@ class ProfileController extends Controller
             // barre d'outils alourdissent encore le balisage compte ici.
             // TASK-1872 correctif 01 — obligatoire, meme motif que
             // `first_name` ci-dessus : `EnsureProfileComplete` l'exige deja.
-            'bio' => ['required', 'string', 'max:3500'],
+            /* TASK-1872 correctif 10 — un PLANCHER de 100 caracteres.
+               =========================================================
+               Chiffre demande par Cyril « selon les bonnes pratiques », et
+               choisi sur mesure plutot qu'au jugé. Trois raisons, dans cet
+               ordre :
+
+               1. **C'est deja la regle de la maison.** La description d'un
+                  service et celle d'une demande emploient le MEME editeur
+                  avec `minLength="100"`. Un troisieme seuil pour le meme
+                  geste d'ecriture serait une incoherence injustifiable.
+               2. **Le cout est mesure.** Sur le jumeau local : 74
+                  presentations renseignees, mediane a 307 caracteres, 1er
+                  quartile a 114. A 100, quinze d'entre elles (20%) devront
+                  etre rallongees — et seulement quand leur auteur touchera
+                  son profil. A 150 ce serait 27%, a 200 31%.
+               3. **En dessous, le champ ne fait pas son travail.** 50
+                  caracteres, c'est « Consultant independant. » Dans un
+                  annuaire d'entraide, la presentation est ce qui rend
+                  quelqu'un trouvable et abordable.
+
+               Ce qu'un minimum achete, et ce qu'il n'achete pas : un
+               plancher contre « . » et « test ». Pas de la qualite — au-dela
+               de ~150 il produit du remplissage, et c'est pourquoi on ne
+               monte pas plus haut meme si cela « ferait plus serieux ».
+
+               Compte sur le Markdown BRUT, comme le `max:3500` juste a cote
+               dont le commentaire d'origine precise que « le BALISAGE est
+               compte dans la limite ». Les deux bornes se lisent donc de la
+               meme facon. */
+            'bio' => ['required', 'string', 'min:100', 'max:3500'],
             'city' => ['required', 'string', 'max:255'],
             'country_code' => ['required', 'string', 'size:2', Rule::exists('countries', 'code')->where('active', true)],
             'website' => ['nullable', 'url', 'max:255'],

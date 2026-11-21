@@ -68,7 +68,7 @@ class TASK1750ProfileLinksTest extends TestCase
             'first_name' => 'Camille',
             'city' => 'Lyon',
             'country_code' => 'FR',
-            'bio' => 'Une presentation de profil, courte mais reelle.',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'name' => $this->membre->name,
             'email' => $this->membre->email,
             'phone' => '+33600000000',

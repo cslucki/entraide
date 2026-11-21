@@ -158,7 +158,7 @@ class TASK1712PersonNameValidationTest extends TestCase
             'first_name' => 'Camille',
             'city' => 'Lyon',
             'country_code' => 'FR',
-            'bio' => 'Une presentation de profil, courte mais reelle.',
+            'bio' => 'Une presentation de profil assez longue pour franchir le plancher de cent caracteres impose par TASK-1872.',
             'name' => 'Gagnez 2 BTC sur graph.org/promo',
             'email' => $membre->email,
         ]);
