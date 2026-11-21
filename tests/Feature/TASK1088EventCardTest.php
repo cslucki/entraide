@@ -425,19 +425,48 @@ class TASK1088EventCardTest extends TestCase
     // ── Creation et validation ──────────────────────────────────────────────
 
     /**
-     * TASK-1802 (demande Cyril, 10/11) — « il faut que ce soit les
-     * proprietaires ou animateurs de Boucle qui puissent poster un
-     * evenement, uniquement. » Renverse l'ancien
-     * `test_every_active_member_may_propose_a_meeting` : le membre simple
-     * garde `events.respond` (repondre) mais perd `events.create`.
+     * TASK-1872 correctif 05 (demande Cyril, 21/11) — « les membres de la
+     * boucle doivent avoir l'autorisation de publier des evenements ».
+     *
+     * ⚠️ Ce test a change de sens DEUX FOIS, et c'est volontaire. A l'origine
+     * `test_every_active_member_may_propose_a_meeting` ; renverse par
+     * TASK-1802 (10/11, « proprietaires ou animateurs uniquement ») ;
+     * re-renverse ici. La demande du 21/11 est posterieure et l'emporte.
+     *
+     * On garde la trace plutot que de reecrire l'histoire : qui lira ce
+     * fichier saura que le va-et-vient est une suite de decisions prises, et
+     * non une regression qui serait passee deux fois.
      */
-    public function test_only_the_owner_and_facilitator_may_propose_a_meeting(): void
+    public function test_every_active_member_may_propose_a_meeting(): void
     {
-        foreach ([$this->owner, $this->facilitator] as $user) {
+        foreach ([$this->owner, $this->facilitator, $this->member] as $user) {
             $this->assertTrue($this->service()->canCreate($user, $this->loop));
         }
+    }
 
-        $this->assertFalse($this->service()->canCreate($this->member, $this->loop));
+    /**
+     * La contre-mesure : l'ouverture porte sur la PROPOSITION, et rien d'autre.
+     *
+     * Un membre pilote la rencontre qu'il a creee — c'est `canManageEvent()`
+     * qui le permet a l'auteur — mais `events.manage` lui reste ferme, donc
+     * celle d'un autre lui echappe. Et faire remonter un Evenement devant
+     * toute l'Organization n'a pas bouge non plus : Cyril ne l'a pas demande.
+     */
+    public function test_proposer_n_ouvre_n_i_la_gestion_d_autrui_n_i_la_publication_a_l_organization(): void
+    {
+        $deLOwner = $this->event($this->owner);
+
+        $this->assertFalse($this->service()->canManageEvent($this->member, $deLOwner, $this->loop),
+            'Un membre pilote le sien, jamais celui d\'un autre.');
+
+        $this->assertFalse($this->service()->canPublishToOrganization($this->member, $this->loop),
+            'Faire remonter une rencontre a toute l\'Organization est un autre acte.');
+
+        // TEMOIN : il pilote bien le sien, sinon l'assertion ci-dessus serait
+        // vraie pour une raison sans rapport — par exemple une permission
+        // restee fermee partout.
+        $leSien = $this->event($this->member);
+        $this->assertTrue($this->service()->canManageEvent($this->member, $leSien, $this->loop));
     }
 
     public function test_a_non_member_may_not_create(): void
@@ -1125,13 +1154,43 @@ class TASK1088EventCardTest extends TestCase
     {
         // Acteur avec le droit de creer : cette garde porte sur la VALIDATION
         // du formulaire (titre vide), pas sur la permission — deja couverte
-        // par `test_only_the_owner_and_facilitator_may_propose_a_meeting`.
+        // par `test_every_active_member_may_propose_a_meeting`.
         Livewire::actingAs($this->owner)
             ->test(LoopEventsCard::class, ['loop' => $this->loop])
             ->call('openCreateForm')
             ->set('title', '')
             ->call('save')
             ->assertSet('errorMessage', __('events.error_title_required'));
+    }
+
+    /**
+     * TASK-1872 correctif 05 — le bouton ne ment pas : le membre va au bout.
+     *
+     * Les assertions de permission disent « il a le droit » ; celle-ci dit
+     * « et l'Evenement existe ». Entre les deux il y a la Card, son
+     * formulaire et le service — trois endroits ou une garde oubliee aurait
+     * refuse ce que la matrice venait d'ouvrir.
+     */
+    public function test_un_membre_cree_reellement_une_rencontre_depuis_la_card(): void
+    {
+        Livewire::actingAs($this->member)
+            ->test(LoopEventsCard::class, ['loop' => $this->loop])
+            ->call('openCreateForm')
+            ->set('title', 'Cafe des membres')
+            ->set('startsAt', CarbonImmutable::now()->addDays(2)->format('Y-m-d\TH:i'))
+            ->set('timezone', 'Europe/Paris')
+            // Le format par defaut est « sur place », et une rencontre sur
+            // place exige un lieu : sans lui, le refus viendrait de la
+            // VALIDATION et ce test ne dirait rien des permissions.
+            ->set('location', 'Salle du fond')
+            ->call('save')
+            ->assertSet('errorMessage', null);
+
+        $this->assertDatabaseHas('loop_events', [
+            'loop_id' => $this->loop->id,
+            'title' => 'Cafe des membres',
+            'created_by' => $this->member->id,
+        ]);
     }
 
     public function test_a_member_answers_through_the_card(): void
