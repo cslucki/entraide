@@ -53,6 +53,7 @@ class ProcessImageVariants implements ShouldBeUnique, ShouldQueue
         public readonly ?string $organizationId = null,
         public readonly string $disk = 'public',
         public readonly bool $backfill = false,
+        public readonly bool $force = false,
     ) {
         $this->onQueue(self::QUEUE);
         $this->afterCommit();
@@ -84,7 +85,7 @@ class ProcessImageVariants implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        $outcome = $service->process(new ImageSource($this->surface, $this->path, $this->organizationId, $this->disk));
+        $outcome = $service->process(new ImageSource($this->surface, $this->path, $this->organizationId, $this->disk), $this->force);
 
         if ($outcome->status === ImageProcessOutcome::LOCKED) {
             $this->release(60);
