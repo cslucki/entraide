@@ -71,7 +71,7 @@
                     @php($boucle = $entree['loop'])
                     <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800" data-loops-latest-messages-section="{{ $boucle->id }}">
                         <div class="relative">
-                            <x-loops.cover :loop="$boucle" ratio="16 / 5" />
+                            <x-loops.cover :loop="$boucle" ratio="16 / 5" sizes="(min-width: 1024px) 60vw, 100vw" />
                             <div class="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 via-black/10 to-transparent p-4">
                                 <h2 class="text-lg font-bold text-white drop-shadow-sm">{{ $boucle->name }}</h2>
                             </div>

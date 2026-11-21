@@ -28,7 +28,21 @@
     `aspect-[335/364]`. (`@tailwindcss/vite` sits in package.json but is never
     wired into vite.config.js, so it has no effect either way.)
 --}}
-@props(['loop', 'ratio' => '5 / 2', 'rounded' => 'rounded-t-2xl'])
+{{--
+    TASK-1873 — l'image televersee est servie en WebP, a la taille utile :
+    `srcset` liste les variantes PRETES (480/960/1600 px de large, jamais
+    recadrees), `sizes` dit au navigateur la largeur reelle de la boite. Tant
+    qu'aucune variante n'est prete, `srcset` est absent et `src` reste
+    l'original — exactement le rendu d'avant. Le ratio reste porte par
+    `aspect-ratio` + `object-cover` : aucune couverture n'est rognee sur le
+    disque, un texte incruste reste entier dans le fichier.
+
+    `priority` : couverture visible des l'arrivee (bandeau de page) — chargee
+    tout de suite et en priorite. Sinon `loading="lazy"`. Pas de
+    `width`/`height` : la boite a deja ses dimensions (`aspect-ratio`), l'image
+    est en `absolute inset-0` ; aucun decalage de mise en page possible.
+--}}
+@props(['loop', 'ratio' => '5 / 2', 'rounded' => 'rounded-t-2xl', 'sizes' => '100vw', 'priority' => false])
 @php
     // [background (Tailwind, literal so JIT keeps it), ring stops ×3, blob ×2]
     $coverVariants = [
@@ -64,7 +78,12 @@
 <div {{ $attributes->merge(['class' => $rounded.' relative w-full overflow-hidden bg-gray-100 dark:bg-gray-800']) }}
      style="aspect-ratio: {{ $ratio }};">
     @if($loop->cover_image_url)
-        <img src="{{ $loop->cover_image_url }}" alt="" class="absolute inset-0 h-full w-full object-cover">
+        @php($coverSrcset = $loop->cover_image_srcset)
+        <img src="{{ $loop->cover_image_url }}"
+             @if($coverSrcset) srcset="{{ $coverSrcset }}" sizes="{{ $sizes }}" @endif
+             @if($priority) fetchpriority="high" @else loading="lazy" @endif
+             decoding="async"
+             alt="" class="absolute inset-0 h-full w-full object-cover">
     @else
         {{-- Decorative: the Loop name is rendered right next to it. --}}
         <div class="absolute inset-0 bg-gradient-to-br {{ $variant['bg'] }}" aria-hidden="true">

@@ -172,7 +172,9 @@ class ProfileController extends Controller
         $ogDescription = $user->bio
             ? Str::limit($user->bio, 160)
             : "Profil de {$user->name} sur Entraide";
-        $ogImage = $user->avatar_url;
+        // TASK-1873 — l'aperçu social garde l'ORIGINAL : la variante d'avatar
+        // (192 px) passe sous le minimum de 200 px de certains reseaux.
+        $ogImage = $user->avatar ? Storage::disk('public')->url($user->avatar) : $user->avatar_url;
         $jsonLd = json_encode([
             '@context' => 'https://schema.org',
             '@type' => 'Person',

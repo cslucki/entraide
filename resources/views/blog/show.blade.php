@@ -46,7 +46,11 @@
                 <!-- Image de couverture -->
                 @if($post->image)
                 <div class="mb-8 rounded-xl overflow-hidden">
-                    <img src="{{ $post->image_url }}" alt="{{ $post->title }}" class="w-full max-h-72 object-cover">
+                    {{-- TASK-1873 — bandeau visible a l'arrivee : charge en priorite. --}}
+                    <img src="{{ $post->image_url }}" alt="{{ $post->title }}"
+                         @if($post->image_srcset) srcset="{{ $post->image_srcset }}" sizes="(min-width: 1024px) 896px, 100vw" @endif
+                         fetchpriority="high" decoding="async"
+                         class="w-full max-h-72 object-cover">
                 </div>
                 @endif
 

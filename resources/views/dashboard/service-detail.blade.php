@@ -61,7 +61,7 @@
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         @foreach($service->images as $image)
                         <button type="button" @click="imageUrl = @js($image->url); imageOpen = true" class="block aspect-square rounded-lg overflow-hidden bg-gray-100 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:bg-gray-700 dark:focus:ring-offset-gray-800">
-                            <img src="{{ $image->url }}" alt="" class="w-full h-full object-cover">
+                            <img src="{{ $image->thumbnail_url }}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover">
                         </button>
                         @endforeach
                     </div>

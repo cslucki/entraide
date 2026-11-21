@@ -44,7 +44,7 @@
     :class="loopPane.id === @js($item->id) && 'bg-indigo-50 dark:bg-indigo-900/30'"
 >
     <div class="w-16 shrink-0 sm:w-20">
-        <x-loops.cover :loop="$item" ratio="4 / 3" rounded="rounded-lg" />
+        <x-loops.cover :loop="$item" ratio="4 / 3" rounded="rounded-lg" sizes="80px" />
     </div>
 
     <div class="min-w-0 flex-1">
