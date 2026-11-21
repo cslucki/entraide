@@ -52,6 +52,8 @@ class TASK1876ManualBatchSizeTest extends TestCase
 
     public function test_simulation_and_launch_respect_the_selected_size(): void
     {
+        $seen = [];
+
         foreach ([1 => 1, 5 => 5] as $limit => $expected) {
             Livewire::actingAs($this->admin)
                 ->test(ImageOptimizer::class)
@@ -62,7 +64,10 @@ class TASK1876ManualBatchSizeTest extends TestCase
                 ->call('launchManual')
                 ->assertHasNoErrors();
 
-            $batch = ImageOptimizationBatch::query()->latest()->firstOrFail();
+            // Pas `latest()` : deux lots crees dans la meme seconde ont le
+            // meme `created_at`, l'ordre ne serait pas deterministe (rouge CI).
+            $batch = ImageOptimizationBatch::query()->whereNotIn('id', $seen)->sole();
+            $seen[] = $batch->id;
             $this->assertTrue($batch->isManual());
             $this->assertSame($expected, $batch->total);
             $this->assertSame($expected, $batch->items()->count());
