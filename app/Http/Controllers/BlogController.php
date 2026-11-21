@@ -673,7 +673,7 @@ class BlogController extends Controller implements HasMiddleware
      * l'article, des cet instant : une variante produite plus tard, hors
      * requete, ne serait jamais servie (on ne reecrit pas le HTML). C'est la
      * seule surface derivee DANS la requete — une image, deja bornee a 5 Mo
-     * par la validation et a 25 Mpx par le service, comme le font deja le fil
+     * par la validation et a 12 Mpx en requete (garde memoire), comme le fil
      * et LoopChat a l'upload.
      *
      * Toute difficulte (format non traite comme le GIF, image trop grande,
@@ -683,7 +683,12 @@ class BlogController extends Controller implements HasMiddleware
     private function urlOptimiseeDuContenu(string $path, ?string $organizationId): string
     {
         try {
-            app(ImageVariantService::class)->process(new ImageSource('blog_content', $path, $organizationId));
+            // Mode requete : plafond de pixels et garde memoire. Au-dela, rien
+            // n'est inscrit et l'article recoit l'URL de l'original.
+            app(ImageVariantService::class)->process(
+                new ImageSource('blog_content', $path, $organizationId),
+                inRequestMaxPixels: (int) config('image_variants.in_request_max_pixels'),
+            );
 
             return (string) app(ImageVariantResolver::class)->url($path, 'content');
         } catch (\Throwable $e) {

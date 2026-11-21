@@ -47,6 +47,19 @@ return [
     'max_side' => (int) env('IMAGE_VARIANTS_MAX_SIDE', 10_000),
     'max_source_bytes' => (int) env('IMAGE_VARIANTS_MAX_SOURCE_BYTES', 20 * 1024 * 1024),
 
+    // Plafond PLUS BAS pour la seule derivation faite dans une requete HTTP
+    // (images TipTap) : la memoire web est souvent bornee (128 Mo en local).
+    // Au-dela, l'article garde l'URL de l'original, toujours valide.
+    'in_request_max_pixels' => (int) env('IMAGE_VARIANTS_IN_REQUEST_MAX_PIXELS', 12_000_000),
+
+    /*
+     * Connexion de queue des jobs d'images. Vide = connexion par defaut
+     * (PROD : inchange). En local, `database` fait tourner les images seules
+     * en asynchrone, sur un worker dedie (`ai/scripts/images-queue-worker.sh`),
+     * sans basculer les autres queues locales.
+     */
+    'queue_connection' => env('IMAGE_VARIANTS_QUEUE_CONNECTION') ?: null,
+
     // Formats matriciels traites. SVG (banque d'avatars Scenario) et GIF
     // (animations) sont volontairement exclus : l'original est servi.
     'mimes' => ['image/jpeg', 'image/png', 'image/webp'],

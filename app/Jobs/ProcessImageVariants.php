@@ -39,10 +39,22 @@ class ProcessImageVariants implements ShouldBeUnique, ShouldQueue
 
     public const QUEUE = 'images';
 
-    public int $tries = 3;
+    /**
+     * Deux essais : le second ne sert qu'apres une EXCEPTION ou un depassement
+     * de duree (worker tue). Un echec metier (image illisible, ecriture
+     * refusee) n'est PAS une exception : le service l'inscrit au registre et
+     * le job se termine normalement — c'est le registre qui le reprend.
+     */
+    public int $tries = 2;
 
-    /** Une image bornee a 25 Mpx se derive en quelques secondes ; marge large. */
-    public int $timeout = 120;
+    /**
+     * STRICTEMENT sous `retry_after` (90 s, queue `database`) : au-dela, la
+     * queue croit le job perdu et le redonne a un autre worker PENDANT qu'il
+     * tourne encore — deux derivations concurrentes de la meme image.
+     */
+    public int $timeout = 75;
+
+    public int $backoff = 30;
 
     /** Deux uploads identiques en file ne produisent qu'un seul job. */
     public int $uniqueFor = 600;
@@ -57,6 +69,12 @@ class ProcessImageVariants implements ShouldBeUnique, ShouldQueue
     ) {
         $this->onQueue(self::QUEUE);
         $this->afterCommit();
+
+        // Connexion DEDIEE optionnelle : en local, les images seules partent
+        // sur `database` (worker dedie) quand le reste reste en `sync`.
+        if ($connection = config('image_variants.queue_connection')) {
+            $this->onConnection($connection);
+        }
     }
 
     /**
@@ -69,7 +87,10 @@ class ProcessImageVariants implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        static::dispatch($surface, $path, $organizationId);
+        // `force` : un upload peut REECRIRE un chemin deja connu (nom
+        // horodate a la seconde, par exemple) ; ses anciennes variantes
+        // seraient sinon tenues pour a jour.
+        static::dispatch($surface, $path, $organizationId, 'public', false, true);
     }
 
     public function uniqueId(): string

@@ -19,6 +19,9 @@ final readonly class ImageProcessOutcome
 
     public const FAILED = 'failed';
 
+    /** Mode requete : renonce sans inscription, a deriver hors requete. */
+    public const DEFERRED = 'deferred';
+
     /**
      * @param  int  $generated  variantes (re)ecrites par ce passage
      * @param  int|null  $sourceBytes  poids de l'original, quand il a ete lu

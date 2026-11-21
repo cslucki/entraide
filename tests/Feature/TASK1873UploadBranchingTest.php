@@ -46,7 +46,8 @@ class TASK1873UploadBranchingTest extends TestCase
             ProcessImageVariants::class,
             fn (ProcessImageVariants $job) => $job->surface === $surface
                 && $job->organizationId === $organizationId
-                && $job->backfill === false,
+                && $job->backfill === false
+                && $job->force === true,
         );
 
         Queue::assertPushed(ProcessImageVariants::class, fn (ProcessImageVariants $job) => $job->queue === 'images'

@@ -243,4 +243,61 @@ class TASK1873ImageVariantServiceTest extends TestCase
         $this->assertSame(ImageProcessOutcome::SKIPPED, $outcome->status);
         $this->assertFalse($this->service()->needsWork(new ImageSource('user_avatar', 'avatars/broken.jpg')));
     }
+
+    public function test_a_missing_original_that_reappears_is_picked_up_again(): void
+    {
+        $source = new ImageSource('user_avatar', 'avatars/restored.jpg');
+        $this->service()->process($source);
+        $this->assertSame(ImageVariant::STATUS_MISSING, ImageVariant::firstOrFail()->status);
+        $this->assertFalse($this->service()->needsWork($source), 'tant que l original manque, on ne le redemande pas');
+
+        // Restauration (sauvegarde, copie depuis la PROD).
+        $this->putImage('avatars/restored.jpg', 400, 400);
+
+        $this->assertTrue($this->service()->needsWork($source));
+        $this->assertSame(ImageProcessOutcome::PROCESSED, $this->service()->process($source)->status);
+        $this->assertSame(ImageVariant::STATUS_READY, ImageVariant::firstOrFail()->status);
+    }
+
+    public function test_the_in_request_mode_defers_a_large_image_without_recording_anything(): void
+    {
+        $this->putImage('blog/images/o/u/big.jpg', 1500, 1000);
+
+        $outcome = $this->service()->process(new ImageSource('blog_content', 'blog/images/o/u/big.jpg'), inRequestMaxPixels: 1_000_000);
+
+        $this->assertSame(ImageProcessOutcome::DEFERRED, $outcome->status);
+        $this->assertSame(0, ImageVariant::count(), 'rien d inscrit : un traitement hors requete reste possible');
+        $this->assertSame([], Storage::disk('public')->allFiles('image-variants'));
+    }
+
+    public function test_the_memory_guard_refuses_a_decode_that_would_not_fit_instead_of_crashing(): void
+    {
+        $this->putImage('blog/mem.jpg', 2500, 2500);
+        $previous = ini_get('memory_limit');
+        // Juste au-dessus de l'usage courant : 2500x2500 exige ~70 Mo de plus.
+        ini_set('memory_limit', (string) (memory_get_usage(true) + 20 * 1024 * 1024));
+
+        try {
+            $outcome = $this->service()->process(new ImageSource('blog_cover', 'blog/mem.jpg'));
+        } finally {
+            ini_set('memory_limit', (string) $previous);
+        }
+
+        $this->assertSame(ImageProcessOutcome::FAILED, $outcome->status);
+        $this->assertStringStartsWith('insufficient_memory:2500x2500', (string) $outcome->reason);
+    }
+
+    public function test_a_forced_pass_rewrites_variants_when_an_original_is_replaced_at_the_same_path(): void
+    {
+        $this->putImage('avatars/same.jpg', 400, 400);
+        $this->service()->process(new ImageSource('user_avatar', 'avatars/same.jpg'));
+        $firstHash = ImageVariant::firstOrFail()->source_hash;
+
+        // Meme chemin, autre contenu (un upload qui reecrit le fichier).
+        $this->putImage('avatars/same.jpg', 600, 300);
+        $this->assertSame(ImageProcessOutcome::UP_TO_DATE, $this->service()->process(new ImageSource('user_avatar', 'avatars/same.jpg'))->status);
+
+        $this->assertSame(ImageProcessOutcome::PROCESSED, $this->service()->process(new ImageSource('user_avatar', 'avatars/same.jpg'), true)->status);
+        $this->assertNotSame($firstHash, ImageVariant::firstOrFail()->source_hash);
+    }
 }

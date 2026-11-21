@@ -49,7 +49,14 @@ final class ImageVariantService
         private readonly ImageVariantResolver $resolver,
     ) {}
 
-    public function process(ImageSource $source, bool $force = false): ImageProcessOutcome
+    /**
+     * @param  int|null  $inRequestMaxPixels  mode REQUETE (TipTap) : au-dela de
+     *                                        ce plafond, ou si la memoire du
+     *                                        processus ne suffit pas, on renonce
+     *                                        SANS rien inscrire (`DEFERRED`) — la
+     *                                        derivation se fera hors requete.
+     */
+    public function process(ImageSource $source, bool $force = false, ?int $inRequestMaxPixels = null): ImageProcessOutcome
     {
         $presets = $this->presets->forSurface($source->surface);
 
@@ -64,7 +71,7 @@ final class ImageVariantService
         }
 
         try {
-            return $this->processLocked($source, $presets, $force);
+            return $this->processLocked($source, $presets, $force, $inRequestMaxPixels);
         } finally {
             $lock->release();
         }
@@ -79,9 +86,10 @@ final class ImageVariantService
     public function needsWork(ImageSource $source, ?Collection $rows = null): bool
     {
         $rows ??= $this->rowsFor($source);
+        $reappeared = $this->reappearanceProbe($source);
 
         foreach ($this->presets->forSurface($source->surface) as $name => $preset) {
-            if (! $this->isDone($rows->get($name), $preset['version'])) {
+            if (! $this->isDone($rows->get($name), $preset['version'], $reappeared)) {
                 return true;
             }
         }
@@ -127,13 +135,14 @@ final class ImageVariantService
     /**
      * @param  array<string, array{mode: string, width: int, height: int|null, version: int}>  $presets
      */
-    private function processLocked(ImageSource $source, array $presets, bool $force): ImageProcessOutcome
+    private function processLocked(ImageSource $source, array $presets, bool $force, ?int $inRequestMaxPixels): ImageProcessOutcome
     {
         $rows = $this->rowsFor($source);
+        $reappeared = $this->reappearanceProbe($source);
 
         $pending = array_filter(
             $presets,
-            fn (array $preset, string $name) => $force || ! $this->isDone($rows->get($name), $preset['version']),
+            fn (array $preset, string $name) => $force || ! $this->isDone($rows->get($name), $preset['version'], $reappeared),
             ARRAY_FILTER_USE_BOTH,
         );
 
@@ -178,6 +187,19 @@ final class ImageVariantService
         if ($width * $height > (int) config('image_variants.max_pixels')
             || max($width, $height) > (int) config('image_variants.max_side')) {
             return $this->skip($source, $pending, $rows, "too_large:{$width}x{$height}", $sourceBytes);
+        }
+
+        // Mode requete : plafond plus bas, et AUCUNE inscription — le job
+        // hors requete reprendra cette source comme si de rien n'etait.
+        if ($inRequestMaxPixels !== null
+            && ($width * $height > $inRequestMaxPixels || ! $this->memoryAllows($width, $height, $sourceBytes))) {
+            return new ImageProcessOutcome(ImageProcessOutcome::DEFERRED, "deferred:{$width}x{$height}", 0, $sourceBytes);
+        }
+
+        // Une erreur « memoire epuisee » est FATALE en PHP : aucun `catch` ne
+        // la rattrape, le repli n'aurait jamais lieu. On la previent.
+        if (! $this->memoryAllows($width, $height, $sourceBytes)) {
+            return $this->fail($source, $pending, $rows, "insufficient_memory:{$width}x{$height}", $sourceBytes);
         }
 
         $hash = sha1($bytes);
@@ -271,16 +293,72 @@ final class ImageVariantService
         return [$path, strlen($encoded), $image->width(), $image->height()];
     }
 
-    private function isDone(?ImageVariant $row, int $version): bool
+    /**
+     * @param  \Closure(): bool  $reappeared  vrai si un original declare absent existe de nouveau
+     */
+    private function isDone(?ImageVariant $row, int $version, \Closure $reappeared): bool
     {
         if ($row === null || $row->preset_version !== $version) {
             return false;
         }
 
         return match ($row->status) {
-            ImageVariant::STATUS_READY, ImageVariant::STATUS_SKIPPED, ImageVariant::STATUS_MISSING => true,
+            ImageVariant::STATUS_READY, ImageVariant::STATUS_SKIPPED => true,
+            // Un original restaure (sauvegarde, copie depuis la PROD) est repris.
+            ImageVariant::STATUS_MISSING => ! $reappeared(),
             ImageVariant::STATUS_FAILED => $row->attempts >= self::MAX_ATTEMPTS,
             default => false,
+        };
+    }
+
+    /**
+     * Sonde paresseuse et memorisee : le stockage n'est interroge que si une
+     * ligne `missing` le demande, et une seule fois par source.
+     *
+     * @return \Closure(): bool
+     */
+    private function reappearanceProbe(ImageSource $source): \Closure
+    {
+        $known = null;
+
+        return function () use ($source, &$known): bool {
+            return $known ??= Storage::disk($source->disk)->exists($source->path);
+        };
+    }
+
+    /**
+     * Le decodage tient-il dans la memoire restante du processus ? Estimation
+     * prudente : bitmap source + copie de travail (~9 octets par pixel), plus
+     * l'original en memoire et une marge. `memory_limit = -1` : toujours oui.
+     */
+    private function memoryAllows(int $width, int $height, int $sourceBytes): bool
+    {
+        $limit = $this->memoryLimitBytes();
+
+        if ($limit <= 0) {
+            return true;
+        }
+
+        $needed = ($width * $height * 9) + $sourceBytes + (16 * 1024 * 1024);
+
+        return memory_get_usage(true) + $needed <= $limit;
+    }
+
+    private function memoryLimitBytes(): int
+    {
+        $raw = trim((string) ini_get('memory_limit'));
+
+        if ($raw === '' || $raw === '-1') {
+            return -1;
+        }
+
+        $value = (int) $raw;
+
+        return match (strtolower(substr($raw, -1))) {
+            'g' => $value * 1024 ** 3,
+            'm' => $value * 1024 ** 2,
+            'k' => $value * 1024,
+            default => $value,
         };
     }
 
