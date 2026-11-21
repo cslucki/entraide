@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
+use App\Support\Images\ImageVariantResolver;
 use Database\Factories\LoopFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,7 +13,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -176,7 +176,22 @@ class Loop extends Model
             return null;
         }
 
-        return Storage::disk('public')->url($this->cover_image_path);
+        // TASK-1873 — 960 px de large par defaut ; `cover_image_srcset` porte
+        // les autres tailles. Jamais recadree : les ratios 21/9 et 16/5 restent
+        // tenus par `object-cover` dans `x-loops.cover`.
+        return app(ImageVariantResolver::class)->url($this->cover_image_path, 'cover_md');
+    }
+
+    /** TASK-1873 — vignette (480 px) : miniature de l'ecran d'edition. */
+    public function getCoverImageThumbUrlAttribute(): ?string
+    {
+        return $this->cover_image_path ? app(ImageVariantResolver::class)->url($this->cover_image_path, 'cover_sm') : null;
+    }
+
+    /** TASK-1873 — `srcset` des variantes pretes, null tant qu'il n'y en a aucune. */
+    public function getCoverImageSrcsetAttribute(): ?string
+    {
+        return app(ImageVariantResolver::class)->srcset($this->cover_image_path, ['cover_sm', 'cover_md', 'cover_lg']);
     }
 
     public function scopePublic($query)

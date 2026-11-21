@@ -39,7 +39,7 @@
                 'border-gray-200 group-hover:border-indigo-300 dark:border-gray-700 dark:group-hover:border-indigo-600' => ! $isHighlighted,
                 'border-indigo-400 ring-2 ring-indigo-400/40 dark:border-indigo-500' => $isHighlighted,
             ])>
-            <x-loops.cover :loop="$item" ratio="1 / 1" rounded="rounded-none" />
+            <x-loops.cover :loop="$item" ratio="1 / 1" rounded="rounded-none" sizes="(min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw" />
         </div>
         <h3 class="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-gray-900 transition group-hover:text-indigo-600 dark:text-gray-100 dark:group-hover:text-indigo-400">
             {{ $item->name }}

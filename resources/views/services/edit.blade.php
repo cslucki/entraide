@@ -96,7 +96,7 @@
                 <div class="flex flex-wrap gap-3 mb-4">
                     @foreach($service->images as $img)
                     <div class="relative" x-data="{ deleting: false }">
-                        <img src="{{ $img->url }}"
+                        <img src="{{ $img->thumbnail_url }}"
                              class="w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                              :class="deleting ? 'opacity-40 ring-2 ring-red-500' : ''">
                         <label class="absolute top-1 right-1 text-white p-1 rounded-full cursor-pointer transition"

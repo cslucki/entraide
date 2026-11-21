@@ -63,7 +63,7 @@
          data-loop-preview-state="{{ $canRead ? 'reader' : 'discover' }}"
          class="flex flex-col text-gray-900 dark:text-gray-100">
     <div class="relative" data-loop-preview-cover>
-        <x-loops.cover :loop="$item" ratio="16 / 7" rounded="rounded-none" />
+        <x-loops.cover :loop="$item" ratio="16 / 7" rounded="rounded-none" sizes="(min-width: 1024px) 40vw, 100vw" />
         <div class="absolute inset-0 flex items-end bg-gradient-to-t from-black/75 via-black/10 to-transparent p-5">
             <h2 class="text-xl font-bold leading-tight text-white drop-shadow-sm">{{ $item->name }}</h2>
         </div>

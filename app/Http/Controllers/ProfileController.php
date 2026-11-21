@@ -9,6 +9,7 @@ use App\Models\LoopMember;
 use App\Models\MemberAiProfile;
 use App\Models\Organization;
 use App\Models\Transaction;
+use App\Jobs\ProcessImageVariants;
 use App\Models\User;
 use App\Rules\NomDePersonneAcceptable;
 use App\Rules\UniqueEmailInOrganization;
@@ -171,7 +172,9 @@ class ProfileController extends Controller
         $ogDescription = $user->bio
             ? Str::limit($user->bio, 160)
             : "Profil de {$user->name} sur Entraide";
-        $ogImage = $user->avatar_url;
+        // TASK-1873 — l'aperçu social garde l'ORIGINAL : la variante d'avatar
+        // (192 px) passe sous le minimum de 200 px de certains reseaux.
+        $ogImage = $user->avatar ? Storage::disk('public')->url($user->avatar) : $user->avatar_url;
         $jsonLd = json_encode([
             '@context' => 'https://schema.org',
             '@type' => 'Person',
@@ -480,7 +483,7 @@ class ProfileController extends Controller
         // avec une photo en main. L'ecran les rend d'ailleurs exclusifs, mais
         // un formulaire renvoye ne se croit pas sur parole.
         if ($request->hasFile('avatar')) {
-            $data['avatar'] = $this->stockerAvatar($request->file('avatar'));
+            $data['avatar'] = $this->stockerAvatar($request->file('avatar'), $request->user()->organization_id);
         } elseif ($request->boolean('supprimer_avatar')) {
             // `null` et non une chaine vide : `getAvatarUrlAttribute()` teste
             // `if ($this->avatar)`, et rend les initiales generees des que la
@@ -684,7 +687,7 @@ class ProfileController extends Controller
             return back()->with('success', __('profile.avatar_removed'));
         }
 
-        $moi->update(['avatar' => $this->stockerAvatar($request->file('avatar'))]);
+        $moi->update(['avatar' => $this->stockerAvatar($request->file('avatar'), $moi->organization_id)]);
 
         return back()->with('success', __('profile.avatar_updated'));
     }
@@ -702,7 +705,7 @@ class ProfileController extends Controller
      * prefixe par `time()` : le modifier aurait change l'adresse des avatars
      * sans que personne ne l'ait demande.
      */
-    private function stockerAvatar(UploadedFile $file): string
+    private function stockerAvatar(UploadedFile $file, ?string $organizationId): string
     {
         $filename = time().'_'.$file->getClientOriginalName();
 
@@ -710,6 +713,10 @@ class ProfileController extends Controller
         $img->cover(300, 300);
 
         Storage::disk('public')->put('avatars/'.$filename, (string) $img->encode());
+
+        // TASK-1873 — la variante WebP 192 px, servie par `avatar_url`, est
+        // derivee hors requete ; ce fichier reste le repli.
+        ProcessImageVariants::forUpload('user_avatar', 'avatars/'.$filename, $organizationId);
 
         return 'avatars/'.$filename;
     }

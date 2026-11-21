@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\RssSourceArticle;
 use App\Models\Tag;
 use App\Models\User;
+use App\Jobs\ProcessImageVariants;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -139,6 +140,8 @@ class AdminBlogController extends Controller
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('blog', 'public');
+            // TASK-1873 — variantes WebP de la couverture, hors requete.
+            ProcessImageVariants::forUpload('blog_cover', $data['image'] ?: null, $post->organization_id);
         }
 
         $post->update($data);

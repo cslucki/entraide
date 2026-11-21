@@ -13,7 +13,7 @@
 
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             @if($loop)
-                <x-loops.cover :loop="$loop" ratio="21 / 9" rounded="" />
+                <x-loops.cover :loop="$loop" ratio="21 / 9" rounded="" :priority="true" />
             @endif
 
             <div class="p-6 sm:p-8">

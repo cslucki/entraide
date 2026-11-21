@@ -76,7 +76,7 @@
                 <label for="cover_image" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('loops.cover_image_label') }}</label>
                 @if($currentLoop->cover_image_url)
                     <div class="mb-2 flex items-center gap-3">
-                        <img src="{{ $currentLoop->cover_image_url }}" alt="" class="h-16 w-28 rounded-lg object-cover">
+                        <img src="{{ $currentLoop->cover_image_thumb_url }}" alt="" class="h-16 w-28 rounded-lg object-cover">
                         <label class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                             <input type="checkbox" name="remove_cover_image" value="1" class="rounded text-red-600 focus:ring-red-500">
                             {{ __('loops.cover_image_remove') }}

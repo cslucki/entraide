@@ -177,7 +177,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('blog.label_cover_image') }}</label>
                     @if($post->image)
                     <div class="mb-2" x-show="!preview">
-                        <img src="{{ $post->image_url }}" alt="" class="h-36 rounded-lg object-cover shadow-sm">
+                        <img src="{{ $post->image_thumb_url }}" alt="" class="h-36 rounded-lg object-cover shadow-sm">
                     </div>
                     @endif
                     <input type="file" name="image" accept="image/*" x-ref="fileInput"

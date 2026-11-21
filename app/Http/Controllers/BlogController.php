@@ -5,6 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Services\Blog\BlogHtmlSanitizer;
+use App\Jobs\ProcessImageVariants;
+use App\Support\Images\ImageSource;
+use App\Support\Images\ImageVariantResolver;
+use App\Support\Images\ImageVariantService;
 use App\Models\BlogSnapshot;
 use App\Models\Category;
 use App\Models\Loop;
@@ -353,6 +357,8 @@ class BlogController extends Controller implements HasMiddleware
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('blog', 'public');
+            // TASK-1873 — variantes WebP de la couverture, hors requete.
+            ProcessImageVariants::forUpload('blog_cover', $data['image'] ?: null, $organization->id);
         }
 
         $post = BlogPost::create($data);
@@ -459,14 +465,18 @@ class BlogController extends Controller implements HasMiddleware
 
         if ($request->boolean('remove_image') && $post->image) {
             Storage::disk('public')->delete($post->image);
+            app(ImageVariantService::class)->forget($post->image);
             $data['image'] = null;
         }
 
         if ($request->hasFile('image')) {
             if ($post->image) {
                 Storage::disk('public')->delete($post->image);
+                app(ImageVariantService::class)->forget($post->image);
             }
             $data['image'] = $request->file('image')->store('blog', 'public');
+            // TASK-1873 — variantes WebP de la couverture, hors requete.
+            ProcessImageVariants::forUpload('blog_cover', $data['image'] ?: null, $post->organization_id);
         }
 
         unset($data['remove_image']);
@@ -655,7 +665,37 @@ class BlogController extends Controller implements HasMiddleware
         $path = sprintf('%s/%s', $dir, $filename);
         $request->file('image')->storeAs($dir, $filename, 'public');
 
-        return response()->json(['url' => Storage::disk('public')->url($path)]);
+        return response()->json(['url' => $this->urlOptimiseeDuContenu($path, $org->id)]);
+    }
+
+    /**
+     * TASK-1873 — l'URL d'une image TipTap est inscrite EN DUR dans le HTML de
+     * l'article, des cet instant : une variante produite plus tard, hors
+     * requete, ne serait jamais servie (on ne reecrit pas le HTML). C'est la
+     * seule surface derivee DANS la requete — une image, deja bornee a 5 Mo
+     * par la validation et a 12 Mpx en requete (garde memoire), comme le fil
+     * et LoopChat a l'upload.
+     *
+     * Toute difficulte (format non traite comme le GIF, image trop grande,
+     * echec d'encodage) rend l'URL de l'ORIGINAL, exactement comme avant :
+     * l'insertion de l'image ne depend jamais de son optimisation.
+     */
+    private function urlOptimiseeDuContenu(string $path, ?string $organizationId): string
+    {
+        try {
+            // Mode requete : plafond de pixels et garde memoire. Au-dela, rien
+            // n'est inscrit et l'article recoit l'URL de l'original.
+            app(ImageVariantService::class)->process(
+                new ImageSource('blog_content', $path, $organizationId),
+                inRequestMaxPixels: (int) config('image_variants.in_request_max_pixels'),
+            );
+
+            return (string) app(ImageVariantResolver::class)->url($path, 'content');
+        } catch (\Throwable $e) {
+            report($e);
+
+            return Storage::disk('public')->url($path);
+        }
     }
 
     public function orgUploadImage(Request $request, string $org): JsonResponse

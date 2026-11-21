@@ -7,6 +7,8 @@ use App\Models\Country;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
 use App\Models\User;
+use App\Jobs\ProcessImageVariants;
+use App\Support\Images\ImageVariantService;
 use App\Rules\UniqueEmailInOrganization;
 use App\Services\Ai\AiRerankSettings;
 use App\Support\ScenarioManager\SandboxGuard;
@@ -551,12 +553,16 @@ class AdminOrganizationController extends Controller
         );
 
         $organization->update(['logo_path' => $path]);
+
+        // TASK-1873 — variante WebP 256 px du logo, hors requete.
+        ProcessImageVariants::forUpload('organization_logo', $path ?: null, $organization->id);
     }
 
     private function deleteLogoFile(string $path): void
     {
         if (str_starts_with($path, 'organization-logos/') && Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
+            app(ImageVariantService::class)->forget($path);
         }
     }
 }

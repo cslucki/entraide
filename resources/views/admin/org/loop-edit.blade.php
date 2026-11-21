@@ -129,7 +129,7 @@
 
                 {{-- TASK-1725 — l'image de couverture.
 
-                     L'apercu est rendu depuis `cover_image_url`, l'accesseur du
+                     L'apercu est rendu depuis `cover_image_thumb_url` (TASK-1873), accesseur du
                      modele : la vue ne reconstruit aucun chemin de stockage.
 
                      La case de retrait n'apparait QUE s'il y a une image a
@@ -140,7 +140,7 @@
                     <p class="text-xs text-gray-400">{{ __('admin.org_admin_loop_cover_hint') }}</p>
 
                     @if($currentLoop->cover_image_path)
-                        <img src="{{ $currentLoop->cover_image_url }}" alt=""
+                        <img src="{{ $currentLoop->cover_image_thumb_url }}" alt=""
                              data-marqueur="apercu-couverture"
                              class="h-28 w-full rounded-xl object-cover sm:w-64">
                     @endif

@@ -43,6 +43,14 @@ return [
             'root' => storage_path('app/public'),
             'url' => env('FILESYSTEM_PUBLIC_URL', env('AWS_PUBLIC_URL', rtrim(env('APP_URL', 'http://localhost'), '/').'/storage')),
             'visibility' => 'public',
+            // TASK-1873 — pilote LOCAL seulement (ignore par S3, donc par la
+            // PROD) : deux processus ecrivent ici, Apache (`www-data`) et le
+            // worker d'images (CLI). Repertoires setgid `www-data` + ecriture
+            // de groupe : l'un peut ecrire dans ce que l'autre a cree.
+            'permissions' => [
+                'file' => ['public' => 0664, 'private' => 0600],
+                'dir' => ['public' => 0775, 'private' => 0700],
+            ],
             'throw' => false,
             'report' => false,
             'key' => env('AWS_ACCESS_KEY_ID'),

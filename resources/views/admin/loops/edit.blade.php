@@ -132,7 +132,7 @@
 
                 {{-- TASK-1725 — inserer, remplacer ou supprimer la couverture.
 
-                     L'apercu passe par `cover_image_url`, l'accesseur du modele :
+                     L'apercu passe par `cover_image_thumb_url` (TASK-1873), accesseur du modele :
                      cette vue ne reconstruit aucun chemin de stockage.
 
                      La case de retrait n'apparait QUE s'il y a une image a
@@ -143,7 +143,7 @@
                     <p class="text-xs text-gray-400 mb-2">{{ __('admin.org_admin_loop_cover_hint') }}</p>
 
                     @if($boucle->cover_image_path)
-                        <img src="{{ $boucle->cover_image_url }}" alt=""
+                        <img src="{{ $boucle->cover_image_thumb_url }}" alt=""
                              data-marqueur="apercu-couverture"
                              class="mb-2 h-28 w-full rounded-lg object-cover sm:w-64">
                     @endif

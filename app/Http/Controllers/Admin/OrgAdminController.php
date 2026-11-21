@@ -36,6 +36,8 @@ use App\Models\Theme;
 use App\Models\Transaction;
 use App\Models\TranslationOverride;
 use App\Models\User;
+use App\Jobs\ProcessImageVariants;
+use App\Support\Images\ImageVariantService;
 use App\Services\Admin\OrganizationDashboardMetrics;
 use App\Services\Ai\AiUserCreditSettings;
 use App\Services\Ai\DTO\AiConsumptionFilters;
@@ -1579,6 +1581,9 @@ class OrgAdminController extends Controller
 
             $organization->update(['logo_path' => $path]);
 
+            // TASK-1873 — variante WebP 256 px du logo, hors requete.
+            ProcessImageVariants::forUpload('organization_logo', $path ?: null, $organization->id);
+
             return redirect()->route('organization.admin.identity', [
                 'organization' => $organization->slug,
             ])->with('success', __('admin.organization_logo_updated'));
@@ -1593,6 +1598,7 @@ class OrgAdminController extends Controller
     {
         if (str_starts_with($path, 'organization-logos/') && Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
+            app(ImageVariantService::class)->forget($path);
         }
     }
 

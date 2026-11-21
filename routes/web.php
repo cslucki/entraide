@@ -151,6 +151,7 @@ use App\Livewire\Admin\RssArticleFiche;
 use App\Livewire\Admin\RssEditorialHistory;
 use App\Livewire\Admin\RssSourceArticles;
 use App\Livewire\Admin\RssSources;
+use App\Livewire\Admin\ImageOptimizer;
 use App\Livewire\BoundedMemberAgent;
 use App\Livewire\CreateFeedPost;
 use App\Livewire\EditFeedPost;
@@ -1328,6 +1329,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // selecteur de Boucle restait vide a l'ecran sans la moindre erreur.
     Route::get('/outils/import-rss/boucles/{organizationId}', [AdminRssImportController::class, 'boucles'])
         ->name('outils.import-rss.boucles');
+
+    // TASK-1873 — console d'optimisation des images, `/admin/images`.
+    // Composant Livewire pleine page. SuperAdmin : groupe `admin` (`is_admin`,
+    // 403 sinon), `AdminMiddleware` persistant pour les requetes Livewire, et
+    // garde `boot()` dans le composant. « Optimiser » enregistre un lot et le
+    // MET EN FILE : aucune conversion dans la requete.
+    Route::get('/images', ImageOptimizer::class)->name('images');
 
     // TASK-1790 — le parcours individuel : source -> articles -> fiche.
     //
