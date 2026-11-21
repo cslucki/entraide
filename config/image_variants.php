@@ -35,8 +35,6 @@ return [
     // Repertoire racine des variantes, sur le meme disque que les originaux.
     'directory' => 'image-variants',
 
-    'queue' => 'images',
-
     'quality' => (int) env('IMAGE_VARIANTS_QUALITY', 80),
 
     /*
