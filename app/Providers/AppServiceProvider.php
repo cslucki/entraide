@@ -68,6 +68,7 @@ use App\Support\Ai\AiEconomicGuard;
 use App\Support\Ai\AiFabContext;
 use App\Support\Ai\AiSurfaceGate;
 use App\Support\Ai\Pricing\DynamicPricingSource;
+use App\Support\Images\ImageVariantResolver;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Ops\ArtisanDatabaseGuard;
 use App\Support\Ops\DestructiveDatabaseGuard;
@@ -95,6 +96,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(RewardDispatcher::class);
         $this->app->singleton(SupervisionProviderResolver::class);
         $this->app->singleton(AdminAiInteractionPersistence::class);
+
+        // TASK-1873 — `scoped` : la carte des variantes est relue au plus une
+        // fois par requete (ou par job), jamais gardee d'un job a l'autre par
+        // un worker longue duree.
+        $this->app->scoped(ImageVariantResolver::class);
 
         // TASK-1617 — la source de tarif RESOLUE A L'APPEL pour les modeles
         // gratuits d'OpenRouter.

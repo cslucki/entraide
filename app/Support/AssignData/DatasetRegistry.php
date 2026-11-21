@@ -258,6 +258,10 @@ class DatasetRegistry
             new Dataset('loop_type_settings', 'loop_type_settings', $g, ['id', 'loop_type', 'label', 'available', 'organization_id', 'created_at']),
             new Dataset('translation_overrides', 'translation_overrides', $g, ['id', 'locale', 'group', 'key', 'is_active', 'organization_id', 'created_at']),
             new Dataset('ai_credit_setting_changes', 'ai_credit_setting_changes', $g, ['id', 'scope', 'setting_kind', 'changed_by', 'organization_id', 'created_at']),
+            // TASK-1873 — registre technique des variantes d'images : NULL
+            // legitime pour l'avatar d'un compte sans Organization. Jamais a
+            // rattacher a la main : la ligne suit sa source.
+            new Dataset('image_variants', 'image_variants', $g, ['id', 'surface', 'source_path', 'preset', 'status', 'organization_id', 'created_at']),
             new Dataset('system_email_templates', 'system_email_templates', $g, ['id', 'slug', 'name', 'locale', 'enabled', 'organization_id', 'created_at']),
             new Dataset('admin_ai_interactions', 'admin_ai_interactions', $g, ['id', 'user_id', 'provider', 'model', 'status', 'organization_id', 'created_at']),
             // TASK-1803 — NULL signifie litteralement « toutes les
