@@ -53,6 +53,12 @@ final class ManualImageOptimization
     /** Taille maximale d'un lot manuel (decision produit, 21/11/2026). */
     public const MAX_ITEMS = 25;
 
+    /**
+     * TASK-1876 — tailles proposees au SuperAdmin : une image, puis cinq,
+     * puis un lot complet (recette PROD progressive, sans Pause manuelle).
+     */
+    public const LIMITS = [1, 5, self::MAX_ITEMS];
+
     public const STEP_LOCK = 'image-optimization:manual-step';
 
     /** Bien au-dela d'une conversion web (quelques secondes), sous le delai de reprise. */

@@ -53,6 +53,9 @@ class ImageOptimizer extends Component
 
     public bool $manualConfirmed = false;
 
+    /** TASK-1876 — taille du lot manuel : 1, 5 ou 25 (defaut). */
+    public int $manualLimit = ManualImageOptimization::MAX_ITEMS;
+
     public ?string $manualNotice = null;
 
     /**
@@ -77,6 +80,13 @@ class ImageOptimizer extends Component
             $this->simulation = null;
             $this->confirmed = false;
             $this->notice = null;
+        }
+
+        // TASK-1876 : une simulation ne vaut que pour la taille choisie.
+        if ($property === 'manualLimit') {
+            $this->manualSimulation = null;
+            $this->manualConfirmed = false;
+            $this->manualNotice = null;
         }
     }
 
@@ -127,7 +137,9 @@ class ImageOptimizer extends Component
      */
     public function simulateManual(ManualImageOptimization $manual, ImageOptimizationInventory $inventory): void
     {
-        $sources = $manual->candidates(ManualImageOptimization::MAX_ITEMS);
+        $this->validateManualLimit();
+
+        $sources = $manual->candidates($this->manualLimit);
         $items = $sources->map(fn (ImageSource $source) => [
             'surface' => $source->surface,
             'path' => $source->path,
@@ -149,13 +161,14 @@ class ImageOptimizer extends Component
      */
     public function launchManual(ManualImageOptimization $manual): void
     {
+        $this->validateManualLimit();
         $this->validate(
             ['manualConfirmed' => ['accepted']],
             ['manualConfirmed.accepted' => __('admin.image_optimizer.confirm_required')],
         );
 
         try {
-            $batch = $manual->launch(ManualImageOptimization::MAX_ITEMS);
+            $batch = $manual->launch($this->manualLimit);
         } catch (ActiveBatchExists) {
             $this->addError('manualLaunch', __('admin.image_optimizer.already_running'));
 
@@ -203,6 +216,7 @@ class ImageOptimizer extends Component
             'organizations' => Organization::query()->orderBy('name')->get(['id', 'name']),
             'limits' => self::LIMITS,
             'manualMax' => ManualImageOptimization::MAX_ITEMS,
+            'manualLimits' => ManualImageOptimization::LIMITS,
             'current' => $current,
             'history' => $history,
             'workerAlive' => app(ImageWorkerHeartbeat::class)->isAlive(),
@@ -210,6 +224,14 @@ class ImageOptimizer extends Component
             'queueConnection' => app(ImageQueue::class)->connection(),
             'queueDriver' => app(ImageQueue::class)->driver(),
             'workerSeen' => app(ImageWorkerHeartbeat::class)->lastSeen(),
+        ]);
+    }
+
+    /** TASK-1876 — la taille vient du client : validee ici, cote serveur. */
+    private function validateManualLimit(): void
+    {
+        $this->validate([
+            'manualLimit' => ['required', 'integer', Rule::in(ManualImageOptimization::LIMITS)],
         ]);
     }
 
