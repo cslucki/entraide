@@ -83,7 +83,10 @@ final class HelpDigestBlocks
         $lignes = $elements->map(function ($element) use ($organization, $type) {
             $url = $this->url($organization, $type, (string) $element->id);
             $auteur = trim((string) ($element->user?->first_name ?: $element->user?->name));
-            $resume = \Illuminate\Support\Str::limit(trim(strip_tags((string) $element->description)), 140);
+            // Les descriptions sont saisies en Markdown : rendu puis texte brut,
+            // sinon `**gras**` et `\*` arrivent tels quels dans le courriel.
+            $texte = html_entity_decode(strip_tags(\Illuminate\Support\Str::markdown((string) $element->description, ['html_input' => 'strip'])), ENT_QUOTES | ENT_HTML5);
+            $resume = \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', $texte)), 140);
 
             return '<li style="margin:0 0 12px">'
                 .'<a href="'.e($url).'" style="font-weight:600">'.e((string) $element->title).'</a>'

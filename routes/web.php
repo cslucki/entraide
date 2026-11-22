@@ -1095,6 +1095,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/email-bulksending', [AdminEmailBulkSendingController::class, 'store'])->name('email-bulksending.store');
     Route::get('/email-bulksending/{bulkEmailSend}', [AdminEmailBulkSendingController::class, 'show'])->name('email-bulksending.show');
     Route::post('/email-bulksending/{bulkEmailSend}/batch', [AdminEmailBulkSendingController::class, 'sendBatch'])->name('email-bulksending.batch');
+    // TASK-1883 — newsletter des demandes et propositions d'aide (envoi manuel).
+    Route::get('/newsletter', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'index'])->name('newsletter');
+    Route::post('/newsletter/apercu', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'preview'])->name('newsletter.preview');
+    Route::post('/newsletter', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'store'])->name('newsletter.store');
+    Route::get('/newsletter/{send}', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'show'])->whereUuid('send')->name('newsletter.show');
+    Route::post('/newsletter/{send}/lot', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'batch'])->whereUuid('send')->name('newsletter.batch');
+    Route::get('/newsletter/{send}/progression', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'progress'])->whereUuid('send')->name('newsletter.progress');
 
     // Email logs
     // TASK-1380 — supervision des notifications. Il COMPTE, il ne lit pas :

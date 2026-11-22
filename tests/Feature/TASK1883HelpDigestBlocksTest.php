@@ -72,11 +72,15 @@ class TASK1883HelpDigestBlocksTest extends TestCase
     public function test_les_textes_sont_echappes_et_le_lien_mene_a_la_fiche(): void
     {
         $demande = $this->demande($this->org, '<script>alert(1)</script>');
+        $demande->forceFill(['description' => "**Précisez votre besoin** \\*\n\nDeuxième _paragraphe_"])->save();
 
         $html = app(HelpDigestBlocks::class)->developper('{demande_aide;3}', $this->org, 'fr');
 
         $this->assertStringNotContainsString('<script>', $html);
         $this->assertStringContainsString('&lt;script&gt;', $html);
+        // Le Markdown de la description est rendu en texte, pas recopie.
+        $this->assertStringContainsString('Précisez votre besoin * Deuxième paragraphe', $html);
+        $this->assertStringNotContainsString('**', $html);
         $this->assertStringContainsString(e(route('organization.requests.show', ['organization' => $this->org->slug, 'request' => $demande->id])), $html);
     }
 

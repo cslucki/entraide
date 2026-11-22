@@ -67,6 +67,8 @@
                             // Organizations ou une seule, tous les membres ou
                             // seulement ceux sans presentation, contenu libre
                             // ou modele existant.
+                            // TASK-1883 — newsletter des demandes et propositions d'aide.
+                            ['route' => 'admin.newsletter', 'label' => 'Newsletter', 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
                             ['route' => 'admin.email-bulksending', 'label' => __('admin.emailer_bulksending'), 'icon' => 'M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5'],
                             // TASK-1788 correctif 11 (demande Cyril) — le cockpit a
                             // quitte l'Emailer pour la section « Notifications »,
