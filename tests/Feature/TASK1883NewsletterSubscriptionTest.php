@@ -65,4 +65,32 @@ class TASK1883NewsletterSubscriptionTest extends TestCase
         $this->actingAs($this->membre)->from($preferences)->post($action, ['newsletter' => '1'])->assertRedirect($preferences);
         $this->assertNull($this->membre->fresh()->newsletter_unsubscribed_at);
     }
+
+    /** Ecran aux couleurs de l'organisation du membre, dans sa langue ; un clic de trop s'annule. */
+    public function test_l_ecran_porte_l_organisation_et_la_reinscription_annule_le_clic(): void
+    {
+        $this->org->update(['name' => 'Entraide du Port']);
+        $this->membre->forceFill(['preferred_locale' => 'fr'])->save();
+        $url = NewsletterSubscriptionController::urlDesinscription($this->membre);
+
+        $this->get($url)->assertOk()
+            ->assertSee('Ne plus recevoir la newsletter de Entraide du Port ?', false)
+            ->assertSee('data-etat="question"', false);
+
+        $page = $this->post($url)->assertOk()->assertSee('data-etat="desinscrit"', false)->assertSee('nl--ouvert', false);
+        $this->assertNotNull($this->membre->fresh()->newsletter_unsubscribed_at);
+
+        // Le bouton « Me reinscrire » porte une URL signee qui ramene l'abonnement.
+        preg_match('#action="([^"]+/annuler[^"]*)"#', $page->getContent(), $m);
+        $this->assertNotEmpty($m, 'Formulaire de reinscription absent.');
+        $this->post(html_entity_decode($m[1]))->assertOk()->assertSee('data-newsletter-resubscribed', false);
+        $this->assertNull($this->membre->fresh()->newsletter_unsubscribed_at);
+
+        // Sans signature : refuse.
+        $this->post(route('newsletter.unsubscribe.undo', ['compte' => $this->membre->id]))->assertForbidden();
+
+        // Membre anglophone : page en anglais.
+        $this->membre->forceFill(['preferred_locale' => 'en'])->save();
+        $this->get($url)->assertOk()->assertSee('Stop receiving the Entraide du Port newsletter?', false);
+    }
 }

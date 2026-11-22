@@ -68,7 +68,6 @@ class NewsletterSubscriptionController extends Controller
         return view('newsletter.unsubscribe', [
             'compte' => $compte,
             'etat' => $etat,
-            'fait' => $etat === 'desinscrit',
             'organisation' => $org,
             'tokens' => $tokens,
             'accueil' => $org && ! $org->is_default ? route('organization.home', ['organization' => $org->slug]) : url('/'),
