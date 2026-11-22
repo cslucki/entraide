@@ -331,8 +331,8 @@ class TASK1879NotificationsCollectivesBoucleTest extends TestCase
 
         $html = $this->actingAs($this->membre)->get(route('organization.flux', $this->organization->slug))->assertOk()->getContent();
 
-        $this->assertSame(1, substr_count($html, 'data-feed-loop-band="'.$this->loop->id.'"'), 'un bandeau : le sondage, pas l\'adhesion');
-        $this->assertStringContainsString(__('feed.open_loop'), $html);
+        $this->assertSame(1, substr_count($html, 'data-feed-loop-tile="'.$this->loop->id.'"'), 'une tuile Boucle : le sondage, pas l\'adhesion');
+        $this->assertStringNotContainsString('>'.__('feed.open_loop').'<', $html, 'pas de bouton « Ouvrir la Boucle » visible');
     }
 
     // ── Outils ──────────────────────────────────────────────────────────────

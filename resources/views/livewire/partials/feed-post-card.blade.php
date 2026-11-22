@@ -60,38 +60,7 @@
         <x-user-avatar :user="$post->user" size="md" variant="solid" class="mt-0.5 shrink-0" />
     @endif
 
-    <article id="feed-post-{{ $post->id }}" class="min-w-0 flex-1 overflow-hidden rounded-3xl border bg-white shadow-sm dark:bg-gray-900 {{ $_boucle ? 'border-indigo-200 dark:border-indigo-900/70' : 'border-gray-200 dark:border-gray-700' }}" x-data="{ showComments: false, showReactions: false }">
-    @if($_boucle)
-        {{-- Le bandeau « lieu » : la porte de la Boucle, au-dessus de ce qui s'y est passe. --}}
-        <div data-feed-loop-band="{{ $_boucle->id }}"
-             class="flex items-center gap-3 border-b border-indigo-100 bg-indigo-50/80 px-4 py-2.5 sm:px-5 dark:border-indigo-900/60 dark:bg-indigo-950/40">
-            @if($_boucle->cover_image_url)
-                <img src="{{ $_boucle->cover_image_url }}" alt="" class="h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-white dark:ring-indigo-900">
-            @else
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white ring-2 ring-white dark:bg-indigo-500 dark:ring-indigo-900" aria-hidden="true">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ config('navigation_icons.loops') }}"/></svg>
-                </span>
-            @endif
-            <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-semibold text-indigo-950 dark:text-indigo-50">{{ $_boucle->name }}</span>
-                <span class="flex items-center gap-1 text-[11px] text-indigo-700/80 dark:text-indigo-300/80">
-                    @if($_boucle->isPrivate())
-                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
-                        {{ __('loops.visibility_private') }}
-                    @else
-                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"/></svg>
-                        {{ __('loops.visibility_public') }}
-                    @endif
-                </span>
-            </span>
-            @if($_lienBoucle)
-                <a href="{{ $_lienBoucle }}"
-                   class="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm ring-1 ring-indigo-200 transition hover:bg-indigo-600 hover:text-white hover:ring-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:bg-indigo-900/60 dark:text-indigo-100 dark:ring-indigo-800 dark:hover:bg-indigo-500">
-                    {{ __('feed.open_loop') }}
-                </a>
-            @endif
-        </div>
-    @endif
+    <article id="feed-post-{{ $post->id }}" class="min-w-0 flex-1 overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900" x-data="{ showComments: false, showReactions: false }">
     @if($post->image_path)
         <img src="{{ $post->imageUrl() }}" alt="" class="h-56 w-full object-cover sm:h-72">
     @endif
@@ -140,6 +109,34 @@
                 sont echappees par `e()` — c'est son contrat, ecrit dans son
                 docblock. Jamais `markdown()` ici : la syntaxe resterait
                 active et un nom contenant `[texte](url)` produirait un lien. --}}
+            {{-- TASK-1879 (design, demandes Cyril 22/11) — style Bento : la tuile
+                 BOUCLE au-dessus de l'item. Deux surlignages distincts au survol :
+                 la Boucle passe en indigo plein ; l'item s'eclaire et se detache.
+                 Pas de mot « Ouvrir » : la tuile entiere est le lien (libelle pour
+                 les lecteurs d'ecran seulement). Sombre : texte blanc / gris clair. --}}
+            @if($_lienBoucle)
+                <a href="{{ $_lienBoucle }}" data-feed-loop-tile="{{ $_boucle->id }}"
+                   aria-label="{{ __('feed.open_loop') }} : {{ $_boucle->name }}"
+                   class="group/boucle flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 transition hover:border-indigo-600 hover:bg-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-500 dark:hover:bg-indigo-600">
+                    @if($_boucle->cover_image_url)
+                        <img src="{{ $_boucle->cover_image_url }}" alt="" class="h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-white dark:ring-gray-900">
+                    @else
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white ring-2 ring-white transition group-hover/boucle:bg-white group-hover/boucle:text-indigo-600 dark:bg-indigo-500 dark:ring-gray-900" aria-hidden="true">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ config('navigation_icons.loops') }}"/></svg>
+                        </span>
+                    @endif
+                    <span class="min-w-0 flex-1 truncate text-sm font-semibold text-indigo-950 group-hover/boucle:text-white dark:text-white">{{ $_boucle->name }}</span>
+                    <span class="flex shrink-0 items-center gap-1 text-xs text-indigo-700 group-hover/boucle:text-indigo-100 dark:text-gray-300">
+                        @if($_boucle->isPrivate())
+                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+                            {{ __('loops.visibility_private') }}
+                        @else
+                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3M3.5 9h17M3.5 15h17"/></svg>
+                            {{ __('loops.visibility_public') }}
+                        @endif
+                    </span>
+                </a>
+            @endif
             <div class="flex items-center gap-3" data-feed-event="{{ $post->type }}">
                 <p class="min-w-0 flex-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
                     {!! \App\Support\Feed\FeedEventRenderer::ligneHtml($post, $_slugOrganization) !!}
@@ -161,7 +158,7 @@
             @if($_apercu !== null)
                 @php($_balise = $_apercu['url'] ? 'a' : 'div')
                 <{{ $_balise }} @if($_apercu['url']) href="{{ $_apercu['url'] }}" @endif
-                    class="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 transition dark:border-gray-800 dark:bg-gray-800/50 {{ $_apercu['url'] ? 'hover:bg-gray-100 dark:hover:bg-gray-800' : '' }}"
+                    class="flex min-w-0 items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 transition dark:border-gray-800 dark:bg-gray-800/50 {{ $_apercu['url'] ? 'hover:border-gray-400 hover:bg-white hover:shadow-md dark:hover:border-gray-500 dark:hover:bg-gray-700' : '' }}"
                     data-feed-event-apercu>
                     @if($_apercu['image'])
                         <img src="{{ $_apercu['image'] }}" alt=""
