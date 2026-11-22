@@ -223,6 +223,20 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        // TASK-1881 (demande Cyril, 22/11) — APRES le mot de passe : le message ne
+        // renseigne que qui detient deja les identifiants du compte.
+        $connecte = Auth::user();
+
+        if ($connecte instanceof \App\Models\User && $connecte->estBloqueALaConnexion()) {
+            Auth::guard('web')->logout();
+
+            throw ValidationException::withMessages([
+                'email' => trans('auth.organization_closed', [
+                    'organization' => $connecte->organization?->name ?? $organization?->name ?? '',
+                ]),
+            ]);
+        }
     }
 
     /**

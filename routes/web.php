@@ -985,6 +985,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
     Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
     Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');
+    // TASK-1881 — membres autorises a se connecter (outil temporaire de migration).
+    Route::get('/organizations/{organization}/authorized-members', [AdminOrganizationController::class, 'authorizedMembers'])->name('organizations.authorized-members');
+    Route::put('/organizations/{organization}/authorized-members', [AdminOrganizationController::class, 'updateAuthorizedMembers'])->name('organizations.authorized-members.update');
     Route::put('/organizations/{organization}', [AdminOrganizationController::class, 'update'])->name('organizations.update');
     Route::post('/organizations/{organization}/toggle-active', [AdminOrganizationController::class, 'toggleActive'])->name('organizations.toggle-active');
     Route::delete('/organizations/{organization}', [AdminOrganizationController::class, 'destroy'])->name('organizations.destroy');

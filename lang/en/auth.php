@@ -164,4 +164,6 @@ return [
     'registration_closed_title' => 'Registrations are closed',
     'registration_closed_elsewhere' => 'You can however create an account on:',
     'registration_closed_everywhere' => 'No organization is accepting new registrations at the moment.',
+    // TASK-1881 — membre non autorise a se connecter a cette Organization.
+    'organization_closed' => ':organization is closed, please choose another organization.',
 ];
