@@ -159,7 +159,8 @@ class OrganizationFeedTest extends TestCase
         Livewire::actingAs($this->admin)
             ->test(CreateFeedPost::class)
             ->assertSee('Boucle entraide locale')
-            ->assertSee('entraide-locale')
+            // TASK-1879 (demande Cyril, 22/11) — plus de « #slug » sous le nom.
+            ->assertDontSee('#entraide-locale')
             ->assertSee('Coordination courte entre membres actifs.')
             ->assertDontSee('Boucle autre organisation');
     }
@@ -665,16 +666,17 @@ class OrganizationFeedTest extends TestCase
         Livewire::actingAs($this->admin)
             ->test(EditFeedPost::class, ['feedPost' => $post])
             ->assertSet('title', '')
-            ->assertSet('content', 'Annonce test')
+            // TASK-1879 — l'ancien Markdown s'ouvre converti en HTML (TipTap).
+            ->assertSet('content', "<p>Annonce test</p>\n")
             ->set('title', 'Titre modifié')
-            ->set('content', 'Contenu modifié')
+            ->set('content', '<p>Contenu modifié</p>')
             ->call('submit')
             ->assertRedirect(route('organization.flux.my', ['organization' => $this->organization->slug]));
 
         $this->assertDatabaseHas('feed_posts', [
             'id' => $post->id,
             'title' => 'Titre modifié',
-            'content' => 'Contenu modifié',
+            'content' => '<p>Contenu modifié</p>',
             'organization_id' => $this->organization->id,
         ]);
     }

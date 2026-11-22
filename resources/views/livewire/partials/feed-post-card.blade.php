@@ -77,11 +77,6 @@
                     @if($post->isPinned())
                         <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">{{ __('feed.pinned_badge') }}</span>
                     @endif
-                    @if($post->loops->isNotEmpty())
-                        <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                            {{ trans_choice('feed.loop_count', $post->loops->count(), ['count' => $post->loops->count()]) }}
-                        </span>
-                    @endif
                 </div>
                 @if($post->title)
                     <h2 class="mt-3 text-lg font-bold text-gray-950 dark:text-gray-50">{{ $post->title }}</h2>
@@ -174,31 +169,12 @@
                  Pas de mot « Ouvrir » : la tuile entiere est le lien (libelle pour
                  les lecteurs d'ecran seulement). Sombre : texte blanc / gris clair. --}}
             @if($_lienBoucle)
-                <a href="{{ $_lienBoucle }}" data-feed-loop-tile="{{ $_boucle->id }}"
-                   aria-label="{{ __('feed.open_loop') }} : {{ $_boucle->name }}"
-                   class="group/boucle flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 transition hover:border-indigo-600 hover:bg-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-500 dark:hover:bg-indigo-600">
-                    @if($_boucle->cover_image_url)
-                        <img src="{{ $_boucle->cover_image_url }}" alt="" class="h-8 w-8 shrink-0 rounded-full object-cover ring-2 ring-white dark:ring-gray-900">
-                    @else
-                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white ring-2 ring-white transition group-hover/boucle:bg-white group-hover/boucle:text-indigo-600 dark:bg-indigo-500 dark:ring-gray-900" aria-hidden="true">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ config('navigation_icons.loops') }}"/></svg>
-                        </span>
-                    @endif
-                    <span class="min-w-0 flex-1 truncate text-sm font-semibold text-indigo-950 group-hover/boucle:text-white dark:text-white">{{ $_boucle->name }}</span>
-                    <span class="flex shrink-0 items-center gap-1 text-xs text-indigo-700 group-hover/boucle:text-indigo-100 dark:text-gray-300">
-                        @if($_boucle->isPrivate())
-                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
-                            {{ __('loops.visibility_private') }}
-                        @else
-                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3M3.5 9h17M3.5 15h17"/></svg>
-                            {{ __('loops.visibility_public') }}
-                        @endif
-                    </span>
-                </a>
+                @include('livewire.partials.feed-loop-tile', ['boucle' => $_boucle, 'lien' => $_lienBoucle])
             @endif
         @elseif(filled($post->content))
             <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
-                {!! markdown($post->content) !!}
+                {{-- TASK-1879 — HTML de TipTap nettoye (ou ancien Markdown converti). --}}
+                {!! $post->contenuHtml() !!}
             </div>
         @endif
 
@@ -219,6 +195,19 @@
                     @endif
                 </span>
             </a>
+        @endif
+
+        {{-- TASK-1879 (demande Cyril, 22/11) — les Boucles d'une ANNONCE, en bas,
+             au meme endroit que la Boucle des autres lignes du Flux. --}}
+        @if(! $estEvenement && $post->loops->isNotEmpty() && $_slugOrganization)
+            <div class="space-y-2" data-feed-post-loops>
+                @foreach($post->loops as $_boucleAnnonce)
+                    @include('livewire.partials.feed-loop-tile', [
+                        'boucle' => $_boucleAnnonce,
+                        'lien' => route('organization.loops.show', ['organization' => $_slugOrganization, 'loop' => $_boucleAnnonce->slug ?: $_boucleAnnonce->getKey()]),
+                    ])
+                @endforeach
+            </div>
         @endif
 
         {{-- TASK-1788 correctif 09 — des cibles TACTILES, pas des liens de souris.

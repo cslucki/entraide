@@ -251,6 +251,37 @@
                                 </div>
                             </form>
                         </div>
+                    @elseif($msg->type === 'user' && ($msg->metadata['type'] ?? null) === 'announcement' && ! empty($msg->metadata['feed_post_id']))
+                        {{-- TASK-1879 (demande Cyril, 22/11) — une annonce du Flux diffusee
+                             dans la Boucle : carte d'outil (icone « Flux » du rail), relue
+                             EN DIRECT ($projectedFeedPosts), jamais le corps brut. --}}
+                        @php
+                            $fpPost = $projectedFeedPosts->get($msg->metadata['feed_post_id']);
+                        @endphp
+                        <div class="max-w-md rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 md:max-w-[30.8rem] dark:border-indigo-800/50 dark:bg-indigo-900/20" data-feed-announcement-card>
+                            <div class="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ config('navigation_icons.feed') }}"/></svg>
+                                {{ __('feed-post.chat_badge') }}
+                            </div>
+                            @if($fpPost)
+                                <a href="{{ $fpPost->announcementUrl() }}" class="group block">
+                                    @if($fpPost->title)
+                                        <span class="block text-sm font-bold text-gray-900 group-hover:underline dark:text-gray-100">{{ $fpPost->title }}</span>
+                                    @endif
+                                    @if(filled($fpPost->loop_message))
+                                        <span class="mt-0.5 block text-xs font-medium leading-5 text-indigo-900 dark:text-indigo-100">{{ $fpPost->loop_message }}</span>
+                                    @endif
+                                    <span class="mt-0.5 line-clamp-3 block text-xs leading-5 text-gray-600 dark:text-gray-300">{{ Str::limit($fpPost->contenuTexte(), 220) }}</span>
+                                </a>
+                                <div class="mt-2 flex items-center justify-between gap-2">
+                                    <span class="text-[11px] text-gray-500 dark:text-gray-400">{{ $fpPost->user?->publicDisplayName() ?? __('messages.member') }} · {{ $msg->created_at->diffForHumans() }}</span>
+                                    <a href="{{ $fpPost->announcementUrl() }}" class="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-indigo-700">{{ __('feed-post.chat_open') }}</a>
+                                </div>
+                            @else
+                                <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ __('feed-post.chat_unavailable') }}</p>
+                                <span class="mt-1 block text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                            @endif
+                        </div>
                     @elseif($msg->type === 'loop_event')
                         {{-- Une rencontre proposee, deplacee ou annulee. Meme
                              forme discrete que le message de Sondage : un

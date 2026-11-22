@@ -67,6 +67,12 @@ class CreateFeedPost extends Component
     #[Locked]
     public bool $urlPrefixee = false;
 
+    /** TASK-1879 — « Le champ Message », pas « Le champ content ». */
+    protected function validationAttributes(): array
+    {
+        return ['content' => __('feed-post.message'), 'title' => __('feed-post.title_optional')];
+    }
+
     public function mount(): void
     {
         $this->urlPrefixee = (bool) request()->route('organization');
@@ -123,7 +129,7 @@ class CreateFeedPost extends Component
 
         $this->validate([
             'title' => 'nullable|string|max:255',
-            'content' => 'required|string|max:10000',
+            'content' => 'required|string|max:50000',
             'image' => 'nullable|image|max:10240',
             'pin' => 'boolean',
             'mode' => 'required|in:publish,draft,schedule',
@@ -133,6 +139,16 @@ class CreateFeedPost extends Component
             'selectedLoops.*' => 'string|uuid',
             'allLoops' => 'boolean',
         ]);
+
+        // TASK-1879 (demande Cyril, 22/11) — HTML de TipTap, nettoye comme celui
+        // du blog. Un message fait seulement de balises vides est vide.
+        $this->content = FeedPost::nettoyerContenu($this->content);
+
+        if (trim(html_entity_decode(strip_tags($this->content))) === '') {
+            $this->addError('content', __('validation.required', ['attribute' => __('feed-post.message')]));
+
+            return;
+        }
 
         $org = $this->org();
 

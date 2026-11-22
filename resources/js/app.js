@@ -8731,6 +8731,23 @@ function registerRoadmapSortable() {
 
 document.addEventListener('livewire:init', registerRoadmapSortable);
 
+// TASK-1879 (demande Cyril, 22/11) — apres un `submit` Livewire refuse par le
+// serveur, on amene au PREMIER champ en erreur (ordre du formulaire). Le
+// navigateur, lui, est deja couvert par `x-form-live-validation`.
+document.addEventListener('livewire:init', () => {
+    window.Livewire.hook('commit', ({ component, commit, succeed }) => {
+        if (! (commit.calls || []).some((appel) => appel.method === 'submit')) {
+            return;
+        }
+
+        succeed(() => requestAnimationFrame(() => {
+            const erreur = component.el.querySelector('form[data-live-validation] [data-erreur-serveur]');
+            const bloc = erreur?.closest('[data-champ]') || erreur;
+            bloc?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }));
+    });
+});
+
 // -------------------------------------------------------------------------
 // Roadmap card actions menu — fixed-positioned dropdown that flips up/down so it
 // never clips against the panel/column edges. Registered once for all cards.

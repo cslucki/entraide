@@ -3756,6 +3756,7 @@ class LoopChat extends Component
         $projectedDossierFileUrls = $this->projectedDossierFileUrls($projectedDossierFiles);
         $projectedRoadmapItems = $this->projectedRoadmapItems($messages);
         $projectedJournalEntries = $this->projectedJournalEntries($messages);
+        $projectedFeedPosts = $this->projectedFeedPosts($messages);
         // TASK-1879 — les veilles annoncees, relues en direct et filtrees par droit.
         $projectedWatchItems = $this->projectedWatchItems($messages);
         $aiRoute = $this->aiRoute();
@@ -3820,6 +3821,7 @@ class LoopChat extends Component
             'projectedDossierFileUrls',
             'projectedRoadmapItems',
             'projectedJournalEntries',
+            'projectedFeedPosts',
             'projectedWatchItems',
             'aiRoute',
             'canDeleteMessages',
@@ -4013,6 +4015,38 @@ class LoopChat extends Component
             ->where('loop_id', $this->loop->id)
             ->whereIn('id', $ids)
             ->with('category:id,name')
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — les annonces du Flux diffusees dans la
+     * Boucle (message `user`, `metadata.type = announcement`), relues EN DIRECT
+     * et filtrees par ce que le lecteur a le droit de voir dans le Flux.
+     *
+     * @return Collection<string, \App\Models\FeedPost>
+     */
+    private function projectedFeedPosts(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => ($message->metadata['type'] ?? null) === 'announcement')
+            ->map(fn (LoopMessage $message) => $message->metadata['feed_post_id'] ?? null)
+            ->filter(fn ($id) => is_string($id) && \Illuminate\Support\Str::isUuid($id))
+            ->unique()
+            ->values();
+
+        $user = auth()->user();
+
+        if ($ids->isEmpty() || ! $user instanceof User) {
+            return collect();
+        }
+
+        return \App\Models\FeedPost::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->whereIn('id', $ids)
+            ->published()
+            ->visibleTo($user)
+            ->with(['user', 'organization'])
             ->get()
             ->keyBy('id');
     }

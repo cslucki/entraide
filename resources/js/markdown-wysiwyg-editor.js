@@ -199,6 +199,7 @@ function setupEditor(container) {
     if (!textarea) return null;
 
     const initialContent = textarea.value || '';
+    const estHtml = container.dataset.format === 'html';
 
     const editorDiv = document.createElement('div');
     editorDiv.className = 'ProseMirror-wrapper';
@@ -229,10 +230,13 @@ function setupEditor(container) {
             }),
         ],
         content: initialContent,
-        contentType: 'markdown',
+        // TASK-1879 — `data-format="html"` (annonces du Flux) : HTML en entree
+        // et en sortie. Un editeur vide rend une chaine VIDE, pas `<p></p>` :
+        // sinon `required` le croirait rempli.
+        contentType: estHtml ? 'html' : 'markdown',
         onUpdate: () => {
-            const md = editor.getMarkdown();
-            textarea.value = md;
+            const valeur = estHtml ? (editor.isEmpty ? '' : editor.getHTML()) : editor.getMarkdown();
+            textarea.value = valeur;
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
         },
     });

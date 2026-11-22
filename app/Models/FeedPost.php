@@ -219,19 +219,45 @@ class FeedPost extends Model
         return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
     }
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — le message d'une annonce est du HTML
+     * (TipTap). Les annonces anterieures sont en Markdown : on les reconnait a
+     * l'absence de balise ouvrante en tete, et on les convertit a l'affichage.
+     * Le HTML est NETTOYE a l'ecriture ET a l'affichage (meme filtre que le blog).
+     */
+    public static function nettoyerContenu(?string $html): string
+    {
+        return app(\App\Services\Blog\BlogHtmlSanitizer::class)->sanitizeHtml((string) $html);
+    }
+
+    public function contenuHtml(): string
+    {
+        $contenu = (string) $this->content;
+
+        return str_starts_with(ltrim($contenu), '<')
+            ? self::nettoyerContenu($contenu)
+            : (string) markdown($contenu);
+    }
+
+    /** Le message en texte brut (extraits, diffusion dans les Boucles). */
+    public function contenuTexte(): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags(str_replace(['</p>', '<br>', '</li>', '</h2>', '</h3>'], ' ', $this->contenuHtml())))) ?? '');
+    }
+
     public function announcementUrl(): string
     {
-        $org = $this->organization;
-        $route = $org?->is_default ? 'flux.show' : 'organization.flux.show';
-        $params = $route === 'organization.flux.show' ? ['organization' => $org?->slug, 'feedPost' => $this->id] : ['feedPost' => $this->id];
-
-        return route($route, $params);
+        // TASK-1879 — toujours l'URL prefixee de l'Organization.
+        return route('organization.flux.show', ['organization' => $this->organization?->slug, 'feedPost' => $this->id]);
     }
 
     public function broadcastToAssociatedLoops(LoopMessageService $service, User $user): void
     {
+        // TASK-1879 — texte BRUT : le ChatLoop affiche l'annonce en carte
+        // (`metadata.feed_post_id`) ; ce corps sert aux notifications et a la
+        // recherche, jamais de HTML dedans.
         $body = $this->loop_message
-            ?: ($this->title ? "**{$this->title}**\n\n" : '').$this->content;
+            ?: ($this->title ? "**{$this->title}**\n\n" : '').\Illuminate\Support\Str::limit($this->contenuTexte(), 500);
 
         $body .= "\n\n[Voir l'annonce](".$this->announcementUrl().')';
 

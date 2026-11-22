@@ -39,6 +39,12 @@ class EditFeedPost extends Component
     #[Locked]
     public bool $urlPrefixee = false;
 
+    /** TASK-1879 — « Le champ Message », pas « Le champ content ». */
+    protected function validationAttributes(): array
+    {
+        return ['content' => __('feed-post.message'), 'title' => __('feed-post.title_optional')];
+    }
+
     public function mount(FeedPost $feedPost): void
     {
         $this->urlPrefixee = (bool) request()->route('organization');
@@ -50,7 +56,8 @@ class EditFeedPost extends Component
         }
 
         $this->title = $feedPost->title ?? '';
-        $this->content = $feedPost->content;
+        // TASK-1879 — une annonce ancienne (Markdown) s'ouvre convertie en HTML.
+        $this->content = $feedPost->contenuHtml();
         $this->mode = match ($feedPost->status) {
             FeedPost::STATUS_DRAFT => 'draft',
             FeedPost::STATUS_SCHEDULED => 'schedule',
@@ -77,12 +84,22 @@ class EditFeedPost extends Component
 
         $this->validate([
             'title' => 'nullable|string|max:255',
-            'content' => 'required|string|max:10000',
+            'content' => 'required|string|max:50000',
             'image' => 'nullable|image|max:10240',
             'mode' => 'required|in:publish,draft,schedule',
             'scheduledAt' => $this->mode === 'schedule' ? ['required', 'date', 'after:now'] : 'nullable',
             'loopMessage' => 'nullable|string|max:10000',
         ]);
+
+        // TASK-1879 (demande Cyril, 22/11) — HTML de TipTap, nettoye comme celui
+        // du blog. Un message fait seulement de balises vides est vide.
+        $this->content = FeedPost::nettoyerContenu($this->content);
+
+        if (trim(html_entity_decode(strip_tags($this->content))) === '') {
+            $this->addError('content', __('validation.required', ['attribute' => __('feed-post.message')]));
+
+            return;
+        }
 
         $org = currentOrganization();
 
