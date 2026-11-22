@@ -28,6 +28,9 @@
     <meta name="robots" content="noindex">
     <title>{{ __('newsletter.title') }} — {{ $nomOrg }}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    {{-- TASK-1737 — contrat PWA obligatoire sur tout document HTML complet. --}}
+    <x-pwa-head />
+    <x-pwa-boot />
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap" rel="stylesheet">
     <style>
