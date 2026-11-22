@@ -139,7 +139,7 @@
             @endif
             <div class="flex items-center gap-3" data-feed-event="{{ $post->type }}">
                 <p class="min-w-0 flex-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
-                    {!! \App\Support\Feed\FeedEventRenderer::ligneHtml($post, $_slugOrganization) !!}
+                    {!! \App\Support\Feed\FeedEventRenderer::ligneHtml($post, $_slugOrganization, $_lienBoucle !== null) !!}
                 </p>
 
                 <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">

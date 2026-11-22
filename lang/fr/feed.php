@@ -33,6 +33,15 @@ return [
         'object_gone' => 'un contenu supprimé',
     ],
 
+    'events_sans_boucle' => [
+        'loop_watch_item_created' => ':name a partagé une veille',
+        'loop_poll_created' => ':name a posé un sondage',
+        'loop_article_published' => ':name a publié un article',
+        'loop_dossier_files_uploaded' => ':name a déposé des fichiers',
+        'loop_roadmap_item_created' => ':name a ajouté une action à la Roadmap',
+        'loop_roadmap_item_moved' => ':name a fait avancer une action de la Roadmap',
+    ],
+
     'organization' => 'Organisation',
     'title' => 'Flux',
     'subtitle' => 'Annonces utiles, décisions et informations à retenir.',

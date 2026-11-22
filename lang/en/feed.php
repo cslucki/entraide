@@ -27,6 +27,15 @@ return [
         'object_gone' => 'a deleted item',
     ],
 
+    'events_sans_boucle' => [
+        'loop_watch_item_created' => ':name shared a watch item',
+        'loop_poll_created' => ':name posted a poll',
+        'loop_article_published' => ':name published an article',
+        'loop_dossier_files_uploaded' => ':name uploaded files',
+        'loop_roadmap_item_created' => ':name added an action to the Roadmap',
+        'loop_roadmap_item_moved' => ':name moved a Roadmap action forward',
+    ],
+
     'organization' => 'Organization',
     'title' => 'Feed',
     'subtitle' => 'Useful announcements, decisions and key information to keep in mind.',

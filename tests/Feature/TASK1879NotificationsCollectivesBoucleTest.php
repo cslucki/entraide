@@ -333,6 +333,8 @@ class TASK1879NotificationsCollectivesBoucleTest extends TestCase
 
         $this->assertSame(1, substr_count($html, 'data-feed-loop-tile="'.$this->loop->id.'"'), 'une tuile Boucle : le sondage, pas l\'adhesion');
         $this->assertStringNotContainsString('>'.__('feed.open_loop').'<', $html, 'pas de bouton « Ouvrir la Boucle » visible');
+        $this->assertStringContainsString(e(str_replace(':name ', '', __('feed.events_sans_boucle.loop_poll_created'))), $html);
+        $this->assertStringNotContainsString(e(str_replace([':name ', ':object'], '', __('feed.events.loop_poll_created'))), $html, 'la phrase ne repete plus la Boucle');
     }
 
     // ── Outils ──────────────────────────────────────────────────────────────

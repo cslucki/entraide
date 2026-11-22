@@ -101,7 +101,7 @@ final class FeedEventRenderer
      * cote PHP aurait fige l'ordre francais ; substituer les placeholders
      * APRES coup laisse chaque langue ecrire sa phrase.
      */
-    public static function ligneHtml(FeedPost $post, ?string $organizationSlug): ?string
+    public static function ligneHtml(FeedPost $post, ?string $organizationSlug, bool $sansBoucle = false): ?string
     {
         $type = (string) $post->type;
 
@@ -113,6 +113,13 @@ final class FeedEventRenderer
 
         if ($clef === null) {
             return null;
+        }
+
+        // TASK-1879 (demande Cyril, 22/11) — quand la carte affiche deja la
+        // tuile Boucle, la phrase ne repete pas « dans la Boucle X ».
+        $variante = str_replace('feed.events.', 'feed.events_sans_boucle.', $clef);
+        if ($sansBoucle && \Illuminate\Support\Facades\Lang::has($variante)) {
+            $clef = $variante;
         }
 
         $nom = $post->user?->publicDisplayName() ?? __('feed.member_fallback');
