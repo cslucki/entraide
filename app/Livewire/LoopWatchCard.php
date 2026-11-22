@@ -36,6 +36,8 @@ class LoopWatchCard extends Component
 
     public string $categoryId = '';
 
+    public string $subject = '';
+
     public string $information = '';
 
     public string $impact = '';
@@ -109,6 +111,7 @@ class LoopWatchCard extends Component
         $this->editingId = $item->id;
         $this->observedOn = $item->observed_on->format('Y-m-d');
         $this->categoryId = (string) ($item->category_id ?? '');
+        $this->subject = (string) $item->subject;
         $this->information = $item->information;
         $this->impact = $item->impact;
         $this->sourceUrl = $item->source_url;
@@ -134,6 +137,7 @@ class LoopWatchCard extends Component
         $donnees = [
             'observed_on' => $this->observedOn,
             'category_id' => $this->categoryId,
+            'subject' => $this->subject,
             'information' => $this->information,
             'impact' => $this->impact,
             'source_url' => $this->sourceUrl,
@@ -320,6 +324,7 @@ class LoopWatchCard extends Component
         $this->editingId = null;
         $this->observedOn = '';
         $this->categoryId = '';
+        $this->subject = '';
         $this->information = '';
         $this->impact = '';
         $this->sourceUrl = '';

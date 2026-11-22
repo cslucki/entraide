@@ -169,7 +169,7 @@ class LoopWatchService
      * tentee ENSUITE, hors de cette transaction : son echec ne retire pas la
      * veille (meme doctrine que les Sondages).
      *
-     * @param  array{observed_on?: mixed, category_id?: mixed, information?: mixed, impact?: mixed, source_url?: mixed}  $data
+     * @param  array{observed_on?: mixed, category_id?: mixed, subject?: mixed, information?: mixed, impact?: mixed, source_url?: mixed}  $data
      *
      * @throws WatchException
      */
@@ -184,6 +184,7 @@ class LoopWatchService
             'loop_id' => $loop->id,
             'category_id' => $propre['category_id'],
             'observed_on' => $propre['observed_on'],
+            'subject' => $propre['subject'],
             'information' => $propre['information'],
             'impact' => $propre['impact'],
             'source_url' => $propre['source_url'],
@@ -208,7 +209,7 @@ class LoopWatchService
     }
 
     /**
-     * @param  array{observed_on?: mixed, category_id?: mixed, information?: mixed, impact?: mixed, source_url?: mixed}  $data
+     * @param  array{observed_on?: mixed, category_id?: mixed, subject?: mixed, information?: mixed, impact?: mixed, source_url?: mixed}  $data
      *
      * @throws WatchException
      */
@@ -227,6 +228,7 @@ class LoopWatchService
             $fresh->update([
                 'category_id' => $propre['category_id'],
                 'observed_on' => $propre['observed_on'],
+                'subject' => $propre['subject'],
                 'information' => $propre['information'],
                 'impact' => $propre['impact'],
                 'source_url' => $propre['source_url'],
@@ -370,7 +372,7 @@ class LoopWatchService
     // ── Interne ─────────────────────────────────────────────────────────────
 
     /**
-     * @return array{category_id: ?string, observed_on: string, information: string, impact: string, source_url: string}
+     * @return array{category_id: ?string, observed_on: string, subject: string, information: string, impact: string, source_url: string}
      *
      * @throws WatchException
      */
@@ -390,6 +392,11 @@ class LoopWatchService
         $this->assert($jour instanceof Carbon && $jour->format('Y-m-d') === $date, 'veille.error_date_invalid');
 
         // Textes.
+        // Sujet : une phrase qui resume la veille (demande Cyril, 22/11).
+        $sujet = trim((string) ($data['subject'] ?? ''));
+        $this->assert($sujet !== '', 'veille.error_subject_required');
+        $this->assert(mb_strlen($sujet) <= LoopWatchItem::SUBJECT_MAX, 'veille.error_subject_too_long');
+
         $information = trim((string) ($data['information'] ?? ''));
         $impact = trim((string) ($data['impact'] ?? ''));
         $this->assert($information !== '', 'veille.error_information_required');
@@ -429,6 +436,7 @@ class LoopWatchService
         return [
             'category_id' => $categoryId,
             'observed_on' => $jour->format('Y-m-d'),
+            'subject' => $sujet,
             'information' => $information,
             'impact' => $impact,
             'source_url' => $url,

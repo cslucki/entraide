@@ -707,12 +707,14 @@ class TASK1879VeillePluginTest extends TestCase
             ->call('openCreateForm')
             ->assertSet('observedOn', now()->format('Y-m-d'))
             ->set('categoryId', $categorie->id)
+            ->set('subject', 'Norme 2027 en une phrase')
             ->set('information', 'Nouvelle norme publiee')
             ->set('impact', 'Revoir nos fiches')
             ->set('sourceUrl', 'https://exemple.org/norme')
             ->call('save')
             ->assertSet('errorMessage', null)
             ->assertSee('Nouvelle norme publiee')
+            ->assertSee('Norme 2027 en une phrase')
             ->assertSee('rel="noopener noreferrer nofollow"', false)
             ->assertSee('target="_blank"', false)
             ->set('filterCategory', '00000000-0000-4000-8000-000000000000')
@@ -872,6 +874,24 @@ class TASK1879VeillePluginTest extends TestCase
         $this->assertSame($avant, MemberNotification::query()->count());
     }
 
+    public function test_le_sujet_est_obligatoire_et_borne(): void
+    {
+        $this->activer();
+
+        foreach (['' => 'veille.error_subject_required', str_repeat('a', 161) => 'veille.error_subject_too_long'] as $sujet => $cle) {
+            try {
+                $this->publier($this->membre, ['subject' => (string) $sujet]);
+                $this->fail('Sujet invalide accepte.');
+            } catch (WatchException $e) {
+                $this->assertSame(__($cle), $e->getMessage());
+            }
+        }
+
+        $item = $this->publier($this->membre, ['subject' => '  Resume en une phrase  ']);
+        $this->assertSame('Resume en une phrase', $item->subject);
+        $this->chat($this->autreMembre)->assertSee('Resume en une phrase');
+    }
+
     public function test_membre_et_animateur_publient_une_veille(): void
     {
         $this->activer();
@@ -933,14 +953,14 @@ class TASK1879VeillePluginTest extends TestCase
     public function test_l_annonce_relit_la_veille_et_ouvre_la_card(): void
     {
         $this->activer();
-        $item = $this->publier($this->membre, ['information' => 'Version initiale']);
+        $item = $this->publier($this->membre, ['subject' => 'Version initiale']);
 
         $this->chat($this->autreMembre)
             ->assertSee('data-watch-announcement="available"', false)
             ->assertSee('Version initiale')
             ->assertSee("\$dispatch('bp-open-loop-card', { card: 'plugin.veille' })", false);
 
-        app(LoopWatchService::class)->update($this->membre, $this->loop, $item->id, $this->donnees(['information' => 'Version corrigee']));
+        app(LoopWatchService::class)->update($this->membre, $this->loop, $item->id, $this->donnees(['subject' => 'Version corrigee']));
 
         $this->chat($this->autreMembre)
             ->assertSee('Version corrigee')
@@ -950,7 +970,7 @@ class TASK1879VeillePluginTest extends TestCase
     public function test_l_annonce_d_une_veille_supprimee_ne_fuit_rien(): void
     {
         $this->activer();
-        $item = $this->publier($this->membre, ['information' => 'Contenu a effacer']);
+        $item = $this->publier($this->membre, ['subject' => 'Contenu a effacer']);
         app(LoopWatchService::class)->delete($this->membre, $this->loop, $item->id);
 
         $this->chat($this->autreMembre)
@@ -995,6 +1015,7 @@ class TASK1879VeillePluginTest extends TestCase
 
         return array_merge([
             'observed_on' => '2026-11-20',
+            'subject' => 'Un sujet en une phrase',
             'information' => 'Une information reperee',
             'impact' => 'Ce que cela change',
             'source_url' => 'https://exemple.org/article',

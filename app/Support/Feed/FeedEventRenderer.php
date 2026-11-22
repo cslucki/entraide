@@ -323,7 +323,7 @@ final class FeedEventRenderer
                 'url' => self::lien($post, $organizationSlug),
                 'image' => null,
                 'ronde' => false,
-                'titre' => $objet->category?->name,
+                'titre' => filled($objet->subject) ? (string) $objet->subject : $objet->category?->name,
                 'texte' => \Illuminate\Support\Str::limit(trim((string) $objet->information), 160),
             ];
         }

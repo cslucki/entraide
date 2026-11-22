@@ -432,7 +432,7 @@
                                         @if($wiItem->category)
                                             <span class="font-semibold">{{ $wiItem->category->name }}</span> ·
                                         @endif
-                                        {{ \Illuminate\Support\Str::limit($wiItem->information, 140) }}
+                                        {{ filled($wiItem->subject) ? $wiItem->subject : \Illuminate\Support\Str::limit($wiItem->information, 140) }}
                                     </span>
                                 </span>
                                 <button type="button"

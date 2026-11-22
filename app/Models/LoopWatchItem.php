@@ -20,6 +20,9 @@ class LoopWatchItem extends Model
 {
     use HasUuids, SoftDeletes;
 
+    /** TASK-1879 — le Sujet : une phrase qui resume la veille. */
+    public const SUBJECT_MAX = 160;
+
     public const INFORMATION_MAX = 5000;
 
     public const IMPACT_MAX = 5000;
@@ -31,6 +34,7 @@ class LoopWatchItem extends Model
         'loop_id',
         'category_id',
         'observed_on',
+        'subject',
         'information',
         'impact',
         'source_url',
