@@ -7,6 +7,7 @@ use App\Livewire\LoopWatchCard;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\LoopNotificationPreference;
 use App\Models\LoopWatchCategory;
 use App\Models\LoopWatchItem;
 use App\Models\MemberNotification;
@@ -25,6 +26,7 @@ use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopPluginRegistry;
 use App\Support\Loops\LoopTypeRegistry;
+use App\Support\Notifications\NotificationCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -43,7 +45,8 @@ use Tests\TestCase;
  *  - la CARD `plugin.veille` : presente seulement quand le plugin est actif,
  *    jamais composee a la main, jamais principale par defaut ; ses droits ;
  *  - l'ANNONCE ChatLoop `watch_item` : metadata minimales, relecture en
- *    direct, aucune notification Push/Email.
+ *    direct ; notification in-app + Web Push (PWA) aux membres, jamais
+ *    d'e-mail (demande Cyril, 22/11).
  */
 class TASK1879VeillePluginTest extends TestCase
 {
@@ -748,17 +751,73 @@ class TASK1879VeillePluginTest extends TestCase
         $this->assertSame($this->orgA->id, $message->organization_id);
     }
 
-    public function test_une_veille_ne_declenche_ni_push_ni_email(): void
+    public function test_une_veille_notifie_les_membres_actifs_sauf_l_auteur_sans_email(): void
     {
         Mail::fake();
         $this->activer();
-        $avant = MemberNotification::query()->count();
 
         $this->publier($this->membre);
 
-        $this->assertSame($avant, MemberNotification::query()->count());
+        $notifications = MemberNotification::query()
+            ->where('notification_key', NotificationCatalogue::LOOP_WATCH_ITEM_CREATED)
+            ->get();
+
+        $this->assertEqualsCanonicalizing(
+            [$this->owner->id, $this->facilitator->id, $this->autreMembre->id],
+            $notifications->pluck('recipient_id')->all(),
+            'auteur, ancien membre et autres Boucles exclus',
+        );
+        $this->assertTrue($notifications->every(fn ($n) => $n->organization_id === $this->orgA->id));
+        $this->assertTrue($notifications->every(fn ($n) => $n->object_id === $this->loop->id));
+
+        $this->assertFalse(
+            $notifications->flatMap->deliveries->contains('channel', NotificationCatalogue::CHANNEL_EMAIL),
+            'aucune livraison e-mail',
+        );
         Mail::assertNothingSent();
         Mail::assertNothingQueued();
+    }
+
+    public function test_les_canaux_de_la_veille_sont_in_app_et_web_push_jamais_email(): void
+    {
+        $cle = NotificationCatalogue::LOOP_WATCH_ITEM_CREATED;
+
+        $this->assertTrue(NotificationCatalogue::channelDefault($cle, NotificationCatalogue::CHANNEL_IN_APP));
+        $this->assertFalse(NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_IN_APP));
+        $this->assertTrue(NotificationCatalogue::channelDefault($cle, NotificationCatalogue::CHANNEL_WEB_PUSH));
+        $this->assertTrue(NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_WEB_PUSH));
+        $this->assertNull(NotificationCatalogue::channelDefault($cle, NotificationCatalogue::CHANNEL_EMAIL), 'canal e-mail non declare');
+        $this->assertSame((string) $this->loop->id, NotificationCatalogue::loopScopeFor($cle, (string) $this->loop->id));
+    }
+
+    public function test_la_sourdine_par_boucle_coupe_la_notification_de_veille(): void
+    {
+        $this->activer();
+        $reglage = new LoopNotificationPreference(['collective_enabled' => false]);
+        $reglage->organization_id = (string) $this->orgA->id;
+        $reglage->loop_id = (string) $this->loop->id;
+        $reglage->user_id = (string) $this->owner->id;
+        $reglage->save();
+
+        $this->publier($this->membre);
+
+        $this->assertSame(0, MemberNotification::query()
+            ->where('notification_key', NotificationCatalogue::LOOP_WATCH_ITEM_CREATED)
+            ->where('recipient_id', $this->owner->id)
+            ->count());
+    }
+
+    public function test_modifier_ou_supprimer_une_veille_ne_notifie_pas(): void
+    {
+        $this->activer();
+        $item = $this->publier($this->membre);
+        $avant = MemberNotification::query()->count();
+
+        $service = app(LoopWatchService::class);
+        $service->update($this->membre, $this->loop, $item->id, $this->donnees(['information' => 'Corrigée']));
+        $service->delete($this->membre, $this->loop, $item->id);
+
+        $this->assertSame($avant, MemberNotification::query()->count());
     }
 
     public function test_l_echec_de_l_annonce_ne_perd_pas_la_veille(): void

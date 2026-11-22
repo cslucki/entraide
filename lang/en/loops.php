@@ -1486,7 +1486,7 @@ return [
         // TASK-1879 — la Veille collaborative.
         'veille' => [
             'label' => 'Watch',
-            'description' => "Loop members share a dated watch item, its impact and its source. Each new item is announced in ChatLoop, without Push or email notification.",
+            'description' => "Loop members share a dated watch item, its impact and its source. Each new item is announced in ChatLoop and notified in-app and via PWA, never by email.",
         ],
         'multi_ai_assistants' => [
             // TASK-1621: the module is called « For / Against » everywhere a

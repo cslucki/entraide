@@ -848,9 +848,10 @@ class LoopMessageService
      * Le corps ne porte que le nom de l'auteur : un message supprime de la
      * veille ne laisse donc aucun contenu dans le fil.
      *
-     * **Aucune notification Push ni e-mail.** Cette methode n'appelle pas
-     * NotificationEmitter (decision MASTER anti-infobesite) ; seul
-     * `LoopMessageCreated` part, pour le rafraichissement temps reel du fil.
+     * Notification (demande Cyril, 22/11, qui remplace la decision initiale
+     * « ni Push ni e-mail ») : **in-app + Web Push (PWA)** aux membres actifs
+     * sauf l'auteur, via `notifierNouvelleVeille()`. **Jamais d'e-mail** : la
+     * cle `LOOP_WATCH_ITEM_CREATED` ne declare pas ce canal.
      *
      * IDEMPOTENT : une veille n'est annoncee qu'une fois.
      */
@@ -886,12 +887,70 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
+            $this->notifierNouvelleVeille($loop, $sender, $message);
+
             event(new LoopMessageCreated($message));
 
             $loop->touch();
 
             return $message;
         });
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — prevenir la Boucle qu'une veille y a
+     * ete publiee. Meme forme que `notifierNouvelEvenement()` : membres ACTIFS
+     * de la Boucle, encore dans son Organization, sauf l'auteur ; sourdine PAR
+     * BOUCLE respectee (`loopScopeFor()`). Canaux demandes : in-app et Web Push
+     * SEULEMENT — l'e-mail n'est ni demande ni declare au catalogue.
+     */
+    private function notifierNouvelleVeille(Loop $loop, User $auteur, LoopMessage $message): void
+    {
+        $destinataires = User::query()
+            ->whereIn(
+                'id',
+                LoopMember::query()
+                    ->where('loop_id', $loop->id)
+                    ->where('organization_id', $loop->organization_id)
+                    ->where('status', 'active')
+                    ->currentlyInLoopOrganization()
+                    ->pluck('user_id'),
+            )
+            ->whereKeyNot($auteur->getKey())
+            ->get();
+
+        if ($destinataires->isEmpty()) {
+            return;
+        }
+
+        $verdicts = app(NotificationPreferenceResolver::class)->allowsMany(
+            $destinataires,
+            NotificationCatalogue::LOOP_WATCH_ITEM_CREATED,
+            [
+                NotificationCatalogue::CHANNEL_IN_APP,
+                NotificationCatalogue::CHANNEL_WEB_PUSH,
+            ],
+            (string) $loop->id,
+        );
+
+        $destinataires = $destinataires->filter(
+            fn (User $destinataire): bool => (bool) ($verdicts[(string) $destinataire->id][NotificationCatalogue::CHANNEL_IN_APP] ?? false)
+        );
+
+        $emetteur = app(NotificationEmitter::class);
+
+        foreach ($destinataires as $destinataire) {
+            $emetteur->emit(
+                notificationKey: NotificationCatalogue::LOOP_WATCH_ITEM_CREATED,
+                organization: (string) $loop->organization_id,
+                recipient: $destinataire,
+                eventId: (string) $message->getKey(),
+                objectType: NotificationCatalogue::OBJECT_LOOP,
+                objectId: (string) $loop->getKey(),
+                actor: $auteur,
+                canauxAutorises: $verdicts[(string) $destinataire->id] ?? null,
+            );
+        }
     }
 
     public function updateUserMessage(Loop $loop, LoopMessage $message, User $user, string $body, ?array $metadata = null): LoopMessage

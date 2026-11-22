@@ -1512,7 +1512,7 @@ return [
         // TASK-1879 — la Veille collaborative.
         'veille' => [
             'label' => 'Veille',
-            'description' => "Les membres de la Boucle partagent une information de veille datée, son impact et sa source. Chaque nouvelle veille est annoncée dans ChatLoop, sans notification Push ni e-mail.",
+            'description' => "Les membres de la Boucle partagent une information de veille datée, son impact et sa source. Chaque nouvelle veille est annoncée dans ChatLoop et notifiée dans l'application et en PWA, jamais par e-mail.",
         ],
         'multi_ai_assistants' => [
             // TASK-1621 — le module s'appelle « Pour / Contre » partout ou

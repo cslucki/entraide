@@ -108,6 +108,8 @@ return [
      * place, qui est ce que la personne cherche.
      */
     'push_body' => [
+        // TASK-1879
+        'loop_watch_item_created' => 'Ouvrez BouclePro pour lire la veille.',
         'loop_mention_created' => 'Ouvrez BouclePro pour lire le message.',
         'loop_invitation' => 'Ouvrez BouclePro pour répondre.',
         'loop_member_added' => 'Vous pouvez maintenant y participer.',
@@ -141,6 +143,8 @@ return [
     ],
 
     'push_title' => [
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille dans votre Boucle',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
         // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
         // complete du nom de la Boucle si elle est PUBLIQUE, par
@@ -179,6 +183,8 @@ return [
     ],
 
     'keys' => [
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille a été partagée',
         'loop_mention_created' => 'On vous a mentionné dans une Boucle',
         // TASK-1761 — la DEMANDE, cote proprietaire. Ses deux voisines
         // portent la DECISION et vont au demandeur.
@@ -239,6 +245,8 @@ return [
      * controleur a pu resoudre, quelle qu'elle soit.
      */
     'keys_named' => [
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille a été partagée dans la Boucle « :loop »',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).

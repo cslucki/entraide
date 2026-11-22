@@ -316,6 +316,9 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             // Boucle. Fait collectif de plus, meme regime que
             // LOOP_HELP_REQUEST_CREATED juste au-dessus.
             NotificationCatalogue::LOOP_EVENT_CREATED,
+            // TASK-1879 (demande Cyril, 22/11) — une veille publiee dans une
+            // Boucle : fait collectif, in-app + Web Push, AUCUN canal email.
+            NotificationCatalogue::LOOP_WATCH_ITEM_CREATED,
             NotificationCatalogue::FEED_POST_COMMENT_CREATED,
             NotificationCatalogue::FEED_POST_REACTION_CREATED,
         ];

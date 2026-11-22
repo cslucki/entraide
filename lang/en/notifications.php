@@ -97,6 +97,8 @@ return [
      * is what the person is looking for.
      */
     'push_body' => [
+        // TASK-1879
+        'loop_watch_item_created' => 'Open BouclePro to read the watch item.',
         'loop_mention_created' => 'Open BouclePro to read the message.',
         'loop_invitation' => 'Open BouclePro to reply.',
         'loop_member_added' => 'You can now take part.',
@@ -126,6 +128,8 @@ return [
     ],
 
     'push_title' => [
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item in your Loop',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
         // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
         // complete du nom de la Boucle si elle est PUBLIQUE, par
@@ -162,6 +166,8 @@ return [
     ],
 
     'keys' => [
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item was shared',
         'loop_mention_created' => 'You were mentioned in a Loop',
         // TASK-1761 — the REQUEST, owner side.
         'loop_join_request_created' => 'Someone is asking to join your Loop',
@@ -209,6 +215,8 @@ return [
      * longer always `:loop`.
      */
     'keys_named' => [
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item was shared in the Loop “:loop”',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
