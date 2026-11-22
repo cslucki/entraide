@@ -271,9 +271,9 @@ Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag
 // `WorkshopRegistrationService:158`) sont intouchees : ce sont des gestes, pas
 // des pages.
 Route::middleware('auth')->group(function () {
-    Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
+    Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->middleware('profile.complete')->name('blog.create');
     Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
-    Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
+    Route::post('/blog', [BlogController::class, 'store'])->middleware('profile.complete')->name('blog.store');
     Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'edit'])->name('blog.edit');
     Route::put('/blog/{post:slug}', [BlogController::class, 'update'])->name('blog.update');
     Route::patch('/blog/{post:slug}/publier', [BlogController::class, 'publish'])->name('blog.publish');
@@ -287,7 +287,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
     Route::post('/blog/ai-method-selection', [BlogController::class, 'aiMethodSelection'])->name('blog.ai-method-selection');
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
-    Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
+    Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->middleware('profile.complete')->name('blog.create-draft');
 
     // Blog annotation endpoints (root)
     Route::get('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'index'])->name('blog.annotations.index');
@@ -2132,9 +2132,9 @@ Route::prefix('/org/{organization}')
                 Route::patch('/dossiers/{dossier}/files/{file}/markdown', [DossierFileController::class, 'updateMarkdown'])->name('dossiers.files.markdown.update');
 
                 // Blog (org-scoped)
-                Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');
+                Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->middleware('profile.complete')->name('blog.create');
                 Route::get('/blog/mes-articles', [BlogController::class, 'orgMyPosts'])->name('blog.my-posts');
-                Route::post('/blog', [BlogController::class, 'orgStore'])->name('blog.store');
+                Route::post('/blog', [BlogController::class, 'orgStore'])->middleware('profile.complete')->name('blog.store');
                 Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'orgEdit'])->name('blog.edit');
                 Route::put('/blog/{post:slug}', [BlogController::class, 'orgUpdate'])->name('blog.update');
                 Route::patch('/blog/{post:slug}/publier', [BlogController::class, 'orgPublish'])->name('blog.publish');
@@ -2146,7 +2146,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/ai-correct', [BlogController::class, 'orgAiCorrect'])->name('blog.ai-correct');
                 Route::post('/blog/ai-method-selection', [BlogController::class, 'orgAiMethodSelection'])->name('blog.ai-method-selection');
                 Route::post('/blog/ai-remaining', [BlogController::class, 'orgAiRemaining'])->name('blog.ai-remaining');
-                Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->name('blog.create-draft');
+                Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->middleware('profile.complete')->name('blog.create-draft');
 
                 // Blog annotation endpoints (org-scoped)
                 Route::get('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'orgIndex'])->name('blog.annotations.index');

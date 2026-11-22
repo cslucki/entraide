@@ -154,4 +154,22 @@ class TASK1880PresentationRequiseTest extends TestCase
         $membre->update(['bio' => 'Ma presentation est faite.']);
         $this->actingAs($membre->fresh())->get($url)->assertOk();
     }
+
+    /** Correctif 04 (demande Cyril, 22/11) — rediger un article du blog exige aussi la presentation. */
+    public function test_rediger_un_article_sans_presentation_renvoie_au_formulaire(): void
+    {
+        $membre = $this->membre(presentation: false);
+        $slug = ['organization' => $this->org->slug];
+
+        $this->actingAs($membre)->get(route('organization.blog.create', $slug))
+            ->assertRedirect($this->profil())
+            ->assertSessionHas('profile_required', true);
+        $this->actingAs($membre)->post(route('organization.blog.store', $slug), ['title' => 'Titre'])
+            ->assertRedirect($this->profil());
+        $this->actingAs($membre)->post(route('organization.blog.create-draft', $slug), ['title' => 'Titre', 'summary' => 'Resume'])
+            ->assertRedirect($this->profil());
+        $this->assertSame(0, \App\Models\BlogPost::count());
+
+        $this->actingAs($this->membre())->get(route('organization.blog.create', $slug))->assertOk();
+    }
 }
