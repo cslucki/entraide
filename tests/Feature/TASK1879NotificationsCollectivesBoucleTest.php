@@ -318,6 +318,23 @@ class TASK1879NotificationsCollectivesBoucleTest extends TestCase
         $this->assertStringEndsWith('/agenda#agenda-event-'.$ouvert->id, FeedEventRenderer::lien($ligneOrg, $slug));
     }
 
+    /**
+     * Demande Cyril (22/11, design) — une ligne NEE dans une Boucle porte le
+     * bandeau « lieu » (nom, visibilite, « Ouvrir la Boucle ») ; l'adhesion,
+     * dont l'apercu EST la Boucle, non.
+     */
+    public function test_le_flux_met_en_valeur_la_boucle_d_un_evenement(): void
+    {
+        $sondage = LoopPoll::create(['loop_id' => $this->loop->id, 'organization_id' => $this->organization->id, 'created_by' => $this->auteur->id, 'question' => 'Bandeau ?', 'status' => 'open']);
+        $this->service()->sendPollEventMessage($this->loop, $this->auteur, $sondage, 'created');
+        app(FeedEventEmitter::class)->emettre(FeedEventCatalogue::ADHESION_BOUCLE, LoopMember::where('user_id', $this->membre->id)->sole(), $this->membre, (string) $this->organization->id, $this->loop);
+
+        $html = $this->actingAs($this->membre)->get(route('organization.flux', $this->organization->slug))->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, 'data-feed-loop-band="'.$this->loop->id.'"'), 'un bandeau : le sondage, pas l\'adhesion');
+        $this->assertStringContainsString(__('feed.open_loop'), $html);
+    }
+
     // ── Outils ──────────────────────────────────────────────────────────────
 
     private function assertDestinataires(string $cle): void

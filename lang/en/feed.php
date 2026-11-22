@@ -42,6 +42,7 @@ return [
     'loop_count' => ':count loop|:count loops',
     'member_fallback' => 'Member',
     'shared_link' => 'Shared link',
+    'open_loop' => 'Open the Loop',
     'comment_cta' => 'Comment',
     'view_comments' => 'View :count comments',
     'comment_placeholder' => 'Add a useful comment',

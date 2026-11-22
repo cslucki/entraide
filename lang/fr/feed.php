@@ -48,6 +48,7 @@ return [
     'loop_count' => ':count boucle|:count boucles',
     'member_fallback' => 'Membre',
     'shared_link' => 'Lien partagé',
+    'open_loop' => 'Ouvrir la Boucle',
     'comment_cta' => 'Commentez',
     'view_comments' => 'Voir les :count commentaires',
     'comment_placeholder' => 'Ajouter un commentaire utile',

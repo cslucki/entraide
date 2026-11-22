@@ -96,6 +96,16 @@ class FeedPost extends Model
             ->latest();
     }
 
+    /**
+     * TASK-1879 (design) — la Boucle d'une ligne d'evenement (`loop_id`), pour
+     * le bandeau « lieu » de sa carte dans le Flux. Sans scopes : la visibilite
+     * de la LIGNE est deja tranchee par `scopeVisibleTo()`.
+     */
+    public function boucle(): BelongsTo
+    {
+        return $this->belongsTo(Loop::class, 'loop_id')->withoutGlobalScopes();
+    }
+
     public function loops(): BelongsToMany
     {
         return $this->belongsToMany(Loop::class, 'feed_post_loop')

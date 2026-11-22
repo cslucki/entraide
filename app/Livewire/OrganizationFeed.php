@@ -39,7 +39,7 @@ class OrganizationFeed extends Component
                 ->published()
                 ->visibleTo(auth()->user())
                 ->pinned()
-                ->with(['user', 'reactions.user', 'comments.user', 'loops'])
+                ->with(['user', 'reactions.user', 'comments.user', 'loops', 'boucle'])
                 ->latest('published_at')
                 ->get();
 
@@ -47,7 +47,7 @@ class OrganizationFeed extends Component
                 ->published()
                 ->visibleTo(auth()->user())
                 ->whereNull('pinned_at')
-                ->with(['user', 'reactions.user', 'comments.user', 'loops'])
+                ->with(['user', 'reactions.user', 'comments.user', 'loops', 'boucle'])
                 ->latest('published_at')
                 ->paginate($this->perPage);
 
