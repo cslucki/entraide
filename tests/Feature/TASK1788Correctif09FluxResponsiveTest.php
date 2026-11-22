@@ -89,6 +89,10 @@ class TASK1788Correctif09FluxResponsiveTest extends TestCase
      */
     public function test_les_boutons_de_l_en_tete_prennent_la_largeur_sur_telephone(): void
     {
+        // TASK-1879 (demande Cyril, 22/11) — la rangee « Mes annonces » / « Nouvelle
+        // annonce » n'est plus rendue qu'a l'administrateur de l'Organization.
+        $this->organization->update(['admin_id' => $this->membre->id]);
+
         $html = $this->page();
 
         $this->assertStringContainsString('data-feed-actions', $html,

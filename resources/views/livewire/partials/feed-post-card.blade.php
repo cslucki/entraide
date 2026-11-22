@@ -69,6 +69,17 @@
                 @endif
                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ ($post->published_at ?? $post->created_at)->isoFormat('lll') }}</p>
             </div>
+            {{-- TASK-1879 (demande Cyril, 22/11) — l'auteur modifie SON annonce par
+                 une icone, sans passer par « Mes annonces ». --}}
+            @if(! $estEvenement && auth()->id() === $post->user_id && $_slugOrganization)
+                @can('update', $post)
+                    <a href="{{ route('organization.flux.edit', ['organization' => $_slugOrganization, 'feedPost' => $post->id]) }}"
+                       data-feed-post-edit="{{ $post->id }}" title="{{ __('feed-post.edit_post') }}" aria-label="{{ __('feed-post.edit_post') }}"
+                       class="-mr-1 -mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-indigo-300">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.86 4.49a2.1 2.1 0 0 1 2.97 2.97L8.5 18.79 4.5 19.5l.71-4z"/><path d="m15 6.35 2.97 2.97"/></svg>
+                    </a>
+                @endcan
+            @endif
         </header>
         @unless($estEvenement)
             <div>

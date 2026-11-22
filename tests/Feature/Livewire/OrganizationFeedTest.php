@@ -917,11 +917,49 @@ class OrganizationFeedTest extends TestCase
         $this->actingAs($this->member)->get($url)->assertOk()
             ->assertSee('data-feed-composer-inline', false)
             ->assertSee('data-feed-composer-trigger', false)
-            ->assertDontSee('data-feed-new-post', false);
+            ->assertDontSee('data-feed-new-post', false)
+            ->assertDontSee('data-feed-actions', false);
 
         $this->actingAs($this->admin)->get($url)->assertOk()
             ->assertSee('data-feed-new-post', false)
+            ->assertSee('data-feed-actions', false)
             ->assertDontSee('data-feed-composer-inline', false);
+    }
+
+    /** TASK-1879 (demande Cyril, 22/11) — l'auteur modifie son annonce par une icone ; pas les autres. */
+    public function test_author_gets_an_edit_icon_on_own_announcement_only(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $sienne = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->member->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'Annonce du membre', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+        $autre = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->admin->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'Annonce de l admin', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+
+        $this->actingAs($this->member)
+            ->get(route('organization.flux', ['organization' => $this->organization->slug]))
+            ->assertOk()
+            ->assertSee('data-feed-post-edit="'.$sienne->id.'"', false)
+            ->assertDontSee('data-feed-post-edit="'.$autre->id.'"', false);
+    }
+
+    /** TASK-1879 — un membre qui modifie son annonce revient au Flux, pas a « Mes annonces ». */
+    public function test_member_edit_returns_to_the_flux(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $post = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->member->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'Avant', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(EditFeedPost::class, ['feedPost' => $post])
+            ->set('content', '<p>Apres</p>')
+            ->call('submit')
+            ->assertRedirect(route('organization.flux', ['organization' => $this->organization->slug]));
     }
 
     public function test_published_post_visible_in_feed(): void

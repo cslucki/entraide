@@ -9,13 +9,21 @@
     $fluxUrl = $usesDefaultOrganizationRoute && Route::has('flux')
         ? route('flux')
         : route('organization.flux', ['organization' => $organizationRouteParam]);
+    // TASK-1879 (demande Cyril, 22/11) — « Mes annonces » : administrateur seulement.
+    $_orgEdition = currentOrganization();
+    $estProprietaireEdition = $_orgEdition !== null && (auth()->id() === $_orgEdition->admin_id || auth()->user()?->is_admin);
+    if (! $estProprietaireEdition) {
+        $myPostsUrl = $fluxUrl;
+    }
 @endphp
 
 <div class="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-6">
         <div class="flex items-center gap-4">
-            <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← {{ __('feed-post.back_to_feed') }}</a>
-            <a href="{{ $myPostsUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed-post.my_posts') }}</a>
+            <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed-post.back_to_feed') }}</a>
+            @if($estProprietaireEdition)
+                <a href="{{ $myPostsUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed-post.my_posts') }}</a>
+            @endif
         </div>
         <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('feed-post.edit_post') }}</h1>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('feed-post.edit_subtitle') }}</p>

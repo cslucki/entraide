@@ -74,22 +74,23 @@
                  d'ecran, pas un menage de lexique. --}}
             <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('feed.title') }}</h1>
         </div>
-        @can('create', App\Models\FeedPost::class)
+        {{-- TASK-1879 (demande Cyril, 22/11) — « Mes annonces » et « Nouvelle annonce »
+             : administrateur de l'Organization seulement. Les autres membres
+             publient avec le composeur et modifient par l'icone de leur carte. --}}
+        @if($estProprietaireFlux)
             <div class="flex w-full items-center gap-2 sm:w-auto sm:shrink-0" data-feed-actions>
                 <a href="{{ $myPostsUrl }}"
                    class="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-full border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 active:scale-95 sm:flex-none dark:border-indigo-400 dark:text-indigo-400 dark:hover:bg-indigo-950">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                     {{ __('feed.my_posts') }}
                 </a>
-                @if($estProprietaireFlux)
                 <a href="{{ $createUrl }}" data-feed-new-post
                    class="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 sm:flex-none">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     {{ __('feed.new_post') }}
                 </a>
-                @endif
             </div>
-        @endcan
+        @endif
     </div>
 
     @can('create', App\Models\FeedPost::class)

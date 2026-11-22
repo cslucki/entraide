@@ -139,8 +139,12 @@ class EditFeedPost extends Component
             default => 'Annonce mise à jour.',
         });
 
-        $route = currentOrganization()?->is_default && ! $this->urlPrefixee ? 'flux.my' : 'organization.flux.my';
-        $parameters = $route === 'organization.flux.my' ? ['organization' => currentOrganization()?->slug] : [];
+        // TASK-1879 (demande Cyril, 22/11) — « Mes annonces » est reserve a
+        // l'administrateur : un membre revient au Flux.
+        $org = currentOrganization();
+        $page = $org !== null && (auth()->id() === $org->admin_id || auth()->user()?->is_admin) ? 'flux.my' : 'flux';
+        $route = $org?->is_default && ! $this->urlPrefixee ? $page : 'organization.'.$page;
+        $parameters = str_starts_with($route, 'organization.') ? ['organization' => $org?->slug] : [];
 
         $this->redirectRoute($route, $parameters);
     }
