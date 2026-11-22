@@ -1752,6 +1752,10 @@ function registerBlogCoAuthorCard() {
         success: '',
         selectedUserId: null,
         userQuery: '',
+        // TASK-1884 — la recherche a-t-elle repondu pour la saisie courante ?
+        // Sans ce drapeau, « aucun resultat » et « pas encore cherche » se
+        // confondaient : l'ecran restait muet.
+        searched: false,
 
         indexUrl: config.indexUrl,
         storeUrl: config.storeUrl,
@@ -1806,23 +1810,28 @@ function registerBlogCoAuthorCard() {
 
         searchUsers() {
             const q = (this.userQuery || '').trim();
+            this.searched = false;
             if (!q || q.length < 2) {
                 this.searchResults = [];
                 return;
             }
             this.searching = true;
-            fetch(this.searchUrl + '?q=' + encodeURIComponent(q))
+            fetch(this.searchUrl + '?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
                 .then(r => r.json())
                 .then(data => {
-                    this.searchResults = (data.users || []).filter(u => {
-                        if (u.id === this.postOwnerId) return false;
-                        return !this.coAuthors.some(c => c.id === u.id);
-                    });
+                    // TASK-1884 — l'auteur et les co-auteurs deja nommes restent
+                    // affiches, marques, au lieu de disparaitre sans explication.
+                    this.searchResults = (data.users || []).map(u => ({
+                        ...u,
+                        etat: u.id === this.postOwnerId ? 'owner' : (this.coAuthors.some(c => c.id === u.id) ? 'already' : 'free'),
+                    }));
                     this.searching = false;
+                    this.searched = true;
                 })
                 .catch(() => {
                     this.searchResults = [];
                     this.searching = false;
+                    this.searched = true;
                 });
         },
 
@@ -1830,6 +1839,13 @@ function registerBlogCoAuthorCard() {
             this.selectedUserId = user.id;
             this.userQuery = user.name;
             this.searchResults = [];
+        },
+
+        // TASK-1884 — un clic sur le nom ajoute : plus d'etape « choisir puis Ajouter ».
+        addUser(user) {
+            if (user.etat !== 'free') return;
+            this.selectedUserId = user.id;
+            this.addCoAuthor();
         },
 
         addCoAuthor() {
@@ -1851,6 +1867,8 @@ function registerBlogCoAuthorCard() {
                     this.coAuthors.push(data.co_author);
                     this.selectedUserId = null;
                     this.userQuery = '';
+                    this.searchResults = [];
+                    this.searched = false;
                     this.success = data.message || this.i18n.added || 'Co-author added.';
                     setTimeout(() => { this.success = ''; }, 3000);
                 })

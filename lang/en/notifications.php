@@ -111,6 +111,7 @@ return [
         'loop_join_request_accepted' => 'You can now take part.',
         'blog_comment_created' => 'Open the article to read the comment.',
         'blog_co_author_added' => 'Open the article to get started.',
+        'blog_todo_assigned' => 'Open the article to see the task.',
         // TASK-1786 — generic on purpose: a push shows on a LOCKED SCREEN, so
         // naming the person would expose someone's mutual aid to whoever walks
         // past the phone. The full story lives in `keys_named`, behind auth.
@@ -157,6 +158,7 @@ return [
         // anyone.
         'blog_comment_created' => 'A new comment on your article',
         'blog_co_author_added' => 'You have been added to an article',
+        'blog_todo_assigned' => 'A task was assigned to you',
 
         // TASK-1786 — names neither the person nor the listing.
         'entraide_comment_created' => 'New suggestion on your mutual aid',
@@ -199,6 +201,7 @@ return [
 
         // TASK-1702
         'blog_co_author_added' => 'You were added as a co-author of an article',
+        'blog_todo_assigned' => 'An article task is assigned to you',
 
         // TASK-1697
         'blog_comment_created' => 'A new comment on your article',
@@ -356,6 +359,17 @@ return [
             'body' => '<p>Hello,</p><p><strong>:prenom</strong> just commented on the Feed about something that concerns you: <strong>:contexte</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">View in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: you don’t need to sign in to read it.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
         ],
         // TASK-1880 — fallback for the `feed_post_mention_created` template.
+        // TASK-1884 #1 — repli du gabarit `blog_co_author_added` : `:prenom`, `:titre`,
+        // `:url` et `:reglages` restent des JETONS.
+        // TASK-1884 #7 — repli du gabarit `blog_todo_assigned` (jetons :tache, :titre_court, :titre, :prenom, :date, :url, :reglages).
+        'blog_todo_assigned' => [
+            'subject' => ':tache on “:titre_court”',
+            'body' => '<p>Hello,</p><p><strong>:prenom</strong> assigned you a task on the article <strong>:titre</strong>:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:tache</blockquote><p>Task created on :date.</p><p><a href=":url">Open the article</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
+        'blog_co_author_added' => [
+            'subject' => ':prenom made you co-author of an article',
+            'body' => '<p>Hello,</p><p><strong>:prenom</strong> made you co-author of an article: <strong>:titre</strong>.</p><p>Here is the link to this article:</p><p><a href=":url">Open the article</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
         'feed_post_mention_created' => [
             'subject' => ':prenom tagged you on the Feed',
             'body' => '<p>Hello,</p><p><strong>:prenom</strong> tagged you in a Feed announcement:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:message</blockquote><p><a href=":url">View the announcement in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',

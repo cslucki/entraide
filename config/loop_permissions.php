@@ -405,6 +405,21 @@ return [
             'requires_card' => 'core.article',
         ],
 
+        /*
+         * TASK-1884 #3 (demande Cyril, 22/11) — le proprietaire et les animateurs
+         * d'une Boucle modifient les articles de CETTE Boucle comme leur auteur :
+         * modifier, publier, gerer les taches. Supprimer reste a l'auteur
+         * (`BlogPostPolicy::delete`), gerer les co-auteurs aussi.
+         *
+         * Sans `requires_card` : un article rejoint une Boucle par la Card Article
+         * OU par un Dossier ; le droit vaut quel que soit le chemin.
+         */
+        'writing.edit_any' => [
+            'module' => 'writing', 'label_fr' => 'Modifier les articles de la Boucle', 'label_en' => 'Edit the Loop\'s articles',
+            'description' => 'Modifier, publier et gerer les taches des articles rattaches a la Boucle, comme leur auteur. Supprimer reste a l\'auteur.',
+            'locked' => false,
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -611,6 +626,8 @@ return [
             'decisions.view', 'decisions.record', 'decisions.manage',
             'marketplace.view', 'marketplace.highlight', 'marketplace.manage',
             'writing.view', 'writing.compose',
+            // TASK-1884 #3 — modifier les articles de la Boucle comme leur auteur.
+            'writing.edit_any',
         ],
 
         /*
@@ -659,6 +676,8 @@ return [
             'decisions.view', 'decisions.record', 'decisions.manage',
             'marketplace.view', 'marketplace.highlight', 'marketplace.manage',
             'writing.view', 'writing.compose',
+            // TASK-1884 #3 — modifier les articles de la Boucle comme leur auteur.
+            'writing.edit_any',
         ],
 
         /*
