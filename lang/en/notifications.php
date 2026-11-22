@@ -97,6 +97,14 @@ return [
      * is what the person is looking for.
      */
     'push_body' => [
+        'loop_poll_created' => 'Open BouclePro to vote.',
+        'loop_article_published' => 'Open BouclePro to read the article.',
+        'loop_dossier_file_uploaded' => 'Open BouclePro to see the files.',
+        'loop_roadmap_item_created' => 'Open BouclePro to see the Roadmap.',
+        'loop_roadmap_item_moved' => 'Open BouclePro to see the Roadmap.',
+        'loop_journal_entry_created' => 'Open BouclePro to read the Journal.',
+        // TASK-1879
+        'loop_watch_item_created' => 'Open BouclePro to read the watch item.',
         'loop_mention_created' => 'Open BouclePro to read the message.',
         'loop_invitation' => 'Open BouclePro to reply.',
         'loop_member_added' => 'You can now take part.',
@@ -126,6 +134,14 @@ return [
     ],
 
     'push_title' => [
+        'loop_poll_created' => 'A new poll in your Loop',
+        'loop_article_published' => 'A new article in your Loop',
+        'loop_dossier_file_uploaded' => 'New files in your Loop',
+        'loop_roadmap_item_created' => 'A new action in the Roadmap',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward',
+        'loop_journal_entry_created' => 'A new entry in the Journal',
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item in your Loop',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
         // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
         // complete du nom de la Boucle si elle est PUBLIQUE, par
@@ -162,6 +178,14 @@ return [
     ],
 
     'keys' => [
+        'loop_poll_created' => 'A new poll was posted',
+        'loop_article_published' => 'A new article was published',
+        'loop_dossier_file_uploaded' => 'Files were uploaded',
+        'loop_roadmap_item_created' => 'An action was added to the Roadmap',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward',
+        'loop_journal_entry_created' => 'An entry was written in the Journal',
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item was shared',
         'loop_mention_created' => 'You were mentioned in a Loop',
         // TASK-1761 — the REQUEST, owner side.
         'loop_join_request_created' => 'Someone is asking to join your Loop',
@@ -209,6 +233,14 @@ return [
      * longer always `:loop`.
      */
     'keys_named' => [
+        'loop_poll_created' => 'A new poll was posted in the Loop “:loop”',
+        'loop_article_published' => 'A new article was published in the Loop “:loop”',
+        'loop_dossier_file_uploaded' => 'Files were uploaded in the Loop “:loop”',
+        'loop_roadmap_item_created' => 'An action was added to the Roadmap of the Loop “:loop”',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward in the Loop “:loop”',
+        'loop_journal_entry_created' => 'An entry was written in the Journal of the Loop “:loop”',
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item was shared in the Loop “:loop”',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).

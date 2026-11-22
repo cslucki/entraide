@@ -314,12 +314,11 @@ class MarkdownToolbarServicesTest extends TestCase
             route('organization.flux.create', ['organization' => $this->testOrganization->slug])
         );
         $response->assertOk();
-        $response->assertSee('insertMarkdown', false);
+        // TASK-1879 (demande Cyril, 22/11) — le message d'une annonce s'ecrit
+        // desormais avec TipTap, en HTML, et non plus en Markdown.
         $response->assertSee('id="content"', false);
-        $response->assertSee("insertMarkdown('bold')", false);
-        $response->assertSee("insertMarkdown('link')", false);
-        $response->assertSee("insertMarkdown('h2')", false);
-        $response->assertSee("insertMarkdown('h3')", false);
-        $response->assertSee("insertMarkdown('list')", false);
+        $response->assertSee('data-tiptap-container', false);
+        $response->assertSee('data-format="html"', false);
+        $response->assertDontSee('insertMarkdown', false);
     }
 }

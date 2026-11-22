@@ -73,6 +73,24 @@ class TASK1718RoadmapItemEditTest extends TestCase
         );
     }
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — la carte entiere se deplace : plus de
+     * poignee, plus de bouton « marquer comme fait » ; les actions restent dans
+     * le menu ⋮, exclu du deplacement (`data-no-drag`).
+     */
+    public function test_la_carte_se_deplace_entiere_et_les_actions_passent_par_le_menu(): void
+    {
+        $this->tache($this->proprietaire, 'Carte a glisser');
+
+        $this->carte($this->proprietaire)
+            ->assertSee('Carte a glisser')
+            ->assertDontSeeHtml('drag-handle')
+            ->assertDontSee(__('loops.roadmap_mark_done'))
+            ->assertSeeHtml('cursor-grab')
+            ->assertSeeHtml('x-data="roadmapMenu()" class="relative" x-on:click.stop data-no-drag')
+            ->assertSee(__('loops.roadmap_actions_menu'));
+    }
+
     private function membre(): User
     {
         $u = User::factory()->create(['organization_id' => $this->organisation->id]);

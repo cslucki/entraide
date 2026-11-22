@@ -279,6 +279,12 @@ class TASK1826LoopContentPreviewsTest extends TestCase
     }
 
     /** Editer le titre ou changer le statut n'annonce JAMAIS une seconde carte. */
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — la doctrine a change : une action
+     * passee « En cours » ou « Fait » est desormais annoncee (carte `moved`).
+     * L'EDITION, elle, n'annonce toujours rien, et la carte de CREATION
+     * reste unique.
+     */
     public function test_editer_ou_changer_le_statut_n_annonce_jamais_une_seconde_carte(): void
     {
         $component = Livewire::actingAs($this->owner)
@@ -294,8 +300,10 @@ class TASK1826LoopContentPreviewsTest extends TestCase
             ->set('detailTitle', 'Programme finalise')
             ->call('saveDetailTitle');
 
-        $this->assertSame(1, LoopMessage::where('loop_id', $this->loop->id)->where('type', 'roadmap_action')->count(),
-            'edition et changement de statut ne doivent jamais produire de seconde carte');
+        $this->assertSame(1, LoopMessage::where('loop_id', $this->loop->id)->where('type', 'roadmap_action')->where('metadata->event', 'created')->count(),
+            'edition et changement de statut ne doivent jamais produire de seconde carte de creation');
+        $this->assertSame(1, LoopMessage::where('loop_id', $this->loop->id)->where('type', 'roadmap_action')->where('metadata->event', 'moved')->count(),
+            'le passage a « Fait » est annonce une fois ; l\'edition du titre, jamais');
     }
 
     /** Le statut affiche dans la carte est TOUJOURS celui, actuel, de l'action — jamais fige. */

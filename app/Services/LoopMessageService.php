@@ -11,8 +11,11 @@ use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
+use App\Models\LoopWatchItem;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use App\Support\Notifications\NotificationPreferenceResolver;
@@ -436,6 +439,12 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
+            // TASK-1879 — seule la CREATION notifie (jamais la cloture).
+            if ($event === 'created') {
+                $this->notifierLaBoucle(NotificationCatalogue::LOOP_POLL_CREATED, $loop, $sender, $message);
+                $this->publierDansLeFlux(FeedEventCatalogue::SONDAGE_PUBLIE, $poll, $sender, $loop);
+            }
+
             event(new LoopMessageCreated($message));
 
             $loop->touch();
@@ -721,6 +730,10 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
+            // TASK-1879 — UNE notification par depot, quel que soit le nombre de fichiers.
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_DOSSIER_FILE_UPLOADED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::FICHIERS_DEPOSES, $message, $sender, $loop);
+
             event(new LoopMessageCreated($message));
 
             $loop->touch();
@@ -777,6 +790,10 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
+            // TASK-1879 — une seule fois par Article et par Boucle (dedoublonne plus haut).
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_ARTICLE_PUBLISHED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::ARTICLE_PUBLIE, $post, $sender, $loop);
+
             event(new LoopMessageCreated($message));
 
             $loop->touch();
@@ -827,12 +844,240 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
+            // TASK-1879 (demande Cyril, 22/11) — in-app + Web Push, et une ligne du Flux.
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_ROADMAP_ITEM_CREATED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::ROADMAP_ACTION_AJOUTEE, $item, $sender, $loop);
+
             event(new LoopMessageCreated($message));
 
             $loop->touch();
 
             return $message;
         });
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — une entree ECRITE dans le Journal :
+     * carte ChatLoop (`journal_entry`), notification in-app + Web Push a la
+     * Boucle, ligne du Flux. Une entree PROMUE (reprise d'un message) n'est pas
+     * annoncee : le message est deja dans le ChatLoop. Une seule annonce par entree.
+     */
+    public function sendJournalEntryMessage(Loop $loop, User $sender, \App\Models\LoopJournalEntry $entry): ?LoopMessage
+    {
+        if ($entry->loop_id !== $loop->id || $entry->loop_message_id !== null) {
+            return null;
+        }
+
+        $dejaAnnonce = LoopMessage::where('loop_id', $loop->id)
+            ->where('type', 'journal_entry')
+            ->where('metadata->journal_entry_id', $entry->id)
+            ->exists();
+
+        if ($dejaAnnonce) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($loop, $sender, $entry) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => __('loops.chat_journal_entry_created', ['name' => $sender->publicDisplayName()]),
+                'type' => 'journal_entry',
+                'metadata' => ['journal_entry_id' => $entry->id],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_JOURNAL_ENTRY_CREATED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::JOURNAL_ENTREE_ECRITE, $entry, $sender, $loop);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — une action de Roadmap AVANCE : passee
+     * « En cours » ou « Fait ». Carte ChatLoop (meme type `roadmap_action`,
+     * `event = moved`), notification in-app + Web Push et ligne du Flux.
+     *
+     * Un retour vers « A faire » n'est PAS annonce (rien n'avance ; principe :
+     * pas de bruit). Chaque deplacement utile a sa carte : une action passee
+     * « En cours » puis « Fait » produit deux annonces.
+     */
+    public function sendRoadmapStatusMessage(Loop $loop, User $sender, LoopRoadmapItem $item, string $from, string $to): ?LoopMessage
+    {
+        if ($from === $to || ! in_array($to, [LoopRoadmapItem::STATUS_IN_PROGRESS, LoopRoadmapItem::STATUS_DONE], true)) {
+            return null;
+        }
+
+        if ($item->loop_id !== $loop->id || $item->organization_id !== $loop->organization_id) {
+            throw new \RuntimeException('Roadmap item not found.');
+        }
+
+        $body = __('loops.chat_roadmap_action_moved', [
+            'name' => $sender->publicDisplayName(),
+            'title' => $item->title,
+            'status' => __('loops.roadmap_status_'.$to),
+        ]);
+
+        return DB::transaction(function () use ($loop, $sender, $item, $from, $to, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'roadmap_action',
+                'metadata' => [
+                    'event' => 'moved',
+                    'roadmap_item_id' => $item->id,
+                    'from' => $from,
+                    'to' => $to,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_ROADMAP_ITEM_MOVED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::ROADMAP_ACTION_AVANCEE, $message, $sender, $loop);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * TASK-1879 — annoncer dans ChatLoop qu'une veille a ete publiee.
+     *
+     * Meme forme que `sendRoadmapActionMessage()` : un `type` propre et des
+     * metadata MINIMALES — l'identifiant de la veille, rien de son texte ni de
+     * sa source. La vue relit la veille EN DIRECT (`LoopChat::projectedWatchItems()`) :
+     * modifiee, elle montre la version actuelle ; supprimee, plugin eteint ou
+     * lecteur sans droit, elle ne montre plus rien d'elle.
+     *
+     * Le corps ne porte que le nom de l'auteur : un message supprime de la
+     * veille ne laisse donc aucun contenu dans le fil.
+     *
+     * Notification (demande Cyril, 22/11, qui remplace la decision initiale
+     * « ni Push ni e-mail ») : **in-app + Web Push (PWA)** aux membres actifs
+     * sauf l'auteur, via `notifierLaBoucle()`. **Jamais d'e-mail** : la
+     * cle `LOOP_WATCH_ITEM_CREATED` ne declare pas ce canal.
+     *
+     * IDEMPOTENT : une veille n'est annoncee qu'une fois.
+     */
+    public function sendWatchItemMessage(Loop $loop, User $sender, LoopWatchItem $item): ?LoopMessage
+    {
+        $this->assertCanSend($loop, $sender);
+
+        if ($item->loop_id !== $loop->id || $item->organization_id !== $loop->organization_id) {
+            throw new \RuntimeException('Watch item not found.');
+        }
+
+        $dejaAnnonce = LoopMessage::where('loop_id', $loop->id)
+            ->where('type', 'watch_item')
+            ->where('metadata->watch_item_id', $item->id)
+            ->exists();
+
+        if ($dejaAnnonce) {
+            return null;
+        }
+
+        $body = __('veille.chat_created', ['name' => $sender->publicDisplayName()]);
+
+        return DB::transaction(function () use ($loop, $sender, $item, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'watch_item',
+                'metadata' => [
+                    'event' => 'created',
+                    'watch_item_id' => $item->id,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_WATCH_ITEM_CREATED, $loop, $sender, $message);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — prevenir la Boucle d'un fait
+     * collectif : une veille publiee, puis (meme demande) un Sondage pose, un
+     * Article publie, un depot de fichiers dans Dossiers. Meme forme que `notifierNouvelEvenement()` : membres ACTIFS
+     * de la Boucle, encore dans son Organization, sauf l'auteur ; sourdine PAR
+     * BOUCLE respectee (`loopScopeFor()`). Canaux demandes : in-app et Web Push
+     * SEULEMENT — l'e-mail n'est ni demande ni declare au catalogue.
+     */
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — le meme fait, une ligne dans le Flux
+     * (audience `loop`). Comme pour la Veille : un echec du Flux ne casse
+     * jamais l'annonce (`rescue`, et l'emetteur pose son propre point de
+     * sauvegarde), et une seconde emission rend la ligne existante.
+     */
+    private function publierDansLeFlux(string $type, mixed $objet, User $auteur, Loop $loop): void
+    {
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            $type, $objet, $auteur, (string) $loop->organization_id, $loop,
+        ), report: true);
+    }
+
+    private function notifierLaBoucle(string $cle, Loop $loop, User $auteur, LoopMessage $message): void
+    {
+        $destinataires = User::query()
+            ->whereIn(
+                'id',
+                LoopMember::query()
+                    ->where('loop_id', $loop->id)
+                    ->where('organization_id', $loop->organization_id)
+                    ->where('status', 'active')
+                    ->currentlyInLoopOrganization()
+                    ->pluck('user_id'),
+            )
+            ->whereKeyNot($auteur->getKey())
+            ->get();
+
+        if ($destinataires->isEmpty()) {
+            return;
+        }
+
+        $verdicts = app(NotificationPreferenceResolver::class)->allowsMany(
+            $destinataires,
+            $cle,
+            [
+                NotificationCatalogue::CHANNEL_IN_APP,
+                NotificationCatalogue::CHANNEL_WEB_PUSH,
+            ],
+            (string) $loop->id,
+        );
+
+        $destinataires = $destinataires->filter(
+            fn (User $destinataire): bool => (bool) ($verdicts[(string) $destinataire->id][NotificationCatalogue::CHANNEL_IN_APP] ?? false)
+        );
+
+        $emetteur = app(NotificationEmitter::class);
+
+        foreach ($destinataires as $destinataire) {
+            $emetteur->emit(
+                notificationKey: $cle,
+                organization: (string) $loop->organization_id,
+                recipient: $destinataire,
+                eventId: (string) $message->getKey(),
+                objectType: NotificationCatalogue::OBJECT_LOOP,
+                objectId: (string) $loop->getKey(),
+                actor: $auteur,
+                canauxAutorises: $verdicts[(string) $destinataire->id] ?? null,
+            );
+        }
     }
 
     public function updateUserMessage(Loop $loop, LoopMessage $message, User $user, string $body, ?array $metadata = null): LoopMessage

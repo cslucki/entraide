@@ -116,6 +116,7 @@ use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopInvitationController;
 use App\Http\Controllers\LoopPluginController;
 use App\Http\Controllers\LoopToolsController;
+use App\Http\Controllers\LoopWatchExportController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageAttachmentController;
@@ -1117,6 +1118,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // `is_admin`, le groupe admin ne suffit pas. Elle ne sert aucune donnee
     // metier d'une Organization — seulement son nom et son identifiant.
     Route::get('/loop-plugins', [AdminLoopPluginController::class, 'index'])->name('loop-plugins');
+    // TASK-1879 — l'ecran d'UN plugin, par son slug d'administration
+    // (`pour-contre`, `veille`). Le slug est confronte au catalogue par le
+    // controleur : un slug inconnu rend 404. Les routes d'ecriture gardent la
+    // CLE technique, inchangees.
+    Route::get('/loop-plugins/{slug}', [AdminLoopPluginController::class, 'show'])
+        ->where('slug', '[a-z0-9-]+')->name('loop-plugins.show');
     Route::put('/loop-plugins/{plugin}', [AdminLoopPluginController::class, 'update'])->name('loop-plugins.update');
     // TASK-1617 — la configuration IA PLATEFORME du plugin : quel modele
     // OpenRouter sert quel assistant. `refresh` est le SEUL chemin de cette
@@ -1927,6 +1934,11 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
                 // TASK-1865 — voir la route courte `loops.preview`.
+                // TASK-1879 — export de la Veille (CSV, Excel, tableau imprimable/PDF).
+                Route::get('/loops/{loop}/veille/export/{format}', LoopWatchExportController::class)
+                    ->where('format', 'csv|xlsx|imprimer')
+                    ->middleware(['throttle:20,1', 'cache.headers:no_store'])
+                    ->name('loops.watch.export');
                 Route::get('/loops/{loop}/apercu', [LoopController::class, 'preview'])->middleware('cache.headers:no_store')->name('loops.preview');
                 // L'agenda de l'Organization. Voir la note sur la route courte :
                 // depuis TASK-1656 il porte le geste de REPONSE a une invitation.

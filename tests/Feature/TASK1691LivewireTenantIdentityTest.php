@@ -90,9 +90,14 @@ class TASK1691LivewireTenantIdentityTest extends TestCase
             'name' => 'BOUCLE-PRIVEE-DE-B-1691', 'slug' => 'boucle-privee-de-b-1691',
             'description' => 'DESCRIPTION-PRIVEE-DE-B-1691', 'visibility' => 'private',
         ]);
-        Loop::factory()->create([
+        $boucleA = Loop::factory()->create([
             'organization_id' => $this->a->id, 'created_by' => $this->attaquant->id,
             'name' => 'BOUCLE-DE-A-1691', 'slug' => 'boucle-de-a-1691',
+        ]);
+        // TASK-1879 — le formulaire d'annonce ne liste plus que les Boucles dont
+        // on est membre actif : le temoin doit l'etre pour voir la sienne.
+        \App\Models\LoopMember::factory()->create([
+            'loop_id' => $boucleA->id, 'user_id' => $this->attaquant->id, 'status' => 'active',
         ]);
 
         $this->txA = Transaction::factory()->create([
@@ -170,7 +175,8 @@ class TASK1691LivewireTenantIdentityTest extends TestCase
         $avant = FeedPost::query()->where('organization_id', $this->a->id)->count();
 
         $this->update($this->attaquant, $snapshot,
-            ['content' => 'ANNONCE-LEGITIME-1691', 'mode' => 'publish'],
+            // TASK-1879 — un membre publie dans ses Boucles (ici : la sienne).
+            ['content' => 'ANNONCE-LEGITIME-1691', 'mode' => 'publish', 'allLoops' => true],
             [['path' => '', 'method' => 'submit', 'params' => []]],
         );
 

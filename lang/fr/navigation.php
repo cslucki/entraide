@@ -79,6 +79,8 @@ return [
     // ── Le raccourci « Coopérer » du rail ───────────────────────────────────
     'fab_label' => 'Coopérer',
     'fab_hint' => 'Ouvrir les raccourcis',
+    'fab_announce' => 'Je fais une annonce',
+    'fab_announce_hint' => 'Publier dans le Flux',
     'fab_need_help' => 'J\'ai besoin d\'aide',
     'fab_need_help_hint' => 'Formuler une demande',
     'fab_offer_help' => 'Je propose de l\'aide',
@@ -338,6 +340,7 @@ return [
     'mobile_fab_add' => 'Ajouter',
     'mobile_fab_create_request' => 'Faire une demande d\'aide',
     'mobile_fab_offer_service' => 'Publier une proposition',
+    'mobile_fab_write_announcement' => 'Écrire une annonce',
     'mobile_fab_write_article' => 'Écrire un article',
 
     // TASK-1734 — la section « Mes organisations » du menu avatar.

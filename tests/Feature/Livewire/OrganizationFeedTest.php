@@ -159,7 +159,8 @@ class OrganizationFeedTest extends TestCase
         Livewire::actingAs($this->admin)
             ->test(CreateFeedPost::class)
             ->assertSee('Boucle entraide locale')
-            ->assertSee('entraide-locale')
+            // TASK-1879 (demande Cyril, 22/11) — plus de « #slug » sous le nom.
+            ->assertDontSee('#entraide-locale')
             ->assertSee('Coordination courte entre membres actifs.')
             ->assertDontSee('Boucle autre organisation');
     }
@@ -187,6 +188,64 @@ class OrganizationFeedTest extends TestCase
             $this->assertStringContainsString('Diffusion générale', $message->body);
             $this->assertStringContainsString($post->announcementUrl(), $message->body);
         }
+    }
+
+    /**
+     * TASK-1879 (signale par Cyril, 22/11) — on ne diffuse que dans SES Boucles :
+     * le formulaire ne propose qu'elles, et une Boucle d'autrui forcee depuis le
+     * client est ignoree.
+     */
+    public function test_member_only_sees_and_targets_own_loops(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $sienne = $this->loopForOrganization($this->organization, $this->member);
+        $autre = $this->loopForOrganization($this->organization, $this->admin);
+        $sienne->update(['name' => 'Boucle du membre']);
+        $autre->update(['name' => 'Boucle sans le membre']);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertSee('Boucle du membre')
+            ->assertDontSee('Boucle sans le membre')
+            ->set('content', 'Diffusion membre')
+            ->set('selectedLoops', [$sienne->id, $autre->id])
+            ->call('submit');
+
+        $post = FeedPost::where('content', 'Diffusion membre')->firstOrFail();
+        $this->assertSame([$sienne->id], $post->loops()->pluck('loops.id')->all());
+        $this->assertDatabaseMissing('loop_messages', ['loop_id' => $autre->id]);
+    }
+
+    /**
+     * TASK-1879 (signale par Cyril, 22/11) — une panne de la diffusion temps
+     * reel (Reverb injoignable) ne fait plus d'erreur 500 : l'annonce ET son
+     * message dans la Boucle sont enregistres.
+     */
+    public function test_realtime_broadcast_failure_does_not_break_publication(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $loop = $this->loopForOrganization($this->organization, $this->member);
+        config([
+            'queue.default' => 'sync',
+            'broadcasting.default' => 'reverb',
+            'broadcasting.connections.reverb.key' => 'k',
+            'broadcasting.connections.reverb.secret' => 's',
+            'broadcasting.connections.reverb.app_id' => 'a',
+            'broadcasting.connections.reverb.options.host' => '127.0.0.1',
+            'broadcasting.connections.reverb.options.port' => 1,
+            'broadcasting.connections.reverb.options.scheme' => 'http',
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->set('content', 'Diffusion malgre la panne')
+            ->set('selectedLoops', [$loop->id])
+            ->call('submit')
+            ->assertHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('feed_posts', ['content' => 'Diffusion malgre la panne']);
+        $this->assertTrue(LoopMessage::where('loop_id', $loop->id)->where('sender_id', $this->member->id)->exists());
     }
 
     public function test_cross_tenant_loop_broadcast_is_ignored(): void
@@ -287,11 +346,14 @@ class OrganizationFeedTest extends TestCase
     public function test_member_can_publish_when_organization_allows_members(): void
     {
         $this->organization->update(['feed_post_publish_mode' => 'members']);
+        // TASK-1879 (decision Cyril, 22/11) — un membre publie DANS ses Boucles.
+        $loop = $this->loopForOrganization($this->organization, $this->member);
 
         Livewire::actingAs($this->member)
             ->test(CreateFeedPost::class)
             ->set('title', 'Annonce membre')
             ->set('content', 'Publication ouverte aux membres')
+            ->set('selectedLoops', [$loop->id])
             ->call('submit')
             ->assertRedirect(route('organization.flux', ['organization' => $this->organization->slug]));
 
@@ -299,7 +361,49 @@ class OrganizationFeedTest extends TestCase
             'organization_id' => $this->organization->id,
             'user_id' => $this->member->id,
             'title' => 'Annonce membre',
+            'visibility' => FeedPost::VISIBILITE_BOUCLES,
         ]);
+    }
+
+    /**
+     * TASK-1879 (decision Cyril, 22/11) — publier a toute l'Organization est
+     * reserve a son administrateur ; l'annonce d'un membre n'est visible que
+     * des membres de ses Boucles.
+     */
+    public function test_member_announcement_needs_a_loop_and_stays_inside_it(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertSeeHtml('data-feed-members-only-hint')
+            ->set('content', 'Annonce a tous')
+            ->call('submit')
+            ->assertHasErrors('selectedLoops')
+            ->assertNoRedirect();
+        $this->assertDatabaseMissing('feed_posts', ['content' => 'Annonce a tous']);
+
+        $loop = $this->loopForOrganization($this->organization, $this->member);
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->set('content', 'Annonce de Boucle')
+            ->set('selectedLoops', [$loop->id])
+            ->call('submit');
+
+        $voisin = User::factory()->create(['organization_id' => $this->organization->id]);
+        $annonce = FeedPost::where('content', 'Annonce de Boucle')->firstOrFail();
+        $this->assertTrue(FeedPost::query()->visibleTo($this->member)->whereKey($annonce->id)->exists());
+        $this->assertFalse(FeedPost::query()->visibleTo($voisin)->whereKey($annonce->id)->exists(), 'hors de la Boucle : invisible');
+        $this->assertFalse($voisin->can('view', $annonce), 'ni par son URL directe');
+
+        // L'administrateur, lui, publie a tous.
+        Livewire::actingAs($this->admin)
+            ->test(CreateFeedPost::class)
+            ->assertDontSeeHtml('data-feed-members-only-hint')
+            ->set('content', 'Annonce admin a tous')
+            ->call('submit')
+            ->assertHasNoErrors();
+        $this->assertDatabaseHas('feed_posts', ['content' => 'Annonce admin a tous', 'visibility' => 'organization']);
     }
 
     public function test_organization_flux_route_works(): void
@@ -394,6 +498,30 @@ class OrganizationFeedTest extends TestCase
             ->get(route('organization.flux.create', ['organization' => 'main']))
             ->assertOk()
             ->assertSee('Nouvelle annonce');
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — Organization par defaut : arrive par
+     * /org/{slug}/flux, le lien « Nouvelle annonce » reste prefixe ; arrive par
+     * /flux, il reste sans prefixe.
+     */
+    public function test_default_organization_create_link_keeps_the_url_prefix(): void
+    {
+        $this->organization->update(['is_default' => true, 'slug' => 'main']);
+        app()->forgetInstance('current_organization');
+
+        $this->actingAs($this->admin)
+            ->get(route('organization.flux', ['organization' => 'main']))
+            ->assertOk()
+            ->assertSee('href="'.route('organization.flux.create', ['organization' => 'main']).'"', false)
+            ->assertDontSee('href="'.route('flux.create').'"', false);
+
+        app()->forgetInstance('current_organization');
+
+        $this->actingAs($this->admin)
+            ->get('/flux')
+            ->assertOk()
+            ->assertSee('href="'.route('flux.create').'"', false);
     }
 
     public function test_other_organization_create_route_forbidden_for_foreign_admin(): void
@@ -538,16 +666,17 @@ class OrganizationFeedTest extends TestCase
         Livewire::actingAs($this->admin)
             ->test(EditFeedPost::class, ['feedPost' => $post])
             ->assertSet('title', '')
-            ->assertSet('content', 'Annonce test')
+            // TASK-1879 — l'ancien Markdown s'ouvre converti en HTML (TipTap).
+            ->assertSet('content', "<p>Annonce test</p>\n")
             ->set('title', 'Titre modifié')
-            ->set('content', 'Contenu modifié')
+            ->set('content', '<p>Contenu modifié</p>')
             ->call('submit')
             ->assertRedirect(route('organization.flux.my', ['organization' => $this->organization->slug]));
 
         $this->assertDatabaseHas('feed_posts', [
             'id' => $post->id,
             'title' => 'Titre modifié',
-            'content' => 'Contenu modifié',
+            'content' => '<p>Contenu modifié</p>',
             'organization_id' => $this->organization->id,
         ]);
     }
@@ -744,6 +873,141 @@ class OrganizationFeedTest extends TestCase
             ->set('pin', true)
             ->call('submit')
             ->assertForbidden();
+    }
+
+    /** TASK-1879 (demande Cyril, 22/11) — la case « Epingler » n'est proposee qu'a l'administrateur. */
+    public function test_pin_field_is_shown_to_the_organization_admin_only(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertDontSeeHtml('data-feed-pin-field');
+
+        Livewire::actingAs($this->admin)
+            ->test(CreateFeedPost::class)
+            ->assertSeeHtml('data-feed-pin-field');
+    }
+
+    /** TASK-1879 (demande Cyril, 22/11) — composeur epure pour tous, sauf l'administrateur de l'Organization. */
+    public function test_members_get_the_simple_composer_and_the_owner_the_full_form(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertSeeHtml('data-feed-composer')
+            ->assertSeeHtml('data-variante="composeur"')
+            ->assertDontSeeHtml('id="title"')
+            ->assertDontSeeHtml('id="loopMessage"');
+
+        Livewire::actingAs($this->admin)
+            ->test(CreateFeedPost::class)
+            ->assertDontSeeHtml('data-feed-composer')
+            ->assertSeeHtml('id="title"')
+            ->assertSeeHtml('id="loopMessage"');
+    }
+
+    /** TASK-1879 (demande Cyril, 22/11) — le composeur est SUR le Flux ; « Nouvelle annonce » reste au seul administrateur. */
+    public function test_flux_shows_the_composer_to_members_and_the_new_post_button_to_the_owner(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $url = route('organization.flux', ['organization' => $this->organization->slug]);
+
+        $this->actingAs($this->member)->get($url)->assertOk()
+            ->assertSee('data-feed-composer-inline', false)
+            ->assertSee('data-feed-composer-trigger', false)
+            ->assertDontSee('data-feed-new-post', false)
+            ->assertDontSee('data-feed-actions', false);
+
+        $this->actingAs($this->admin)->get($url)->assertOk()
+            ->assertSee('data-feed-new-post', false)
+            ->assertSee('data-feed-actions', false)
+            ->assertDontSee('data-feed-composer-inline', false);
+    }
+
+    /** TASK-1879 (demande Cyril, 22/11) — la premiere Boucle du membre est cochee d'office ; raccourcis FAB et « Cooperer ». */
+    public function test_member_composer_preselects_first_loop_and_shortcuts_point_to_it(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $loop = $this->loopForOrganization($this->organization, $this->member);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertSet('selectedLoops', [(string) $loop->id]);
+
+        $url = route('organization.flux', ['organization' => $this->organization->slug]);
+        $this->actingAs($this->member)->get($url)->assertOk()
+            ->assertSee('data-fab-announcement', false)
+            ->assertSee(e($url.'#ecrire'), false)
+            ->assertSee(e(__('navigation.fab_announce')), false);
+    }
+
+    /** TASK-1879 (demande Cyril, 22/11) — l'auteur modifie son annonce par une icone ; pas les autres. */
+    public function test_author_gets_an_edit_icon_on_own_announcement_only(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $sienne = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->member->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'Annonce du membre', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+        $autre = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->admin->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'Annonce de l admin', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+
+        $this->actingAs($this->member)
+            ->get(route('organization.flux', ['organization' => $this->organization->slug]))
+            ->assertOk()
+            ->assertSee('data-feed-post-edit="'.$sienne->id.'"', false)
+            ->assertDontSee('data-feed-post-edit="'.$autre->id.'"', false);
+    }
+
+    /** TASK-1879 (demande Cyril, 22/11) — menu « ... » : l'auteur supprime SON annonce depuis le Flux, pas celle d'un autre. */
+    public function test_author_deletes_own_announcement_from_the_flux_menu(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $sienne = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->member->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'A supprimer', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+        $autre = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->admin->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'Pas a lui', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+
+        $this->actingAs($this->member)
+            ->get(route('organization.flux', ['organization' => $this->organization->slug]))
+            ->assertSee('data-feed-post-menu="'.$sienne->id.'"', false)
+            ->assertSee('data-feed-post-delete="'.$sienne->id.'"', false)
+            ->assertDontSee('data-feed-post-menu="'.$autre->id.'"', false);
+
+        Livewire::actingAs($this->member)
+            ->test(\App\Livewire\OrganizationFeed::class)
+            ->call('deleteFeedPost', $sienne->id);
+        $this->assertSoftDeleted('feed_posts', ['id' => $sienne->id]);
+
+        Livewire::actingAs($this->member)
+            ->test(\App\Livewire\OrganizationFeed::class)
+            ->call('deleteFeedPost', $autre->id)
+            ->assertForbidden();
+        $this->assertNotSoftDeleted('feed_posts', ['id' => $autre->id]);
+    }
+
+    /** TASK-1879 — un membre qui modifie son annonce revient au Flux, pas a « Mes annonces ». */
+    public function test_member_edit_returns_to_the_flux(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $post = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->member->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'Avant', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(EditFeedPost::class, ['feedPost' => $post])
+            ->set('content', '<p>Apres</p>')
+            ->call('submit')
+            ->assertRedirect(route('organization.flux', ['organization' => $this->organization->slug]));
     }
 
     public function test_published_post_visible_in_feed(): void

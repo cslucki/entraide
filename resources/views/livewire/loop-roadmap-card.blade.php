@@ -34,15 +34,19 @@
         mode: (localStorage.getItem('roadmapView') || 'kanban'),
         collapsed: { todo: true, in_progress: true, done: true },
         openCreate(status) { $wire.set('newStatus', status); this.createOpen = true; this.$nextTick(() => this.$refs.createTitle && this.$refs.createTitle.focus()); },
-        shown(status) { return this.mode === 'kanban' || ! this.collapsed[status]; },
+        /* TASK-1879 — pendant un deplacement, la vue Liste ouvre toutes ses
+           sections : on peut deposer une carte dans une section repliee. */
+        dragging: false,
+        shown(status) { return this.mode === 'kanban' || this.dragging || ! this.collapsed[status]; },
      }"
      x-init="$watch('mode', v => localStorage.setItem('roadmapView', v))"
-     x-on:roadmap-action-created.window="createOpen = false">
+     x-on:roadmap-action-created.window="createOpen = false"
+     x-on:roadmap-drag-start="dragging = true"
+     x-on:roadmap-drag-end="dragging = false">
     @once
         <style>
             .roadmap-ghost { opacity: .45; }
             .roadmap-chosen { box-shadow: 0 8px 20px -6px rgba(124,58,237,.35); }
-            [data-roadmap-group] .drag-handle { touch-action: none; }
             /* Kanban: horizontal columns (mobile scroll-snap, desktop grid). */
             .roadmap-board { display: flex; gap: .625rem; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
             .roadmap-board .roadmap-col { flex: 0 0 84vw; scroll-snap-align: start; min-width: 0; }

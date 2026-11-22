@@ -8679,14 +8679,24 @@ function registerRoadmapSortable() {
             container._sortable = Sortable.create(container, {
                 group: { name: 'roadmap-kanban', pull: true, put: true },
                 draggable: '[data-roadmap-id]',
-                handle: '.drag-handle',
+                // TASK-1879 (demande Cyril, 22/11) — la carte ENTIERE se saisit
+                // (plus de poignee). Le menu ⋮ et l'edition du titre restent
+                // cliquables : `preventOnFilter: false` laisse passer leur clic.
                 filter: '[data-no-drag]',
+                preventOnFilter: false,
+                // Deplacement a la souris/au doigt (pas le glisser-deposer HTML5) :
+                // sous 5 px de mouvement, c'est un CLIC (ouvre la fiche), au-dela,
+                // un deplacement. Meme comportement sur ordinateur et telephone.
+                forceFallback: true,
+                fallbackTolerance: 5,
                 animation: 150,
                 delay: 150,
                 delayOnTouchOnly: true,
                 ghostClass: 'roadmap-ghost',
                 chosenClass: 'roadmap-chosen',
+                onStart: () => root.dispatchEvent(new CustomEvent('roadmap-drag-start')),
                 onEnd: (evt) => {
+                    root.dispatchEvent(new CustomEvent('roadmap-drag-end'));
                     const fromStatus = evt.from.getAttribute('data-status');
                     const toStatus = evt.to.getAttribute('data-status');
                     const itemId = evt.item.getAttribute('data-roadmap-id');
@@ -8720,6 +8730,23 @@ function registerRoadmapSortable() {
 }
 
 document.addEventListener('livewire:init', registerRoadmapSortable);
+
+// TASK-1879 (demande Cyril, 22/11) — apres un `submit` Livewire refuse par le
+// serveur, on amene au PREMIER champ en erreur (ordre du formulaire). Le
+// navigateur, lui, est deja couvert par `x-form-live-validation`.
+document.addEventListener('livewire:init', () => {
+    window.Livewire.hook('commit', ({ component, commit, succeed }) => {
+        if (! (commit.calls || []).some((appel) => appel.method === 'submit')) {
+            return;
+        }
+
+        succeed(() => requestAnimationFrame(() => {
+            const erreur = component.el.querySelector('form[data-live-validation] [data-erreur-serveur]');
+            const bloc = erreur?.closest('[data-champ]') || erreur;
+            bloc?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }));
+    });
+});
 
 // -------------------------------------------------------------------------
 // Roadmap card actions menu — fixed-positioned dropdown that flips up/down so it

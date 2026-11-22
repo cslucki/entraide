@@ -35,9 +35,12 @@
                 $urlToggle = $pluginAdminScope
                     ? route('admin.loops.plugins.update', ['loop' => $pluginLoop->id, 'plugin' => $plugin['key']])
                     : route('organization.loops.plugins.update', ['organization' => $orgParam, 'loop' => $pluginLoop->id, 'plugin' => $plugin['key']]);
-                $urlConfig = $pluginAdminScope
+                // TASK-1879 — « Configurer » regle des ASSISTANTS IA : un plugin
+                // qui n'en declare pas (la Veille) n'a pas ce lien, et la route
+                // lui repond 404 de toute facon.
+                $urlConfig = ! ($plugin['has_assistants'] ?? false) ? null : ($pluginAdminScope
                     ? route('admin.loops.plugins.configure', ['loop' => $pluginLoop->id, 'plugin' => $plugin['key']])
-                    : route('organization.loops.plugins.configure', ['organization' => $orgParam, 'loop' => $pluginLoop->id, 'plugin' => $plugin['key']]);
+                    : route('organization.loops.plugins.configure', ['organization' => $orgParam, 'loop' => $pluginLoop->id, 'plugin' => $plugin['key']]));
             @endphp
 
             <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
@@ -96,10 +99,12 @@
                             </button>
                         </form>
 
-                        <a href="{{ $urlConfig }}" data-action="configure"
-                           class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-                            {{ __('loops.plugins_loop_configure') }}
-                        </a>
+                        @if($urlConfig)
+                            <a href="{{ $urlConfig }}" data-action="configure"
+                               class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                {{ __('loops.plugins_loop_configure') }}
+                            </a>
+                        @endif
                     </div>
                 @endif
             </div>

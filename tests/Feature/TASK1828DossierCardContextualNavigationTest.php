@@ -318,6 +318,45 @@ class TASK1828DossierCardContextualNavigationTest extends TestCase
             ->assertSet('highlightedFileIds', []);
     }
 
+    /**
+     * TASK-1879 (recette Cyril, 22/11) — un apercu ouvert depuis le chat
+     * restait colle quand on rouvrait la Card par le menu « Dossiers ».
+     */
+    public function test_rouvrir_la_card_depuis_le_menu_repart_de_la_liste(): void
+    {
+        $file = $this->file();
+        $post = $this->article();
+        $post->loops()->attach($this->loop->id);
+
+        Livewire::actingAs($this->owner)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->call('openFileDetailFromChat', [$file->id])
+            ->dispatch('loop-card-opened-from-menu', card: 'core.roadmap')
+            ->assertSet('detailFileId', $file->id)
+            ->dispatch('loop-card-opened-from-menu', card: 'core.dossiers')
+            ->assertSet('detailFileId', null)
+            ->assertSet('highlightedFileIds', [])
+            ->call('openArticleDetailFromChat', $post->id)
+            ->dispatch('loop-card-opened-from-menu', card: 'core.dossiers')
+            ->assertSet('detailArticleId', null);
+    }
+
+    public function test_les_apercus_proposent_le_retour_aux_dossiers_et_aux_articles(): void
+    {
+        $file = $this->file();
+        $post = $this->article();
+        $post->loops()->attach($this->loop->id);
+
+        Livewire::actingAs($this->owner)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->call('openFileDetailFromChat', [$file->id])
+            ->assertSeeHtml('data-action="dossier-back-to-dossiers"')
+            ->assertSee(__('loops.cards.dossiers.detail_back_to_dossiers'))
+            ->call('openArticleDetailFromChat', $post->id)
+            ->assertSeeHtml('data-action="dossier-back-to-articles"')
+            ->assertSee(__('loops.cards.dossiers.detail_back_to_articles'));
+    }
+
     // -----------------------------------------------------------------
     // COMPATIBILITE ANCIENNE ANNONCE (pas de file_ids) — rendu ChatLoop
     // -----------------------------------------------------------------

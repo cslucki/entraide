@@ -1,3 +1,4 @@
+import Placeholder from '@tiptap/extension-placeholder';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
@@ -199,6 +200,8 @@ function setupEditor(container) {
     if (!textarea) return null;
 
     const initialContent = textarea.value || '';
+    const estHtml = container.dataset.format === 'html';
+    const composeur = container.dataset.variante === 'composeur';
 
     const editorDiv = document.createElement('div');
     editorDiv.className = 'ProseMirror-wrapper';
@@ -227,17 +230,28 @@ function setupEditor(container) {
             Markdown.configure({
                 indentation: { style: 'space', size: 2 },
             }),
+            // TASK-1879 — composeur d'annonce : invite dans la zone vide.
+            ...(composeur ? [Placeholder.configure({ placeholder: container.dataset.placeholder || '' })] : []),
         ],
         content: initialContent,
-        contentType: 'markdown',
+        // TASK-1879 — `data-format="html"` (annonces du Flux) : HTML en entree
+        // et en sortie. Un editeur vide rend une chaine VIDE, pas `<p></p>` :
+        // sinon `required` le croirait rempli.
+        contentType: estHtml ? 'html' : 'markdown',
         onUpdate: () => {
-            const md = editor.getMarkdown();
-            textarea.value = md;
+            const valeur = estHtml ? (editor.isEmpty ? '' : editor.getHTML()) : editor.getMarkdown();
+            textarea.value = valeur;
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
         },
     });
 
-    buildToolbar(editor, container);
+    const toolbar = buildToolbar(editor, container);
+
+    // TASK-1879 — composeur d'annonce : barre discrete, SOUS la zone d'ecriture.
+    if (composeur) {
+        toolbar.className = 'mt-2 flex flex-wrap items-center gap-0.5 border-t border-gray-100 pt-2 dark:border-gray-800';
+        container.appendChild(toolbar);
+    }
 
     textarea.classList.add('hidden');
     textarea.setAttribute('data-tiptap-initialized', 'true');

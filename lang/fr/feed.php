@@ -15,6 +15,14 @@ return [
         'loop_joined' => ':name a rejoint la Boucle :object',
         'loop_created' => ':name a créé la Boucle :object',
         'loop_event_created' => ':name a créé l\'évènement :object',
+        'loop_watch_item_created' => ':name a partagé une veille dans la Boucle :object',
+        'loop_poll_created' => ':name a posé un sondage dans la Boucle :object',
+        'loop_article_published' => ':name a publié un article dans la Boucle :object',
+        'loop_dossier_files_uploaded' => ':name a déposé des fichiers dans la Boucle :object',
+        'loop_roadmap_item_created' => ':name a ajouté une action à la Roadmap de la Boucle :object',
+        'loop_roadmap_item_moved' => ':name a fait avancer une action de la Roadmap de la Boucle :object',
+        'loop_journal_entry_created' => ':name a écrit dans le Journal de la Boucle :object',
+        'files_count' => '1 fichier|:count fichiers',
         // TASK-1809 (decision Cyril, 12/11) — REMPLACE l'arbitrage du 05/11
         // (« seul l'AIDANT est nomme, jamais Barnabe ») : « Si on nomme les
         // deux, c'est une plateforme de confiance et ouverte. Et il faut
@@ -24,6 +32,16 @@ return [
         'help_completed' => ':name a aidé :beneficiaire avec « :object » (:temps)',
         'help_category_fallback' => 'Entraide',
         'object_gone' => 'un contenu supprimé',
+    ],
+
+    'events_sans_boucle' => [
+        'loop_watch_item_created' => ':name a partagé une veille',
+        'loop_poll_created' => ':name a posé un sondage',
+        'loop_article_published' => ':name a publié un article',
+        'loop_dossier_files_uploaded' => ':name a déposé des fichiers',
+        'loop_roadmap_item_created' => ':name a ajouté une action à la Roadmap',
+        'loop_roadmap_item_moved' => ':name a fait avancer une action de la Roadmap',
+        'loop_journal_entry_created' => ':name a écrit dans le Journal',
     ],
 
     'organization' => 'Organisation',
@@ -41,6 +59,7 @@ return [
     'loop_count' => ':count boucle|:count boucles',
     'member_fallback' => 'Membre',
     'shared_link' => 'Lien partagé',
+    'open_loop' => 'Ouvrir la Boucle',
     'comment_cta' => 'Commentez',
     'view_comments' => 'Voir les :count commentaires',
     'comment_placeholder' => 'Ajouter un commentaire utile',

@@ -55,7 +55,11 @@ return [
     'chat_article_unavailable' => 'Cet article n\'est plus disponible.',
     // TASK-1826 — carte premium Action Roadmap.
     'chat_roadmap_action_created' => ':name a créé une action : « :title »',
+    'chat_roadmap_action_moved' => ':name a passé l\'action « :title » à « :status »',
     'chat_roadmap_open' => 'Voir l\'action',
+    'chat_journal_entry_created' => ':name a écrit dans le Journal',
+    'chat_journal_open' => 'Ouvrir le Journal',
+    'chat_journal_unavailable' => 'Cette entrée du Journal n\'est plus disponible.',
     'chat_roadmap_unavailable' => 'Cette action n\'est plus disponible.',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
     'composer_file_uploading_many' => ':count fichiers en cours d\'envoi…',
@@ -299,6 +303,14 @@ return [
     'ai_not_configured_for_organization' => 'L\'IA n\'est pas configurée pour cette organisation. Un administrateur de l\'organisation doit d\'abord renseigner le fournisseur, le modèle et la clé API.',
     'ai_summary_temporarily_unavailable' => 'Le résumé IA est temporairement indisponible pour cette organisation.',
     'cards' => [
+        // TASK-1879 — la Card du plugin Veille.
+        'veille' => [
+            'label' => 'Veille',
+            'description' => 'Les informations de veille partagées par les membres, avec leur impact et leur source.',
+            'empty_title' => 'Aucune veille',
+            'empty_body' => 'Partagez une information repérée, son impact pour la Boucle et sa source.',
+            'action' => 'Ajouter une veille',
+        ],
         'events' => [
             'label' => 'Événements',
             'description' => 'Organise les rencontres de la Boucle et sait qui vient.',
@@ -670,6 +682,8 @@ return [
             'detail_read_full_article' => 'Lire l\'article complet',
             'detail_select_file' => 'Plusieurs fichiers ont été déposés, choisissez-en un :',
             'detail_back_to_selection' => 'Revenir à la sélection',
+            'detail_back_to_dossiers' => 'Retour aux Dossiers',
+            'detail_back_to_articles' => 'Retour aux Articles',
             'detail_download' => 'Télécharger',
             'detail_preview_unavailable' => 'Aucun aperçu disponible pour ce type de fichier.',
         ],
@@ -1251,6 +1265,7 @@ return [
     'permissions_invariants_intro' => 'Ces règles ne sont pas des permissions : elles s\'appliquent toujours et ne peuvent être ni configurées ni désactivées.',
     'permissions_module_loops' => 'Boucle',
     'permissions_module_polls' => 'Sondages',
+    'permissions_module_veille' => 'Veille', // TASK-1879
     'permissions_module_events' => 'Événements',
     'permissions_module_dossiers' => 'Dossiers',
     'permissions_module_journal' => 'Journal',
@@ -1496,7 +1511,15 @@ return [
     'plugins_admin_last_decision_anonymous' => 'Modifié le :date',
     'plugins_admin_experimental_notice' => "Capacité expérimentale : elle peut être retirée à tout moment, et l'est par défaut partout où personne ne l'a autorisée.",
 
+    // TASK-1879
+    'plugins_admin_open' => 'Ouvrir',
+
     'plugins' => [
+        // TASK-1879 — la Veille collaborative.
+        'veille' => [
+            'label' => 'Veille',
+            'description' => "Les membres de la Boucle partagent une information de veille datée, son impact et sa source. Chaque nouvelle veille est annoncée dans ChatLoop et notifiée dans l'application et en PWA, jamais par e-mail.",
+        ],
         'multi_ai_assistants' => [
             // TASK-1621 — le module s'appelle « Pour / Contre » partout ou
             // un humain le lit. Les cles techniques (`multi_ai_assistants`,

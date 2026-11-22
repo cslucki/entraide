@@ -99,7 +99,12 @@ class LoopJournalCard extends Component
 
                 $this->service()->update($entry, $this->body, $this->occurredOn ?: null);
             } else {
-                $this->service()->write($this->loop, auth()->user(), $this->body, $this->occurredOn ?: null);
+                $entree = $this->service()->write($this->loop, auth()->user(), $this->body, $this->occurredOn ?: null);
+
+                // TASK-1879 (demande Cyril, 22/11) — carte ChatLoop, Flux,
+                // notification. Un echec d'annonce ne perd jamais l'entree.
+                rescue(fn () => app(\App\Services\LoopMessageService::class)
+                    ->sendJournalEntryMessage($this->loop, auth()->user(), $entree), report: true);
             }
         } catch (ValidationException $e) {
             $this->addError(array_key_first($e->errors()) === 'occurred_on' ? 'occurredOn' : 'body', $e->getMessage());

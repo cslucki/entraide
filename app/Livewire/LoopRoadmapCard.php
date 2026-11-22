@@ -171,11 +171,33 @@ class LoopRoadmapCard extends Component
             ->where('status', $status)
             ->max('position');
 
+        $avant = $item->status;
+
         $item->update([
             'status' => $status,
             'position' => ($maxPosition === null ? 0 : $maxPosition + 1),
             'completed_at' => $this->completedAtFor($item->status, $status, $item->completed_at),
         ]);
+
+        $this->annoncerLeDeplacement($item, $avant, $status);
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — une action passee « En cours » ou
+     * « Fait » est annoncee (ChatLoop, notification, Flux). Comme a la
+     * creation, un echec d'annonce ne doit jamais annuler le deplacement.
+     */
+    private function annoncerLeDeplacement(LoopRoadmapItem $item, string $avant, string $apres): void
+    {
+        try {
+            app(LoopMessageService::class)->sendRoadmapStatusMessage($this->loop, auth()->user(), $item->refresh(), $avant, $apres);
+        } catch (\Throwable $e) {
+            Log::warning('TASK-1879 : annonce de deplacement d\'action impossible dans la Boucle', [
+                'roadmap_item_id' => $item->id,
+                'loop_id' => $this->loop->id,
+                'erreur' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -828,6 +850,8 @@ class LoopRoadmapCard extends Component
                 $rows[$id]->update($updates);
             }
         });
+
+        $this->annoncerLeDeplacement($item, $sourceStatus, $targetStatus);
     }
 
     private function shiftPosition(string $id, int $direction): void

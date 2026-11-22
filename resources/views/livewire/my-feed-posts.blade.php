@@ -1,6 +1,8 @@
 @php
     $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug;
-    $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default;
+    // TASK-1879 (demande Cyril, 22/11) — arrive par /org/{slug}/..., on y reste :
+    // les liens sans prefixe ne servent qu'a qui navigue deja sans prefixe.
+    $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default && ! request()->route('organization');
     $feedUrl = $usesDefaultOrganizationRoute && Route::has('flux')
         ? route('flux')
         : route('organization.flux', ['organization' => $organizationRouteParam]);

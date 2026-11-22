@@ -108,6 +108,14 @@ return [
      * place, qui est ce que la personne cherche.
      */
     'push_body' => [
+        'loop_poll_created' => 'Ouvrez BouclePro pour voter.',
+        'loop_article_published' => 'Ouvrez BouclePro pour lire l\'article.',
+        'loop_dossier_file_uploaded' => 'Ouvrez BouclePro pour voir les fichiers.',
+        'loop_roadmap_item_created' => 'Ouvrez BouclePro pour voir la Roadmap.',
+        'loop_roadmap_item_moved' => 'Ouvrez BouclePro pour voir la Roadmap.',
+        'loop_journal_entry_created' => 'Ouvrez BouclePro pour lire le Journal.',
+        // TASK-1879
+        'loop_watch_item_created' => 'Ouvrez BouclePro pour lire la veille.',
         'loop_mention_created' => 'Ouvrez BouclePro pour lire le message.',
         'loop_invitation' => 'Ouvrez BouclePro pour répondre.',
         'loop_member_added' => 'Vous pouvez maintenant y participer.',
@@ -141,6 +149,14 @@ return [
     ],
 
     'push_title' => [
+        'loop_poll_created' => 'Un nouveau sondage dans votre Boucle',
+        'loop_article_published' => 'Un nouvel article dans votre Boucle',
+        'loop_dossier_file_uploaded' => 'Nouveaux fichiers dans votre Boucle',
+        'loop_roadmap_item_created' => 'Une nouvelle action dans la Roadmap',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap avance',
+        'loop_journal_entry_created' => 'Une nouvelle entrée dans le Journal',
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille dans votre Boucle',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
         // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
         // complete du nom de la Boucle si elle est PUBLIQUE, par
@@ -179,6 +195,14 @@ return [
     ],
 
     'keys' => [
+        'loop_poll_created' => 'Un nouveau sondage a été posé',
+        'loop_article_published' => 'Un nouvel article a été publié',
+        'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés',
+        'loop_roadmap_item_created' => 'Une action a été ajoutée à la Roadmap',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap a avancé',
+        'loop_journal_entry_created' => 'Une entrée a été écrite dans le Journal',
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille a été partagée',
         'loop_mention_created' => 'On vous a mentionné dans une Boucle',
         // TASK-1761 — la DEMANDE, cote proprietaire. Ses deux voisines
         // portent la DECISION et vont au demandeur.
@@ -239,6 +263,14 @@ return [
      * controleur a pu resoudre, quelle qu'elle soit.
      */
     'keys_named' => [
+        'loop_poll_created' => 'Un nouveau sondage a été posé dans la Boucle « :loop »',
+        'loop_article_published' => 'Un nouvel article a été publié dans la Boucle « :loop »',
+        'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés dans la Boucle « :loop »',
+        'loop_roadmap_item_created' => 'Une action a été ajoutée à la Roadmap de la Boucle « :loop »',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap a avancé dans la Boucle « :loop »',
+        'loop_journal_entry_created' => 'Une entrée a été écrite dans le Journal de la Boucle « :loop »',
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille a été partagée dans la Boucle « :loop »',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).

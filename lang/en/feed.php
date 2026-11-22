@@ -11,6 +11,14 @@ return [
         'loop_joined' => ':name joined the :object Loop',
         'loop_created' => ':name created the :object Loop',
         'loop_event_created' => ':name created the event :object',
+        'loop_watch_item_created' => ':name shared a watch item in the Loop :object',
+        'loop_poll_created' => ':name posted a poll in the Loop :object',
+        'loop_article_published' => ':name published an article in the Loop :object',
+        'loop_dossier_files_uploaded' => ':name uploaded files in the Loop :object',
+        'loop_roadmap_item_created' => ':name added an action to the Roadmap of the Loop :object',
+        'loop_roadmap_item_moved' => ':name moved a Roadmap action forward in the Loop :object',
+        'loop_journal_entry_created' => ':name wrote in the Journal of the Loop :object',
+        'files_count' => '1 file|:count files',
         // TASK-1809 (Cyril's decision, 12/11) — REPLACES the 05/11
         // arbitrage (only the helper was named): a trust-based platform
         // names both. The listing by its TITLE (:object) — BouclePro is a
@@ -18,6 +26,16 @@ return [
         'help_completed' => ':name helped :beneficiaire with “:object” (:temps)',
         'help_category_fallback' => 'Help',
         'object_gone' => 'a deleted item',
+    ],
+
+    'events_sans_boucle' => [
+        'loop_watch_item_created' => ':name shared a watch item',
+        'loop_poll_created' => ':name posted a poll',
+        'loop_article_published' => ':name published an article',
+        'loop_dossier_files_uploaded' => ':name uploaded files',
+        'loop_roadmap_item_created' => ':name added an action to the Roadmap',
+        'loop_roadmap_item_moved' => ':name moved a Roadmap action forward',
+        'loop_journal_entry_created' => ':name wrote in the Journal',
     ],
 
     'organization' => 'Organization',
@@ -35,6 +53,7 @@ return [
     'loop_count' => ':count loop|:count loops',
     'member_fallback' => 'Member',
     'shared_link' => 'Shared link',
+    'open_loop' => 'Open the Loop',
     'comment_cta' => 'Comment',
     'view_comments' => 'View :count comments',
     'comment_placeholder' => 'Add a useful comment',

@@ -265,7 +265,46 @@ class LoopCardRegistry
      */
     public function manageableKeys(): array
     {
-        return $this->renderableKeys();
+        // TASK-1879 — une Card de PLUGIN ne se compose pas a la main : elle
+        // suit l'activation de son plugin (LoopTypeRegistry::activeCardsFor).
+        return array_values(array_filter(
+            $this->renderableKeys(),
+            fn (string $key) => $this->pluginOf($key) === null,
+        ));
+    }
+
+    /**
+     * TASK-1879 — le plugin dont depend cette Card, ou null.
+     *
+     * Une Card qui declare `requires_plugin` n'existe dans une Boucle que tant
+     * que ce plugin y est actif. Ni un preset, ni une composition, ni un rang
+     * principal ne peuvent l'y mettre.
+     */
+    public function pluginOf(string $key): ?string
+    {
+        $plugin = $this->get($key)['requires_plugin'] ?? null;
+
+        return is_string($plugin) && $plugin !== '' ? $plugin : null;
+    }
+
+    /**
+     * TASK-1879 — les Cards de plugin du catalogue, indexees par cle de Card.
+     *
+     * @return array<string, string> card_key => plugin_key
+     */
+    public function pluginCards(): array
+    {
+        $out = [];
+
+        foreach (array_keys($this->all()) as $key) {
+            $plugin = $this->pluginOf($key);
+
+            if ($plugin !== null) {
+                $out[$key] = $plugin;
+            }
+        }
+
+        return $out;
     }
 
     /**

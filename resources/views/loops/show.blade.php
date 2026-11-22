@@ -231,7 +231,14 @@
                 wsWidth: 50,
                 focus: 'none',
                 resizing: false,
-                openCard(card) { this.focus = 'none'; this.activeCard = this.activeCard === card ? null : card },
+                openCard(card) {
+                    this.focus = 'none';
+                    this.activeCard = this.activeCard === card ? null : card;
+                    /* TASK-1879 (recette Cyril, 22/11) — ouverte depuis le MENU, une Card
+                       repart de sa liste : un apercu ouvert depuis le chat ne doit pas
+                       y rester colle. Le chat passe par `bp-open-loop-card`, pas ici. */
+                    window.Livewire?.dispatch('loop-card-opened-from-menu', { card: card });
+                },
                 closeCard() { this.activeCard = null; this.focus = 'none' },
                 toggleChatFocus() { this.focus = this.focus === 'chat' ? 'none' : 'chat' },
                 toggleToolFocus() { this.focus = this.focus === 'tool' ? 'none' : 'tool' },
@@ -272,6 +279,9 @@
                     activeCard = $event.detail.card; focus = 'none';
                 }
             "
+            {{-- TASK-1879 — revenir au fil sur telephone (le panneau couvre
+                 l'ecran) ; sur grand ecran, fil et outil restent cote a cote. --}}
+            @bp-close-loop-card-mobile.window="if (window.matchMedia('(max-width: 1023px)').matches) { closeCard() }"
             x-bind:data-resizing="resizing ? 'true' : 'false'"
             class="loops-show-container h-dvh flex flex-col bg-[var(--bp-page)]"
             data-loop-workspace-shell

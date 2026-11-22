@@ -175,7 +175,7 @@
                      ordinateur. --}}
                 <div class="space-y-3 {{ $view === 'calendar' ? 'md:hidden' : '' }}">
                     @foreach($events as $event)
-                        @include('loops.partials.agenda-event', ['event' => $event])
+                        @include('loops.partials.agenda-event', ['event' => $event, 'ancre' => true])
                     @endforeach
                 </div>
 

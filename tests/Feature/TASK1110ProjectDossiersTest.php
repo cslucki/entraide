@@ -127,9 +127,13 @@ class TASK1110ProjectDossiersTest extends TestCase
         // la taille. Ajouter une Card au catalogue la laissait passer.
         //
         // La liste est donc figee a la main, comme les presets.
+        //
+        // TASK-1879 — `plugin.veille` y entre SCIEMMENT : Card de plugin,
+        // jamais composable a la main (`manageableKeys()`), presente
+        // seulement quand le plugin Veille est actif dans la Boucle.
         $this->assertSame([
             'core.ai_summary', 'core.manifesto', 'core.roadmap', 'core.polls',
-            'core.events', 'core.dossiers', 'training.course_material',
+            'core.events', 'plugin.veille', 'core.dossiers', 'training.course_material',
             'training.progression', 'training.assignments', 'training.quiz',
             'core.journal', 'core.decisions', 'core.marketplace', 'core.article',
             'core.members',
