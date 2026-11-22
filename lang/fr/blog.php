@@ -287,6 +287,7 @@ return [
     'annotation_reply_updated' => 'Réponse mise à jour.',
     'annotation_reply_deleted' => 'Réponse supprimée.',
 
+    'co_written_with' => 'Co-écrit avec',
     'co_author_empty' => 'Aucun co-auteur pour le moment.',
     'co_author_hint' => 'Les co-auteurs peuvent modifier l\'article, mais seul le propriétaire peut le supprimer.',
     'co_author_add' => 'Ajouter',

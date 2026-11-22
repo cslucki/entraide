@@ -68,7 +68,13 @@
                 <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4 leading-tight">{{ $post->title }}</h1>
 
                 <!-- Auteur + méta -->
+                @php
+                    // TASK-1884 #4 — les co-auteurs a cote de l'auteur. Memes filtres que
+                    // l'auteur : un compte desactive ou d'une autre organisation n'est pas nomme.
+                    $_coAuteurs = $post->coAuthors->filter(fn ($u) => $_displayableUser($u))->values();
+                @endphp
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <div class="min-w-0">
                     @if($_displayableUser($post->user))
                     <a href="{{ $_profileRoute($post->user) }}" class="flex items-center gap-3 group min-w-0">
                         <img src="{{ $post->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
@@ -85,6 +91,15 @@
                         </div>
                     </div>
                     @endif
+                    @if($_coAuteurs->isNotEmpty())
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-blog-coauthors>
+                        {{ __('blog.co_written_with') }}
+                        @foreach($_coAuteurs as $_coAuteur)
+                            <a href="{{ $_profileRoute($_coAuteur) }}" class="font-medium text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-400">{{ $_publicName($_coAuteur) }}</a>@if(! $loop->last), @endif
+                        @endforeach
+                    </p>
+                    @endif
+                    </div>
                     <div class="flex items-center gap-4 text-sm text-gray-400 dark:text-gray-500 flex-shrink-0">
                         @if($post->read_time)
                         <span class="flex items-center gap-1">
@@ -199,8 +214,11 @@
 
                 <!-- Boutons auteur / admin -->
                 @auth
-                @if(auth()->id() === $post->user_id || auth()->user()->is_admin)
-                <div class="flex items-center gap-3 mb-6">
+                {{-- TASK-1884 #2 — la permission `update` (auteur, co-auteurs, admin) et non
+                     plus « auteur ou admin » : le co-auteur a les memes boutons que l'auteur,
+                     quel que soit le statut. « Nouvel article » garde sa condition propre. --}}
+                @can('update', $post)
+                <div class="flex flex-wrap items-center gap-3 mb-6" data-blog-author-actions>
                     @if($post->status !== 'published')
                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
                         {{ ['draft' => __('blog.status_draft'), 'pending' => __('blog.status_pending'), 'archived' => __('blog.status_archived')][$post->status] ?? $post->status }}
@@ -251,7 +269,7 @@
                     </a>
                     @endif
                 </div>
-                @endif
+                @endcan
                 @endauth
 
                 <!-- Contenu -->

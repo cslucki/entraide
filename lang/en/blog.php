@@ -287,6 +287,7 @@ return [
     'annotation_reply_updated' => 'Reply updated.',
     'annotation_reply_deleted' => 'Reply deleted.',
 
+    'co_written_with' => 'Co-written with',
     'co_author_empty' => 'No co-authors yet.',
     'co_author_hint' => 'Co-authors can edit the article, but only the owner can delete it.',
     'co_author_add' => 'Add',

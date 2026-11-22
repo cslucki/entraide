@@ -178,7 +178,8 @@ class BlogController extends Controller implements HasMiddleware
         $this->assertPrivateLoopManifestoIsReadable($post);
 
         $post->increment('views_count');
-        $post->load(['user', 'category', 'tags', 'comments.user', 'comments.replies.user'])
+        // TASK-1884 #4 : co-auteurs charges pour etre affiches a cote de l'auteur.
+        $post->load(['user', 'coAuthors', 'category', 'tags', 'comments.user', 'comments.replies.user'])
             ->loadCount('likes');
 
         $relatedPosts = BlogPost::published()
