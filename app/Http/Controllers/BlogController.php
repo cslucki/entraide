@@ -484,9 +484,12 @@ class BlogController extends Controller implements HasMiddleware
 
         $post->update($data);
 
-        if (isset($data['tags'])) {
+        // TASK-1884 #8 — champ ENVOYE vide = retirer tous les tags. `isset()` le
+        // prenait pour un champ absent (la chaine vide devient null), et les tags
+        // restaient. Un appel sans le champ ne touche toujours a rien.
+        if ($request->exists('tags')) {
             $post->tags()->syncWithPivotValues(
-                $this->tagIdsFromInput($data['tags'], $post->organization_id),
+                $this->tagIdsFromInput($data['tags'] ?? null, $post->organization_id),
                 ['organization_id' => $post->organization_id]
             );
         }
