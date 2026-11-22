@@ -461,6 +461,24 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1884 #1 (demande Cyril, 22/11) — « Prenom vous a nomme co-auteur
+        // d'un article ». Pose AUSSI par la migration jumelle
+        // `2026_11_23_110000_add_blog_co_author_added_email_template` ; les deux
+        // textes sont IDENTIQUES.
+        'blog_co_author_added' => [
+            'name_fr' => 'Nomination comme co-auteur d’un article',
+            'name_en' => 'Named co-author of an article',
+            'subject_fr' => '{{ author_first_name }} vous a nommé co-auteur d’un article',
+            'subject_en' => '{{ author_first_name }} made you co-author of an article',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a nommé co-auteur d’un article : <strong>{{ post_title }}</strong>.</p><p>Vous pouvez désormais le modifier vous aussi. Voici le lien de cet article :</p><p><a href="{{ post_url }}">Ouvrir l’article</a></p><p>À bientôt,<br>L’équipe {{ organization_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> made you co-author of an article: <strong>{{ post_title }}</strong>.</p><p>You can now edit it together. Here is the link to this article:</p><p><a href="{{ post_url }}">Open the article</a></p><p>See you soon,<br>The {{ organization_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_first_name',
+                'organization_name', 'post_title', 'post_url',
+                'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_mention_created' => [
             'name_fr' => 'Mention dans une Boucle',
             'name_en' => 'Mention in a Loop',

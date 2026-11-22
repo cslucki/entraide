@@ -356,6 +356,12 @@ return [
             'body' => '<p>Hello,</p><p><strong>:prenom</strong> just commented on the Feed about something that concerns you: <strong>:contexte</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">View in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: you don’t need to sign in to read it.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
         ],
         // TASK-1880 — fallback for the `feed_post_mention_created` template.
+        // TASK-1884 #1 — repli du gabarit `blog_co_author_added` : `:prenom`, `:titre`,
+        // `:url` et `:reglages` restent des JETONS.
+        'blog_co_author_added' => [
+            'subject' => ':prenom made you co-author of an article',
+            'body' => '<p>Hello,</p><p><strong>:prenom</strong> made you co-author of an article: <strong>:titre</strong>.</p><p>Here is the link to this article:</p><p><a href=":url">Open the article</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
         'feed_post_mention_created' => [
             'subject' => ':prenom tagged you on the Feed',
             'body' => '<p>Hello,</p><p><strong>:prenom</strong> tagged you in a Feed announcement:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:message</blockquote><p><a href=":url">View the announcement in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',

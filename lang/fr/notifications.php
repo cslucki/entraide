@@ -396,6 +396,12 @@ return [
         ],
         // TASK-1880 — repli du gabarit `feed_post_mention_created` : `:prenom`,
         // `:message`, `:url` et `:reglages` restent des JETONS.
+        // TASK-1884 #1 — repli du gabarit `blog_co_author_added` : `:prenom`, `:titre`,
+        // `:url` et `:reglages` restent des JETONS.
+        'blog_co_author_added' => [
+            'subject' => ':prenom vous a nommé co-auteur d’un article',
+            'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vous a nommé co-auteur d’un article : <strong>:titre</strong>.</p><p>Voici le lien de cet article :</p><p><a href=":url">Ouvrir l’article</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
         'feed_post_mention_created' => [
             'subject' => ':prenom vous a identifié sur le Flux',
             'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vous a identifié dans une annonce du Flux :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:message</blockquote><p><a href=":url">Voir l’annonce dans le Flux</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',

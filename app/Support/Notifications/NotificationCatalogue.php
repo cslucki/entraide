@@ -812,11 +812,14 @@ final class NotificationCatalogue
                 // auteur prolifique en recevrait des dizaines. CDC 6.2 :
                 // « plutot non par defaut ».
                 //
-                // Pas de canal EMAIL ici, donc le Push est le SEUL canal
-                // sortant de cette cle. Cela ne change rien a son defaut : le
-                // defaut d'un canal ne se decide pas a la disponibilite des
-                // autres.
+                // (TASK-1884 : la cle a desormais AUSSI un courriel, ci-dessous.)
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+
+                // TASK-1884 #1 (demande Cyril) — « {Prenom} vous a nomme co-auteur
+                // d'un article », gabarit systeme GLOBAL `blog_co_author_added`.
+                // Desactivable, comme le courriel des mentions : l'in-app, lui,
+                // reste non desactivable.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
             ],
         ],
 

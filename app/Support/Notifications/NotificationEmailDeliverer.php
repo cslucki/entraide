@@ -14,10 +14,12 @@ use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\Transaction;
+use App\Models\BlogPost;
 use App\Models\User;
 use App\Services\Blog\BlogCommentMailer;
 use App\Services\Entraide\EntraideCommentMailer;
 use App\Services\Feed\FeedCommentMailer;
+use App\Services\Blog\BlogCoAuthorMailer;
 use App\Services\Feed\FeedMentionMailer;
 use App\Services\Loops\LoopEventMailer;
 use App\Services\Loops\LoopInvitationMailer;
@@ -749,6 +751,33 @@ final class NotificationEmailDeliverer
                 'subject' => $reel['subject'],
                 'body' => $reel['body'],
                 'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1884 #1 — « {Prenom} vous a nomme co-auteur d'un article ». Sans
+        // cette branche, le courriel partirait par le repli de langue, sans nom.
+        // Frontiere de tenant posee a la main (job hors requete).
+        if ($cle === NotificationCatalogue::BLOG_CO_AUTHOR_ADDED) {
+            $post = BlogPost::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($post === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $mailer = app(BlogCoAuthorMailer::class);
+            $reel = $mailer->compose($post, $destinataire, $acteur, $cible, $locale);
+            $journal = $mailer->compose($post, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $journal['body'],
             ];
         }
 
