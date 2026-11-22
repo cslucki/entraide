@@ -83,6 +83,13 @@ class TASK1737PwaInstallationTest extends TestCase
         // `organization.admin.*`, qui ne commence pas par `admin.` — elles ne
         // sont donc pas exclues, et peuvent porter le bandeau.
         'layouts/admin.blade.php' => 'surface admin.* exclue par la politique',
+
+        // TASK-1879 — tableau d'export de la Veille, ouvert dans un nouvel
+        // onglet pour « Imprimer / Enregistrer en PDF » puis referme. Document
+        // TRANSITOIRE : ni bandeau d'installation, ni enregistrement du
+        // Service Worker n'y ont de sens (et le SW est enregistre a l'echelle
+        // de l'origine par les surfaces de l'application).
+        'loops/watch-export-print.blade.php' => 'document d\'impression transitoire',
     ];
 
     private function cheminDesVues(): string
