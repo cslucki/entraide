@@ -396,6 +396,30 @@ class OrganizationFeedTest extends TestCase
             ->assertSee('Nouvelle annonce');
     }
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — Organization par defaut : arrive par
+     * /org/{slug}/flux, le lien « Nouvelle annonce » reste prefixe ; arrive par
+     * /flux, il reste sans prefixe.
+     */
+    public function test_default_organization_create_link_keeps_the_url_prefix(): void
+    {
+        $this->organization->update(['is_default' => true, 'slug' => 'main']);
+        app()->forgetInstance('current_organization');
+
+        $this->actingAs($this->admin)
+            ->get(route('organization.flux', ['organization' => 'main']))
+            ->assertOk()
+            ->assertSee('href="'.route('organization.flux.create', ['organization' => 'main']).'"', false)
+            ->assertDontSee('href="'.route('flux.create').'"', false);
+
+        app()->forgetInstance('current_organization');
+
+        $this->actingAs($this->admin)
+            ->get('/flux')
+            ->assertOk()
+            ->assertSee('href="'.route('flux.create').'"', false);
+    }
+
     public function test_other_organization_create_route_forbidden_for_foreign_admin(): void
     {
         app()->forgetInstance('current_organization');

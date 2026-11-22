@@ -58,8 +58,18 @@ class CreateFeedPost extends Component
     #[Locked]
     public ?string $orgId = null;
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — la page a-t-elle ete ouverte par une
+     * URL prefixee /org/{slug} ? La redirection finale y reste (une requete
+     * Livewire n'a plus le parametre de route).
+     */
+    #[Locked]
+    public bool $urlPrefixee = false;
+
     public function mount(): void
     {
+        $this->urlPrefixee = (bool) request()->route('organization');
+
         $org = currentOrganization();
 
         if (! $org) {
@@ -198,7 +208,7 @@ class CreateFeedPost extends Component
             default => 'Annonce publiée.',
         });
 
-        $route = $org->is_default ? 'flux' : 'organization.flux';
+        $route = $org->is_default && ! $this->urlPrefixee ? 'flux' : 'organization.flux';
         $parameters = $route === 'organization.flux' ? ['organization' => $org->slug] : [];
 
         $this->redirectRoute($route, $parameters);

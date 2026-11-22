@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -30,8 +31,18 @@ class EditFeedPost extends Component
 
     public $image = null;
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — la page a-t-elle ete ouverte par une
+     * URL prefixee /org/{slug} ? La redirection finale y reste (une requete
+     * Livewire n'a plus le parametre de route).
+     */
+    #[Locked]
+    public bool $urlPrefixee = false;
+
     public function mount(FeedPost $feedPost): void
     {
+        $this->urlPrefixee = (bool) request()->route('organization');
+
         $this->post = $feedPost;
 
         if (! auth()->user() || ! auth()->user()->can('update', $feedPost)) {
@@ -111,7 +122,7 @@ class EditFeedPost extends Component
             default => 'Annonce mise à jour.',
         });
 
-        $route = currentOrganization()?->is_default ? 'flux.my' : 'organization.flux.my';
+        $route = currentOrganization()?->is_default && ! $this->urlPrefixee ? 'flux.my' : 'organization.flux.my';
         $parameters = $route === 'organization.flux.my' ? ['organization' => currentOrganization()?->slug] : [];
 
         $this->redirectRoute($route, $parameters);
