@@ -320,6 +320,13 @@ final class NotificationCatalogue
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
+     * TASK-1884 #7 (demande Cyril, 22/11) — une tache d'article vous est
+     * confiee (creation OU reattribution). Seul l'assigne est prevenu, jamais
+     * l'acteur lui-meme ; rien pour un changement de titre ni pour « fait ».
+     */
+    public const BLOG_TODO_ASSIGNED = 'blog.todo.assigned';
+
+    /**
      * TASK-1751 — quelqu'un repond a votre annonce.
      *
      * ## UNE cle, et pas deux
@@ -512,6 +519,9 @@ final class NotificationCatalogue
      * survit, jamais la reaction elle-meme.
      */
     public const OBJECT_FEED_POST = 'feed_post';
+
+    /** TASK-1884 #7 — une tache d'article (`blog_todos.id`) ; elle mene a l'editeur de l'article. */
+    public const OBJECT_BLOG_TODO = 'blog_todo';
 
     /**
      * Le registre.
@@ -1084,6 +1094,19 @@ final class NotificationCatalogue
                 // les items recoivent beaucoup de reactions doit pouvoir se
                 // taire, exactement comme pour un commentaire.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1884 #7 — une tache d'article vous est confiee. Adressee a vous,
+        // mais un auteur prolifique peut en distribuer beaucoup : courriel ET
+        // in-app desactivables, pas de Web Push (sobriete, principe directeur).
+        self::BLOG_TODO_ASSIGNED => [
+            'category' => 'blog',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
+            'object_type' => self::OBJECT_BLOG_TODO,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
             ],
         ],
 

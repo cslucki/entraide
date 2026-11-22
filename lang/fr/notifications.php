@@ -130,6 +130,7 @@ return [
         // entier dans `keys_named`, qui n'est lisible qu'authentifie.
         'entraide_comment_created' => 'Ouvrez BouclePro pour lire la suggestion.',
         'blog_co_author_added' => 'Ouvrez l’article pour commencer.',
+        'blog_todo_assigned' => 'Ouvrez l’article pour voir la tâche.',
 
         // TASK-1747 — ne nomme NI la Boucle NI la personne : une demande
         // d'aide peut etre posee dans une Boucle privee, et le corps d'un
@@ -176,6 +177,7 @@ return [
         // devant n'importe qui.
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
         'blog_co_author_added' => 'On vous associe à un article',
+        'blog_todo_assigned' => 'Une tâche vous est confiée',
 
         // TASK-1786 — le titre exact du CDC §9, qui ne nomme ni la personne ni
         // l'annonce : il est donc compatible avec l'ecran verrouille.
@@ -211,6 +213,7 @@ return [
         'loop_join_request_created' => 'Quelqu’un demande à rejoindre votre Boucle',
         // TASK-1702
         'blog_co_author_added' => 'On vous a ajouté comme co-auteur d’un article',
+        'blog_todo_assigned' => 'Une tâche d’article vous est confiée',
 
         // TASK-1697
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
@@ -398,6 +401,11 @@ return [
         // `:message`, `:url` et `:reglages` restent des JETONS.
         // TASK-1884 #1 — repli du gabarit `blog_co_author_added` : `:prenom`, `:titre`,
         // `:url` et `:reglages` restent des JETONS.
+        // TASK-1884 #7 — repli du gabarit `blog_todo_assigned` (jetons :tache, :titre_court, :titre, :prenom, :date, :url, :reglages).
+        'blog_todo_assigned' => [
+            'subject' => ':tache sur « :titre_court »',
+            'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vous a confié une tâche sur l’article <strong>:titre</strong> :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:tache</blockquote><p>Tâche saisie le :date.</p><p><a href=":url">Ouvrir l’article</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
         'blog_co_author_added' => [
             'subject' => ':prenom vous a nommé co-auteur d’un article',
             'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vous a nommé co-auteur d’un article : <strong>:titre</strong>.</p><p>Voici le lien de cet article :</p><p><a href=":url">Ouvrir l’article</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',

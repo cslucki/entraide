@@ -4,6 +4,7 @@ namespace App\Support\Notifications;
 
 use App\Models\BlogComment;
 use App\Models\BlogPost;
+use App\Models\BlogTodo;
 use App\Models\EntraideComment;
 use App\Models\FeedPost;
 use App\Models\FeedPostComment;
@@ -73,6 +74,8 @@ class NotificationTargetResolver
             // dediee a une reaction).
             NotificationCatalogue::OBJECT_FEED_POST_COMMENT => $this->feedPostComment($notification),
             NotificationCatalogue::OBJECT_FEED_POST => $this->feedPost($notification),
+            // TASK-1884 #7 — une tache d'article mene a l'editeur de cet article.
+            NotificationCatalogue::OBJECT_BLOG_TODO => $this->blogTodo($notification),
             default => null,
         };
     }
@@ -707,16 +710,47 @@ class NotificationTargetResolver
             return null;
         }
 
-        $estEncoreCoAuteur = $post->coAuthors()
-            ->where('users.id', $notification->recipient_id)
-            ->exists();
+        return $this->editeurDeLArticle($post, (string) $notification->recipient_id, (string) $notification->organization_id);
+    }
 
-        if (! $estEncoreCoAuteur) {
+    /**
+     * TASK-1884 #7 — la tache mene a l'editeur de SON article, tant que le
+     * destinataire peut encore l'ecrire.
+     */
+    private function blogTodo(MemberNotification $notification): ?string
+    {
+        if ($notification->object_id === null) {
+            return null;
+        }
+
+        $todo = BlogTodo::query()
+            ->whereKey($notification->object_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        $post = $todo === null ? null : BlogPost::query()
+            ->whereKey($todo->blog_post_id)
+            ->where('organization_id', $notification->organization_id)
+            ->first();
+
+        return $post === null ? null : $this->editeurDeLArticle($post, (string) $notification->recipient_id, (string) $notification->organization_id);
+    }
+
+    /**
+     * L'editeur de l'article, si le destinataire en est l'AUTEUR ou un
+     * co-auteur (TASK-1884 : une tache peut etre confiee a l'auteur lui-meme).
+     */
+    private function editeurDeLArticle(BlogPost $post, string $destinataireId, string $organizationId): ?string
+    {
+        $peutEcrire = (string) $post->user_id === $destinataireId
+            || $post->coAuthors()->where('users.id', $destinataireId)->exists();
+
+        if (! $peutEcrire) {
             return null;
         }
 
         $organization = Organization::query()
-            ->whereKey($notification->organization_id)
+            ->whereKey($organizationId)
             ->first();
 
         if ($organization === null || ! Route::has('organization.blog.edit')) {

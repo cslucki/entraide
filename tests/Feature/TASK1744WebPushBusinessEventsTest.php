@@ -338,6 +338,9 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             // notification PWA et app ». Meme regime que LOOP_MENTION_CREATED :
             // in-app ON non configurable, email et Web Push ON configurables.
             NotificationCatalogue::FEED_POST_MENTION_CREATED,
+            // TASK-1884 #7 (demande Cyril, 22/11) — tache d'article confiee :
+            // in-app + email configurables, AUCUN Web Push (sobriete).
+            NotificationCatalogue::BLOG_TODO_ASSIGNED,
         ];
 
         sort($attendues);

@@ -479,6 +479,21 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1884 #7 (demande Cyril, 22/11) — « {tache} sur « {titre court}… » ».
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_23_120000_add_blog_todo_assigned_email_template` ; textes IDENTIQUES.
+        'blog_todo_assigned' => [
+            'name_fr' => 'Tâche confiée sur un article',
+            'name_en' => 'Task assigned on an article',
+            'subject_fr' => '{{ todo_title }} sur « {{ post_title_short }} »',
+            'subject_en' => '{{ todo_title }} on “{{ post_title_short }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a confié une tâche sur l’article <strong>{{ post_title }}</strong> :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ todo_title }}</blockquote><p>Tâche saisie le {{ todo_date }}.</p><p><a href="{{ post_url }}">Ouvrir l’article</a></p><p>À bientôt,<br>L’équipe {{ organization_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> assigned you a task on the article <strong>{{ post_title }}</strong>:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ todo_title }}</blockquote><p>Task created on {{ todo_date }}.</p><p><a href="{{ post_url }}">Open the article</a></p><p>See you soon,<br>The {{ organization_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_first_name', 'organization_name', 'todo_title', 'todo_date', 'post_title', 'post_title_short', 'post_url', 'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_mention_created' => [
             'name_fr' => 'Mention dans une Boucle',
             'name_en' => 'Mention in a Loop',
