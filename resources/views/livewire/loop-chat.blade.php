@@ -218,7 +218,8 @@
                     $_auteurPrecedent = $_signatureAuteur;
                 @endphp
 
-                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }} {{ $_changeAuteur ? 'pt-1.5 md:pt-0' : '' }}">
+                @php $carteRepondable = ! $isDeleted && $editingMessageId !== $msg->id && in_array($msg->type, \App\Livewire\LoopChat::TYPES_CARTES_REPONDABLES, true); @endphp
+                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="{{ $carteRepondable ? 'relative' : '' }} transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }} {{ $_changeAuteur ? 'pt-1.5 md:pt-0' : '' }}">
                     @if($isDeleted)
                         <x-conversation.message-bubble
                             :type="$isOwn ? 'sent' : 'received'"
@@ -426,7 +427,7 @@
                              carte ouvre la Card (une seule cible, pas de bouton
                              concurrent). Le Sujet est le titre ; la pastille de
                              categorie est la meme que dans la Card et le Flux. --}}
-                        <div data-watch-announcement="{{ $wiItem ? 'available' : 'unavailable' }}" class="max-w-md">
+                        <div data-watch-announcement="{{ $wiItem ? 'available' : 'unavailable' }}" class="relative max-w-md">
                             @if($wiItem)
                                 <button type="button"
                                         x-on:click="$dispatch('bp-open-loop-card', { card: 'plugin.veille' })"
@@ -445,7 +446,7 @@
                                             <span class="shrink-0">{{ $msg->created_at->diffForHumans() }}</span>
                                         </span>
                                     </span>
-                                    <span class="self-center text-sky-600 dark:text-sky-300" aria-hidden="true">
+                                    <span class="mt-2.5 self-start text-sky-600 dark:text-sky-300" aria-hidden="true">
                                         <svg class="h-4 w-4 transition group-hover:translate-x-0.5 motion-reduce:transition-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
                                     </span>
                                     <span class="sr-only">{{ __('veille.chat_open_card') }}</span>
@@ -456,6 +457,9 @@
                                     <span class="min-w-0 flex-1 text-xs italic text-gray-500 dark:text-gray-400">{{ __('veille.chat_unavailable') }}</span>
                                     <span class="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                                 </div>
+                            @endif
+                            @if($carteRepondable)
+                                @include('livewire.partials.loop-chat-reply-card')
                             @endif
                         </div>
                     @elseif($msg->type === 'blog_post')
@@ -837,19 +841,14 @@
 
                     {{-- TASK-1879 (demande Cyril, 22/11) — on repond a une carte
                          (Evenement, Sondage, Veille, Article, depot, Roadmap,
-                         demande d'aide) COMME a un message : meme evenement
-                         `reply-to-message` que la bulle, donc meme citation dans
-                         le composeur, meme mention automatique de l'auteur
-                         (notifie par le mecanisme existant), meme focus. --}}
-                    @if(! $isDeleted && $editingMessageId !== $msg->id && in_array($msg->type, \App\Livewire\LoopChat::TYPES_CARTES_REPONDABLES, true))
-                        <div class="mt-0.5 flex">
-                            <button type="button" data-action="reply-to-card"
-                                    x-on:click="$dispatch('reply-to-message', { messageId: '{{ $msg->id }}' }); document.querySelector('[data-composer-input]')?.focus()"
-                                    class="inline-flex min-h-[36px] items-center gap-1 rounded-lg px-2 text-[11px] font-medium text-gray-400 transition hover:bg-gray-100 hover:text-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-indigo-300">
-                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
-                                {{ __('messages.reply') }}
-                            </button>
-                        </div>
+                         demande d'aide) COMME a une bulle : l'icone ↩ vit DANS la
+                         carte, en bas a droite, comme les actions d'une bulle.
+                         Meme evenement `reply-to-message` (citation, mention
+                         automatique de l'auteur, focus). Ancre par le `relative`
+                         du conteneur du message — jamais hors du fil (cf. bug
+                         sr-only du 22/11). --}}
+                    @if($carteRepondable && $msg->type !== 'watch_item')
+                        @include('livewire.partials.loop-chat-reply-card')
                     @endif
                 </div>
 
