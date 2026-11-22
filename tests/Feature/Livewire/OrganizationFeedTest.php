@@ -908,6 +908,22 @@ class OrganizationFeedTest extends TestCase
             ->assertSeeHtml('id="loopMessage"');
     }
 
+    /** TASK-1879 (demande Cyril, 22/11) — le composeur est SUR le Flux ; « Nouvelle annonce » reste au seul administrateur. */
+    public function test_flux_shows_the_composer_to_members_and_the_new_post_button_to_the_owner(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $url = route('organization.flux', ['organization' => $this->organization->slug]);
+
+        $this->actingAs($this->member)->get($url)->assertOk()
+            ->assertSee('data-feed-composer-inline', false)
+            ->assertSee('data-feed-composer-trigger', false)
+            ->assertDontSee('data-feed-new-post', false);
+
+        $this->actingAs($this->admin)->get($url)->assertOk()
+            ->assertSee('data-feed-new-post', false)
+            ->assertDontSee('data-feed-composer-inline', false);
+    }
+
     public function test_published_post_visible_in_feed(): void
     {
         FeedPost::create([

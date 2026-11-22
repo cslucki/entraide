@@ -67,14 +67,22 @@ class CreateFeedPost extends Component
     #[Locked]
     public bool $urlPrefixee = false;
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — composeur pose SUR le Flux (feuille
+     * Alpine sur smartphone) plutot qu'en page `/flux/creer`.
+     */
+    #[Locked]
+    public bool $integre = false;
+
     /** TASK-1879 — « Le champ Message », pas « Le champ content ». */
     protected function validationAttributes(): array
     {
         return ['content' => __('feed-post.message'), 'title' => __('feed-post.title_optional')];
     }
 
-    public function mount(): void
+    public function mount(bool $integre = false): void
     {
+        $this->integre = $integre;
         $this->urlPrefixee = (bool) request()->route('organization');
 
         $org = currentOrganization();

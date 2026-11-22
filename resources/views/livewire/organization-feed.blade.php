@@ -9,6 +9,12 @@
     $myPostsUrl = $usesDefaultOrganizationRoute && Route::has('flux.my')
         ? route('flux.my')
         : route('organization.flux.my', ['organization' => $organizationRouteParam]);
+    // TASK-1879 (demande Cyril, 22/11) — seul l'administrateur de l'Organization
+    // (ou le superadmin) garde le bouton « Nouvelle annonce » et le formulaire
+    // complet ; les autres membres ecrivent directement depuis le Flux.
+    $_orgFlux = currentOrganization();
+    $estProprietaireFlux = $_orgFlux !== null && auth()->check()
+        && (auth()->id() === $_orgFlux->admin_id || auth()->user()->is_admin);
 @endphp
 
 {{-- TASK-1788 correctif 09 (point 10) — le fil se rafraichit tout seul.
@@ -75,14 +81,22 @@
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                     {{ __('feed.my_posts') }}
                 </a>
-                <a href="{{ $createUrl }}"
+                @if($estProprietaireFlux)
+                <a href="{{ $createUrl }}" data-feed-new-post
                    class="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95 sm:flex-none">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     {{ __('feed.new_post') }}
                 </a>
+                @endif
             </div>
         @endcan
     </div>
+
+    @can('create', App\Models\FeedPost::class)
+        @unless($estProprietaireFlux)
+            <livewire:create-feed-post :integre="true" key="flux-composeur" />
+        @endunless
+    @endcan
 
     @if($pinned->isNotEmpty())
         <div class="mb-6 space-y-4">
@@ -98,11 +112,11 @@
             <div class="text-center py-12">
                 <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
                 <p class="text-gray-500 dark:text-gray-400">{{ __('feed.empty') }}</p>
-                @can('create', App\Models\FeedPost::class)
+                @if($estProprietaireFlux)
                     <a href="{{ $createUrl }}" class="mt-4 inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 text-sm font-semibold hover:underline">
                         {{ __('feed.create_first') }}
                     </a>
-                @endcan
+                @endif
             </div>
         @else
             @foreach($items as $post)
