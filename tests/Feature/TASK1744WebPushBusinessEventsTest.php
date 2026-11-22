@@ -330,6 +330,7 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             // TASK-1879 (demande Cyril, 22/11) — Roadmap : action ajoutee / avancee.
             NotificationCatalogue::LOOP_ROADMAP_ITEM_CREATED,
             NotificationCatalogue::LOOP_ROADMAP_ITEM_MOVED,
+            NotificationCatalogue::LOOP_JOURNAL_ENTRY_CREATED,
             NotificationCatalogue::FEED_POST_COMMENT_CREATED,
             NotificationCatalogue::FEED_POST_REACTION_CREATED,
         ];

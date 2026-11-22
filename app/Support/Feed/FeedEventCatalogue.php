@@ -98,6 +98,9 @@ final class FeedEventCatalogue
      */
     public const ROADMAP_ACTION_AVANCEE = 'event.loop_roadmap_item_moved';
 
+    /** TASK-1879 (demande Cyril, 22/11) — Journal : entree ecrite (objet = l'entree). */
+    public const JOURNAL_ENTREE_ECRITE = 'event.loop_journal_entry_created';
+
     /**
      * TASK-1757 §9.5, puis TASK-1809 §2 — une entraide terminee.
      *
@@ -198,6 +201,11 @@ final class FeedEventCatalogue
                 'object' => LoopMessage::class,
                 'visibilite' => self::VISIBILITE_BOUCLE,
                 'libelle' => 'feed.events.loop_roadmap_item_moved',
+            ],
+            self::JOURNAL_ENTREE_ECRITE => [
+                'object' => \App\Models\LoopJournalEntry::class,
+                'visibilite' => self::VISIBILITE_BOUCLE,
+                'libelle' => 'feed.events.loop_journal_entry_created',
             ],
             self::ENTRAIDE_TERMINEE => [
                 'object' => Transaction::class,

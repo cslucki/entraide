@@ -857,6 +857,48 @@ class LoopMessageService
     }
 
     /**
+     * TASK-1879 (demande Cyril, 22/11) — une entree ECRITE dans le Journal :
+     * carte ChatLoop (`journal_entry`), notification in-app + Web Push a la
+     * Boucle, ligne du Flux. Une entree PROMUE (reprise d'un message) n'est pas
+     * annoncee : le message est deja dans le ChatLoop. Une seule annonce par entree.
+     */
+    public function sendJournalEntryMessage(Loop $loop, User $sender, \App\Models\LoopJournalEntry $entry): ?LoopMessage
+    {
+        if ($entry->loop_id !== $loop->id || $entry->loop_message_id !== null) {
+            return null;
+        }
+
+        $dejaAnnonce = LoopMessage::where('loop_id', $loop->id)
+            ->where('type', 'journal_entry')
+            ->where('metadata->journal_entry_id', $entry->id)
+            ->exists();
+
+        if ($dejaAnnonce) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($loop, $sender, $entry) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => __('loops.chat_journal_entry_created', ['name' => $sender->publicDisplayName()]),
+                'type' => 'journal_entry',
+                'metadata' => ['journal_entry_id' => $entry->id],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_JOURNAL_ENTRY_CREATED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::JOURNAL_ENTREE_ECRITE, $entry, $sender, $loop);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
      * TASK-1879 (demande Cyril, 22/11) — une action de Roadmap AVANCE : passee
      * « En cours » ou « Fait ». Carte ChatLoop (meme type `roadmap_action`,
      * `event = moved`), notification in-app + Web Push et ligne du Flux.

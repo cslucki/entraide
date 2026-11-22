@@ -380,7 +380,7 @@ class AppServiceProvider extends ServiceProvider
                 // TASK-1879 — une annonce de Veille est un reperage, pas une
                 // question : l'agent IA n'y repond pas. La Veille est humaine
                 // par decision MASTER (aucune analyse IA).
-                if ($message->type === 'watch_item') {
+                if (in_array($message->type, ['watch_item', 'journal_entry'], true)) {
                     return;
                 }
 

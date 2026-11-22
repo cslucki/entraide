@@ -368,6 +368,31 @@
                             </button>
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
+                    @elseif($msg->type === 'journal_entry')
+                        {{-- TASK-1879 (demande Cyril, 22/11) — une entree ecrite dans le
+                             Journal. Texte relu EN DIRECT ($projectedJournalEntries). --}}
+                        @php
+                            $jrEntry = $projectedJournalEntries->get($msg->metadata['journal_entry_id'] ?? null);
+                        @endphp
+                        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-stone-700/60 dark:bg-stone-800/40" data-journal-entry-card>
+                            <svg class="h-4 w-4 shrink-0 text-stone-600 dark:text-stone-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                            @if($jrEntry)
+                                <span class="min-w-0 flex-1 text-xs leading-5 text-stone-900 dark:text-stone-100">
+                                    {{ $msg->body }}
+                                    <span class="block text-[11px] text-stone-600 dark:text-stone-300">
+                                        @if($jrEntry->occurred_on)<span class="font-semibold">{{ $jrEntry->occurred_on->isoFormat('LL') }}</span> · @endif{{ \Illuminate\Support\Str::limit($jrEntry->displayBody(), 140) }}
+                                    </span>
+                                </span>
+                            @else
+                                <span class="min-w-0 flex-1 text-xs leading-5 text-stone-900/60 dark:text-stone-100/60">{{ __('loops.chat_journal_unavailable') }}</span>
+                            @endif
+                            <button type="button"
+                                    x-on:click="$dispatch('bp-open-loop-card', { card: 'core.journal' })"
+                                    class="shrink-0 rounded-lg bg-stone-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-stone-700">
+                                {{ __('loops.chat_journal_open') }}
+                            </button>
+                            <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                        </div>
                     @elseif($msg->type === 'roadmap_action')
                         {{-- TASK-1826 — une action de Roadmap creee. Meme
                              forme discrete que l'Evenement et le Sondage : un

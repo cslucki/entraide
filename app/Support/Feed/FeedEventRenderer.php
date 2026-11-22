@@ -6,6 +6,7 @@ use App\Models\BlogPost;
 use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopEvent;
+use App\Models\LoopJournalEntry;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
@@ -211,7 +212,7 @@ final class FeedEventRenderer
             // la conversation se charge autour du message et le surligne).
             // Sans message retrouve : la Boucle seule, comme avant.
             $objet instanceof LoopEvent && ($objet->isOrganizationWide() || $objet->loop_id === null) => self::lienAgenda($objet, $organizationSlug),
-            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem,
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem, $objet instanceof LoopJournalEntry,
             $objet instanceof BlogPost, $objet instanceof LoopWatchItem, $objet instanceof LoopEvent => self::lienVersLeMessage($post, $objet, $organizationSlug),
             // Le parametre s'appelle `{request}` et non `{serviceRequest}` :
             // avec le mauvais nom, `route()` levait et le repli rendait
@@ -258,6 +259,7 @@ final class FeedEventRenderer
         [$type, $cle] = match (true) {
             $objet instanceof LoopPoll => ['poll_event', 'poll_id'],
             $objet instanceof LoopRoadmapItem => ['roadmap_action', 'roadmap_item_id'],
+            $objet instanceof LoopJournalEntry => ['journal_entry', 'journal_entry_id'],
             $objet instanceof BlogPost => ['blog_post', 'blog_post_id'],
             $objet instanceof LoopWatchItem => ['watch_item', 'watch_item_id'],
             $objet instanceof LoopEvent => ['loop_event', 'event_id'],
@@ -335,6 +337,8 @@ final class FeedEventRenderer
      * @return array{url: ?string, image: ?string, ronde: bool, titre: ?string, texte: ?string}|null
      */
     /** L'icone « Kanban » de la Card Roadmap (demande Cyril, 22/11). */
+    private const ICONE_JOURNAL = 'M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25';
+
     private const ICONE_ROADMAP = 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v12a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18V6ZM13.5 6A2.25 2.25 0 0 1 15.75 3.75H18A2.25 2.25 0 0 1 20.25 6v6A2.25 2.25 0 0 1 18 14.25h-2.25A2.25 2.25 0 0 1 13.5 12V6Z';
 
     /** Le trace « Mon profil public » du menu avatar (app-side-nav). */
@@ -471,6 +475,20 @@ final class FeedEventRenderer
                 'ronde' => false,
                 'titre' => (string) $objet->title,
                 'texte' => \Illuminate\Support\Str::limit(trim(html_entity_decode(strip_tags((string) $objet->content))), 160),
+            ];
+        }
+
+        // TASK-1879 (demande Cyril, 22/11) — Journal : l'icone « livre » de la
+        // Card Journal, la date de l'entree en titre, un extrait en texte.
+        if ($objet instanceof LoopJournalEntry) {
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => self::ICONE_JOURNAL,
+                'teinte' => 'stone',
+                'ronde' => false,
+                'titre' => (string) ($objet->occurred_on?->isoFormat('LL') ?? ''),
+                'texte' => \Illuminate\Support\Str::limit($objet->displayBody(), 160),
             ];
         }
 
@@ -613,7 +631,7 @@ final class FeedEventRenderer
             $objet instanceof LoopWatchItem => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
             // TASK-1879 — « dans la Boucle :object » : la Boucle du fait. Un
             // Article n'a pas de Boucle propre : c'est celle de la LIGNE.
-            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem, $objet instanceof LoopJournalEntry => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
             $objet instanceof BlogPost => (string) (Loop::withoutGlobalScopes()->find($post->loop_id)?->name ?? __('feed.events.object_gone')),
             $objet instanceof User => $objet->publicDisplayName(),
             // TASK-1809 (correctif Cyril, 12/11) — l'objet d'une entraide est

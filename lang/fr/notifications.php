@@ -113,6 +113,7 @@ return [
         'loop_dossier_file_uploaded' => 'Ouvrez BouclePro pour voir les fichiers.',
         'loop_roadmap_item_created' => 'Ouvrez BouclePro pour voir la Roadmap.',
         'loop_roadmap_item_moved' => 'Ouvrez BouclePro pour voir la Roadmap.',
+        'loop_journal_entry_created' => 'Ouvrez BouclePro pour lire le Journal.',
         // TASK-1879
         'loop_watch_item_created' => 'Ouvrez BouclePro pour lire la veille.',
         'loop_mention_created' => 'Ouvrez BouclePro pour lire le message.',
@@ -153,6 +154,7 @@ return [
         'loop_dossier_file_uploaded' => 'Nouveaux fichiers dans votre Boucle',
         'loop_roadmap_item_created' => 'Une nouvelle action dans la Roadmap',
         'loop_roadmap_item_moved' => 'Une action de la Roadmap avance',
+        'loop_journal_entry_created' => 'Une nouvelle entrée dans le Journal',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille dans votre Boucle',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
@@ -198,6 +200,7 @@ return [
         'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés',
         'loop_roadmap_item_created' => 'Une action a été ajoutée à la Roadmap',
         'loop_roadmap_item_moved' => 'Une action de la Roadmap a avancé',
+        'loop_journal_entry_created' => 'Une entrée a été écrite dans le Journal',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille a été partagée',
         'loop_mention_created' => 'On vous a mentionné dans une Boucle',
@@ -265,6 +268,7 @@ return [
         'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés dans la Boucle « :loop »',
         'loop_roadmap_item_created' => 'Une action a été ajoutée à la Roadmap de la Boucle « :loop »',
         'loop_roadmap_item_moved' => 'Une action de la Roadmap a avancé dans la Boucle « :loop »',
+        'loop_journal_entry_created' => 'Une entrée a été écrite dans le Journal de la Boucle « :loop »',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille a été partagée dans la Boucle « :loop »',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere

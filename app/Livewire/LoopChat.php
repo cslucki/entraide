@@ -98,7 +98,7 @@ class LoopChat extends Component
      */
     public const TYPES_CARTES_REPONDABLES = [
         'loop_event', 'dossier_file', 'poll_event', 'roadmap_action',
-        'watch_item', 'blog_post', 'help_request',
+        'watch_item', 'blog_post', 'help_request', 'journal_entry',
     ];
 
     public ?array $replyingTo = null;
@@ -726,7 +726,7 @@ class LoopChat extends Component
     {
         return $fenetre->contains(
             fn (LoopMessage $message) => $message->isServiceRequestProjection()
-                || in_array($message->type, ['blog_post', 'dossier_file', 'roadmap_action', 'watch_item'], true)
+                || in_array($message->type, ['blog_post', 'dossier_file', 'roadmap_action', 'watch_item', 'journal_entry'], true)
         );
     }
 
@@ -3755,6 +3755,7 @@ class LoopChat extends Component
         $projectedDossierFiles = $this->projectedDossierFiles($messages);
         $projectedDossierFileUrls = $this->projectedDossierFileUrls($projectedDossierFiles);
         $projectedRoadmapItems = $this->projectedRoadmapItems($messages);
+        $projectedJournalEntries = $this->projectedJournalEntries($messages);
         // TASK-1879 — les veilles annoncees, relues en direct et filtrees par droit.
         $projectedWatchItems = $this->projectedWatchItems($messages);
         $aiRoute = $this->aiRoute();
@@ -3818,6 +3819,7 @@ class LoopChat extends Component
             'projectedDossierFiles',
             'projectedDossierFileUrls',
             'projectedRoadmapItems',
+            'projectedJournalEntries',
             'projectedWatchItems',
             'aiRoute',
             'canDeleteMessages',
@@ -4011,6 +4013,37 @@ class LoopChat extends Component
             ->where('loop_id', $this->loop->id)
             ->whereIn('id', $ids)
             ->with('category:id,name')
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * TASK-1879 — les entrees du Journal annoncees (`type='journal_entry'`),
+     * relues EN DIRECT (une correction se voit, un retrait degrade la carte).
+     * Rien ne resout sans `journal.view` pour le lecteur.
+     *
+     * @return Collection<string, \App\Models\LoopJournalEntry>
+     */
+    private function projectedJournalEntries(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->type === 'journal_entry')
+            ->map(fn (LoopMessage $message) => $message->metadata['journal_entry_id'] ?? null)
+            ->filter(fn ($id) => is_string($id) && \Illuminate\Support\Str::isUuid($id))
+            ->unique()
+            ->values();
+
+        $user = auth()->user();
+
+        if ($ids->isEmpty() || ! $user instanceof User
+            || ! app(\App\Support\Loops\LoopPermissionResolver::class)->can($user, $this->loop, 'journal.view')) {
+            return collect();
+        }
+
+        return \App\Models\LoopJournalEntry::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->whereIn('id', $ids)
             ->get()
             ->keyBy('id');
     }

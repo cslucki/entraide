@@ -53,6 +53,9 @@ return [
     'chat_roadmap_action_created' => ':name created an action: « :title »',
     'chat_roadmap_action_moved' => ':name moved the action « :title » to « :status »',
     'chat_roadmap_open' => 'View action',
+    'chat_journal_entry_created' => ':name wrote in the Journal',
+    'chat_journal_open' => 'Open the Journal',
+    'chat_journal_unavailable' => 'This Journal entry is no longer available.',
     'chat_roadmap_unavailable' => 'This action is no longer available.',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
     'composer_file_uploading_many' => 'Uploading :count files…',

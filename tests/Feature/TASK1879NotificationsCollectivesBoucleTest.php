@@ -14,6 +14,9 @@ use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
 use App\Models\LoopMessage;
 use App\Livewire\LoopRoadmapCard;
+use App\Livewire\LoopJournalCard;
+use App\Models\LoopCard;
+use App\Models\LoopJournalEntry;
 use Livewire\Livewire;
 use App\Models\MemberNotification;
 use App\Models\Organization;
@@ -335,6 +338,55 @@ class TASK1879NotificationsCollectivesBoucleTest extends TestCase
         $this->assertStringNotContainsString('>'.__('feed.open_loop').'<', $html, 'pas de bouton « Ouvrir la Boucle » visible');
         $this->assertStringContainsString(e(str_replace(':name ', '', __('feed.events_sans_boucle.loop_poll_created'))), $html);
         $this->assertStringNotContainsString(e(str_replace([':name ', ':object'], '', __('feed.events.loop_poll_created'))), $html, 'la phrase ne repete plus la Boucle');
+    }
+
+    /**
+     * Demande Cyril (22/11) — une entree ECRITE dans le Journal : carte
+     * ChatLoop, ligne du Flux (visible de la Boucle seule), notification
+     * in-app + Web Push aux membres. Une correction ou une promotion de
+     * message ne reannonce rien.
+     */
+    public function test_le_journal_annonce_une_entree_ecrite(): void
+    {
+        app()->instance('current_organization', $this->organization);
+        LoopCard::firstOrCreate(['loop_id' => $this->loop->id, 'card_key' => 'core.journal'], ['organization_id' => $this->organization->id, 'enabled' => true]);
+
+        Livewire::actingAs($this->auteur)
+            ->test(LoopJournalCard::class, ['loop' => $this->loop])
+            ->set('showForm', true)
+            ->set('body', 'Premiere reunion, tout le monde etait la.')
+            ->set('occurredOn', '2026-11-20')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $entree = LoopJournalEntry::sole();
+        $annonce = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'journal_entry')->sole();
+        $this->assertSame($entree->id, $annonce->metadata['journal_entry_id']);
+        $this->assertDestinataires(NotificationCatalogue::LOOP_JOURNAL_ENTRY_CREATED);
+
+        $ligne = FeedPost::where('type', FeedEventCatalogue::JOURNAL_ENTREE_ECRITE)->sole();
+        $this->assertSame(FeedEventCatalogue::VISIBILITE_BOUCLE, $ligne->visibility);
+        $apercu = FeedEventRenderer::apercu($ligne, (string) $this->organization->slug);
+        $this->assertSame('stone', $apercu['teinte']);
+        $this->assertStringContainsString('Premiere reunion', $apercu['texte']);
+        $this->assertStringEndsWith('?message='.$annonce->id, (string) $apercu['url']);
+        $this->assertSame(0, FeedPost::query()->visibleTo($this->parti)->where('type', FeedEventCatalogue::JOURNAL_ENTREE_ECRITE)->count());
+
+        // Corriger l'entree ne reannonce pas.
+        Livewire::actingAs($this->auteur)
+            ->test(LoopJournalCard::class, ['loop' => $this->loop])
+            ->call('startEditing', $entree->id)
+            ->set('body', 'Premiere reunion (corrigee).')
+            ->call('save');
+        $this->assertSame(1, LoopMessage::where('type', 'journal_entry')->count());
+        $this->assertSame(1, $this->notifications(NotificationCatalogue::LOOP_JOURNAL_ENTRY_CREATED)->count());
+
+        // La carte ChatLoop relit le texte EN DIRECT.
+        Livewire::actingAs($this->membre)
+            ->test(\App\Livewire\LoopChat::class, ['loop' => $this->loop])
+            ->assertSeeHtml('data-journal-entry-card')
+            ->assertSee('Premiere reunion (corrigee).');
+        Mail::assertNothingSent();
     }
 
     // ── Outils ──────────────────────────────────────────────────────────────

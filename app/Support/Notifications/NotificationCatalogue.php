@@ -314,6 +314,9 @@ final class NotificationCatalogue
 
     public const LOOP_ROADMAP_ITEM_MOVED = 'loop.roadmap_item.moved';
 
+    /** TASK-1879 (demande Cyril, 22/11) — une entree ecrite dans le Journal. Memes regles. */
+    public const LOOP_JOURNAL_ENTRY_CREATED = 'loop.journal_entry.created';
+
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
@@ -926,6 +929,17 @@ final class NotificationCatalogue
         ],
 
         // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_JOURNAL_ENTRY_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
         self::LOOP_ROADMAP_ITEM_MOVED => [
             'category' => 'loop',
             'intention' => self::INTENTION_CHANGEMENTS,
@@ -1205,7 +1219,7 @@ final class NotificationCatalogue
         // meme fait collectif, meme `object_type` (OBJECT_LOOP), donc le meme
         // `object_id` EST deja l'identifiant de la Boucle.
         // TASK-1879 — LOOP_WATCH_ITEM_CREATED aussi : meme fait collectif.
-        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED, self::LOOP_WATCH_ITEM_CREATED, self::LOOP_POLL_CREATED, self::LOOP_ARTICLE_PUBLISHED, self::LOOP_DOSSIER_FILE_UPLOADED, self::LOOP_ROADMAP_ITEM_CREATED, self::LOOP_ROADMAP_ITEM_MOVED], true)) {
+        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED, self::LOOP_WATCH_ITEM_CREATED, self::LOOP_POLL_CREATED, self::LOOP_ARTICLE_PUBLISHED, self::LOOP_DOSSIER_FILE_UPLOADED, self::LOOP_ROADMAP_ITEM_CREATED, self::LOOP_ROADMAP_ITEM_MOVED, self::LOOP_JOURNAL_ENTRY_CREATED], true)) {
             return null;
         }
 

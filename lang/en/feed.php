@@ -17,6 +17,7 @@ return [
         'loop_dossier_files_uploaded' => ':name uploaded files in the Loop :object',
         'loop_roadmap_item_created' => ':name added an action to the Roadmap of the Loop :object',
         'loop_roadmap_item_moved' => ':name moved a Roadmap action forward in the Loop :object',
+        'loop_journal_entry_created' => ':name wrote in the Journal of the Loop :object',
         'files_count' => '1 file|:count files',
         // TASK-1809 (Cyril's decision, 12/11) — REPLACES the 05/11
         // arbitrage (only the helper was named): a trust-based platform
@@ -34,6 +35,7 @@ return [
         'loop_dossier_files_uploaded' => ':name uploaded files',
         'loop_roadmap_item_created' => ':name added an action to the Roadmap',
         'loop_roadmap_item_moved' => ':name moved a Roadmap action forward',
+        'loop_journal_entry_created' => ':name wrote in the Journal',
     ],
 
     'organization' => 'Organization',

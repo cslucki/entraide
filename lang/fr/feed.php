@@ -21,6 +21,7 @@ return [
         'loop_dossier_files_uploaded' => ':name a déposé des fichiers dans la Boucle :object',
         'loop_roadmap_item_created' => ':name a ajouté une action à la Roadmap de la Boucle :object',
         'loop_roadmap_item_moved' => ':name a fait avancer une action de la Roadmap de la Boucle :object',
+        'loop_journal_entry_created' => ':name a écrit dans le Journal de la Boucle :object',
         'files_count' => '1 fichier|:count fichiers',
         // TASK-1809 (decision Cyril, 12/11) — REMPLACE l'arbitrage du 05/11
         // (« seul l'AIDANT est nomme, jamais Barnabe ») : « Si on nomme les
@@ -40,6 +41,7 @@ return [
         'loop_dossier_files_uploaded' => ':name a déposé des fichiers',
         'loop_roadmap_item_created' => ':name a ajouté une action à la Roadmap',
         'loop_roadmap_item_moved' => ':name a fait avancer une action de la Roadmap',
+        'loop_journal_entry_created' => ':name a écrit dans le Journal',
     ],
 
     'organization' => 'Organisation',
