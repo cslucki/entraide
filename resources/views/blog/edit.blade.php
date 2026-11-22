@@ -1988,26 +1988,50 @@
                     </div>
                 </template>
 
-                <div x-show="canManage()" class="border-t border-gray-100 dark:border-gray-700 pt-3">
-                    <div class="flex gap-2">
-                        <input type="text" x-model="userQuery" @input.debounce="searchUsers()" :placeholder="i18n.selectPlaceholder"
-                            class="flex-1 px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-indigo-500">
-                        <button type="button" @click="addCoAuthor()" :disabled="adding || !selectedUserId"
-                            class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition">
-                            <span x-text="i18n.add"></span>
-                        </button>
+                {{-- TASK-1884 (remarque Cyril : zone peu intuitive) — on dit QUI peut etre
+                     ajoute, un clic sur un nom l'ajoute, et chaque etat parle : recherche en
+                     cours, aucun resultat, deja co-auteur, auteur. --}}
+                @php
+                    $_bouclesCoEcriture = $post->linkedLoops()->pluck('name');
+                @endphp
+                <div x-show="canManage()" class="border-t border-gray-100 dark:border-gray-700 pt-3" data-coauthor-add>
+                    <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('blog.co_author_add_title') }}</p>
+                    <p class="mt-0.5 mb-2 text-xs text-gray-500 dark:text-gray-400" data-coauthor-scope>
+                        @if($_bouclesCoEcriture->isNotEmpty())
+                            {{ trans_choice('blog.co_author_scope_loop', $_bouclesCoEcriture->count(), ['loops' => $_bouclesCoEcriture->map(fn ($n) => '« '.$n.' »')->join(', ')]) }}
+                        @else
+                            {{ __('blog.co_author_scope_org') }}
+                        @endif
+                    </p>
+                    <div class="relative">
+                        <svg class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M17 11a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z"/></svg>
+                        <input type="search" x-model="userQuery" @input.debounce.300ms="searchUsers()" placeholder="{{ __('blog.co_author_search_placeholder') }}"
+                               aria-label="{{ __('blog.co_author_search_placeholder') }}" autocomplete="off"
+                               class="w-full rounded-lg border border-gray-300 bg-white py-2 pl-8 pr-3 text-sm text-gray-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                     </div>
-                    <div x-show="searchResults.length > 0" class="mt-1 rounded-lg border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 max-h-28 overflow-y-auto">
+
+                    <p x-show="userQuery.trim().length > 0 && userQuery.trim().length < 2" x-cloak class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('blog.co_author_type_more') }}</p>
+                    <p x-show="searching" x-cloak class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('blog.co_author_searching') }}</p>
+                    <p x-show="searched && !searching && searchResults.length === 0" x-cloak class="mt-2 text-xs text-gray-600 dark:text-gray-300" data-coauthor-no-match>
+                        {{ $_bouclesCoEcriture->isNotEmpty() ? __('blog.co_author_no_match_loop') : __('blog.co_author_no_match') }}
+                    </p>
+
+                    <ul x-show="searchResults.length > 0" x-cloak class="mt-2 max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
                         <template x-for="u in searchResults" :key="u.id">
-                            <button type="button" @click="selectUser(u)"
-                                class="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-                            >
-                                <img :src="u.avatar_url" :alt="u.name" class="w-5 h-5 rounded-full">
-                                <span x-text="u.name" class="text-gray-800 dark:text-gray-100"></span>
-                            </button>
+                            <li>
+                                <button type="button" @click="addUser(u)" :disabled="u.etat !== 'free' || adding"
+                                        class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition hover:bg-indigo-50 disabled:cursor-default disabled:hover:bg-transparent dark:hover:bg-indigo-900/20">
+                                    <img :src="u.avatar_url" alt="" class="h-7 w-7 shrink-0 rounded-full">
+                                    <span x-text="u.name" class="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-100"></span>
+                                    <span x-show="u.etat === 'free'" class="shrink-0 rounded-full bg-indigo-600 px-2.5 py-0.5 text-xs font-semibold text-white">{{ __('blog.co_author_add') }}</span>
+                                    <span x-show="u.etat === 'already'" class="shrink-0 text-xs text-gray-500 dark:text-gray-400">{{ __('blog.co_author_already_badge') }}</span>
+                                    <span x-show="u.etat === 'owner'" class="shrink-0 text-xs text-gray-500 dark:text-gray-400">{{ __('blog.co_author_owner_badge') }}</span>
+                                </button>
+                            </li>
                         </template>
-                    </div>
+                    </ul>
                 </div>
+                <p x-show="!canManage()" x-cloak class="border-t border-gray-100 pt-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400" data-coauthor-only-owner>{{ __('blog.co_author_only_owner_can_add') }}</p>
 
                 {{-- Invitation by email --}}
                 <div x-data="blogInviteByEmail({

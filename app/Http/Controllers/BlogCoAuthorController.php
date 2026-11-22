@@ -179,10 +179,17 @@ class BlogCoAuthorController extends Controller
         $users = User::assignable()
             ->where('organization_id', $post->organization_id)
             ->when($membres !== null, fn ($q) => $q->whereIn('id', $membres->select('user_id')))
+            // TASK-1884 (demande Cyril) — prenom ET nom, dans n'importe quel ordre,
+            // sans tenir compte de la casse : chaque mot tape doit se trouver dans
+            // le prenom, le nom ou l'email. « patricia petillion » trouve
+            // « Patricia Petillion » ; l'ancien `like` sur une seule colonne non.
             ->where(function ($q) use ($query) {
-                $q->where('name', 'like', "%{$query}%")
-                    ->orWhere('first_name', 'like', "%{$query}%")
-                    ->orWhere('email', 'like', "%{$query}%");
+                foreach (preg_split('/\s+/u', mb_strtolower(trim((string) $query)), -1, PREG_SPLIT_NO_EMPTY) as $mot) {
+                    $motif = '%'.addcslashes($mot, '%_\\').'%';
+                    $q->where(fn ($m) => $m->whereRaw('LOWER(first_name) LIKE ?', [$motif])
+                        ->orWhereRaw('LOWER(name) LIKE ?', [$motif])
+                        ->orWhereRaw('LOWER(email) LIKE ?', [$motif]));
+                }
             })
             ->limit(10)
             ->get(['id', 'name', 'first_name', 'email', 'avatar'])

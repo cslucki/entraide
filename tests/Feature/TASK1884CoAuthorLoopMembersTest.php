@@ -107,4 +107,34 @@ class TASK1884CoAuthorLoopMembersTest extends TestCase
         $this->assertTrue($this->post->coAuthors()->where('user_id', $this->membreBoucle->id)->exists());
         $this->assertTrue($this->membreBoucle->can('update', $this->post->fresh()));
     }
+
+    /** Demande Cyril : chercher sur le prenom et le nom, quel que soit l'ordre ou la casse. */
+    public function test_recherche_sur_prenom_et_nom_sans_casse(): void
+    {
+        $patricia = User::factory()->create(['organization_id' => $this->org->id, 'first_name' => 'Patricia', 'name' => 'Pétillion']);
+
+        $trouve = fn (string $q) => collect($this->actingAs($this->auteur)->getJson($this->route('search').'?q='.urlencode($q))->assertOk()->json('users'))
+            ->pluck('id')->map(fn ($id) => (string) $id)->all();
+
+        foreach (['patricia', 'PATRICIA pétillion', 'pétillion patricia', 'tric illi'] as $q) {
+            $this->assertContains((string) $patricia->id, $trouve($q), "Recherche « $q »");
+        }
+        $this->assertNotContains((string) $patricia->id, $trouve('patricia martin'));
+    }
+
+    /** Remarque Cyril : la zone d'ajout dit qui peut etre ajoute. */
+    public function test_l_editeur_annonce_le_perimetre_de_la_co_ecriture(): void
+    {
+        $edition = route('organization.blog.edit', ['organization' => $this->org->slug, 'post' => $this->post->slug]);
+
+        $this->actingAs($this->auteur)->get($edition)->assertOk()
+            ->assertSee('data-coauthor-add', false)
+            ->assertSee(__('blog.co_author_scope_org'), false);
+
+        $this->post->loops()->attach($this->boucle->id);
+        $this->actingAs($this->auteur)->get($edition)->assertOk()
+            ->assertSee('« '.$this->boucle->name.' »', false)
+            ->assertSee(__('blog.co_author_no_match_loop'), false)
+            ->assertSee('data-coauthor-only-owner', false);
+    }
 }
