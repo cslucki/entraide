@@ -427,7 +427,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
     Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->whereUuid('service');
     Route::get('/flux', OrganizationFeed::class)->name('flux');
-    Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
+    Route::get('/flux/creer', CreateFeedPost::class)->middleware('profile.complete')->name('flux.create');
     Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
     Route::get('/flux/modifier/{feedPost}', EditFeedPost::class)->name('flux.edit');
     Route::get('/flux/{feedPost}', ViewFeedPost::class)->name('flux.show')->whereUuid('feedPost');
@@ -692,14 +692,14 @@ Route::middleware('auth')->group(function () {
             ->name('events.agenda.respond');
         Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
         Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
-        Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+        Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->middleware('profile.complete')->name('loops.join');
         Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
         // Archivage par le proprietaire (TASK-1086). Distinct de loops.update :
         // celle-ci refuse une Boucle archivee, ce qui rendrait la reactivation
         // inaccessible a la seule personne censee pouvoir la demander.
         Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
         Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
-        Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+        Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware(['throttle:5,1', 'profile.complete'])->name('loops.join-requests.store');
         Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
         Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
         // Flat route (not nested under /loops/{loop}/...): a join request id is
@@ -1954,14 +1954,14 @@ Route::prefix('/org/{organization}')
                     ->name('events.agenda.respond');
                 Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
                 Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
-                Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+                Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->middleware('profile.complete')->name('loops.join');
                 Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
                 // Archivage par le proprietaire (TASK-1086). Distinct de loops.update :
                 // celle-ci refuse une Boucle archivee, ce qui rendrait la reactivation
                 // inaccessible a la seule personne censee pouvoir la demander.
                 Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
                 Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
-                Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+                Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware(['throttle:5,1', 'profile.complete'])->name('loops.join-requests.store');
                 // TASK-1680 — versions org-scopees d'accepter/refuser une
                 // demande : le panneau du cockpit admin (/admin/loops/{loop})
                 // doit porter l'Organization de la Boucle dans l'URL, la ou
@@ -2212,7 +2212,7 @@ Route::prefix('/org/{organization}')
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
-            Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
+            Route::get('/flux/creer', CreateFeedPost::class)->middleware('profile.complete')->name('flux.create');
             Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
             Route::get('/flux/modifier/{feedPost}', EditFeedPost::class)->name('flux.edit');
             Route::get('/flux/{feedPost}', ViewFeedPost::class)->name('flux.show')->whereUuid('feedPost');

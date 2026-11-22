@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Http\Middleware\EnsureProfileComplete;
 use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\User;
@@ -140,6 +141,14 @@ class CreateFeedPost extends Component
 
     public function submit(LoopMessageService $loopMessageService): void
     {
+        // TASK-1880 (demande Cyril, 22/11) — pas d'annonce sans presentation :
+        // une requete Livewire ne passe pas par la garde de route.
+        if (auth()->user() !== null && EnsureProfileComplete::estIncomplet(auth()->user())) {
+            $this->redirect($this->urlCreer());
+
+            return;
+        }
+
         $scheduledAtUtc = null;
 
         if ($this->mode === 'schedule' && $this->scheduledAt) {
@@ -291,6 +300,16 @@ class CreateFeedPost extends Component
         $this->redirectRoute($route, $parameters);
     }
 
+    /** TASK-1880 — /flux/creer, prefixee comme la page d'origine. */
+    private function urlCreer(): string
+    {
+        $org = $this->org();
+
+        return $org !== null && (! $org->is_default || $this->urlPrefixee)
+            ? route('organization.flux.create', ['organization' => $org->slug])
+            : route('flux.create');
+    }
+
     public function removeImage(): void
     {
         $this->image = null;
@@ -365,6 +384,10 @@ class CreateFeedPost extends Component
             )
             : null;
 
-        return view('livewire.create-feed-post', compact('loops', 'peutPublierATous', 'mentions'));
+        // TASK-1880 — presentation non faite : l'invite du Flux mene a la garde.
+        $presentationAFaire = $user !== null && EnsureProfileComplete::estIncomplet($user);
+        $urlCreer = $this->urlCreer();
+
+        return view('livewire.create-feed-post', compact('loops', 'peutPublierATous', 'mentions', 'presentationAFaire', 'urlCreer'));
     }
 }

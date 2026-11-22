@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsureProfileComplete;
 use App\Models\AiConfig;
 use App\Models\Category;
 use App\Models\Loop;
@@ -850,7 +851,7 @@ class LoopController extends Controller
         return route('loops.index', $query);
     }
 
-    public function show(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View
+    public function show(Loop|Organization|string $loopOrOrganization, ?Loop $loop = null): View|RedirectResponse
     {
         $loop = $this->resolveRouteLoop($loopOrOrganization, $loop);
         $organization = $this->resolveOrganization();
@@ -873,6 +874,12 @@ class LoopController extends Controller
             ->where('user_id', $user->id)
             ->where('status', 'active')
             ->exists();
+
+        // TASK-1880 (demande Cyril, 22/11) — un membre qui a rejoint la Boucle
+        // sans faire sa presentation (cas present en PROD) la fait d'abord.
+        if ($isMember && EnsureProfileComplete::estIncomplet($user)) {
+            return EnsureProfileComplete::redirection(request());
+        }
 
         // La Boucle primaire ouvre son workspace aux membres de SON
         // Organization sans membership. Le SuperAdmin hors tenant n'en herite

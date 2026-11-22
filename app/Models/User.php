@@ -706,9 +706,13 @@ class User extends Authenticatable implements MustVerifyEmail
             ], absolute: false);
         }
 
-        // Regular user → canonical home (loops for default org, org home for scoped org)
+        // TASK-1880 (demande Cyril, 22/11) — un membre arrive sur le Flux de son
+        // Organization (il arrivait sur ses Boucles). Administrateur
+        // d'Organization et superadmin gardent leur tableau de bord (arbitrage).
         if ($this->organization_id && $this->organization?->is_active) {
-            return canonicalHome($this->organization);
+            return $this->organization->is_default
+                ? route('flux', absolute: false)
+                : route('organization.flux', ['organization' => $this->organization->slug], absolute: false);
         }
 
         return '/dashboard';
