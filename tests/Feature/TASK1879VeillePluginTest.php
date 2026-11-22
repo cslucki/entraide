@@ -1027,7 +1027,7 @@ class TASK1879VeillePluginTest extends TestCase
 
         $html = $this->chat($this->membre)->html();
 
-        $this->assertMatchesRegularExpression('/id="loop-message-'.$carte->id.'"[^>]*class="relative max-w-md\b/', $html);
+        $this->assertMatchesRegularExpression('/id="loop-message-'.$carte->id.'"[^>]*class="relative max-w-md md:max-w-\[30\.8rem\]/', $html);
     }
 
     public function test_on_repond_a_une_carte_comme_a_un_message(): void
