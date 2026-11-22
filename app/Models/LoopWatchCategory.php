@@ -55,6 +55,17 @@ class LoopWatchCategory extends Model
         return $this->archived_at !== null;
     }
 
+    /**
+     * TASK-1879 (design) — la teinte STABLE d'une categorie, 0..5, derivee de
+     * son identifiant : la meme pastille dans la Card, ChatLoop et le Flux,
+     * sans colonne ni requete. La palette vit dans
+     * `components/veille/categorie.blade.php`.
+     */
+    public function teinte(): int
+    {
+        return crc32((string) $this->getKey()) % 6;
+    }
+
     /** @param  Builder<LoopWatchCategory>  $query */
     public function scopeActive(Builder $query): void
     {

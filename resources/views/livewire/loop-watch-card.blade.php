@@ -56,7 +56,8 @@
                 @if($canManageCategories)
                     <button type="button" wire:click="toggleCategories" data-action="toggle-categories"
                             aria-expanded="{{ $showCategories ? 'true' : 'false' }}"
-                            class="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
+                            class="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-medium transition {{ $showCategories ? 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-200' : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800' }}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z"/></svg>
                         {{ __('veille.categories_manage') }}
                     </button>
                 @endif
@@ -66,7 +67,7 @@
         {{-- ── Gestion des categories (proprietaire / animateur) ────────── --}}
         @if($canManageCategories && $showCategories && ! $showForm)
             <section class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" data-section="watch-categories">
-                <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('veille.categories_title') }}</h3>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('veille.categories_title') }}</h3>
                 <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('veille.categories_intro') }}</p>
 
                 <form wire:submit="createCategory" class="mt-3 flex gap-2">
@@ -97,9 +98,7 @@
                                         <button type="button" wire:click="cancelRename" class="min-h-[44px] rounded-xl border border-gray-300 px-3 text-sm text-gray-700 dark:border-gray-600 dark:text-gray-200">{{ __('veille.cancel') }}</button>
                                     </form>
                                 @else
-                                    <span class="min-w-0 flex-1 truncate text-sm {{ $categorie->isArchived() ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-gray-100' }}">
-                                        {{ $categorie->name }}
-                                    </span>
+                                    <x-veille.categorie :category="$categorie" class="flex-1 text-sm {{ $categorie->isArchived() ? 'line-through' : '' }}" />
                                     @if($categorie->isArchived())
                                         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ __('veille.category_archived_badge') }}</span>
                                     @else
@@ -203,17 +202,56 @@
             </form>
         @endif
 
-        {{-- ── Filtre ────────────────────────────────────────────────────── --}}
-        @if($categories->isNotEmpty() && ! $showForm)
-            <div>
-                <label for="watch-filter" class="sr-only">{{ __('veille.filter_label') }}</label>
-                <select id="watch-filter" wire:model.live="filterCategory" data-watch-filter
-                        class="block min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                    <option value="">{{ __('veille.filter_all') }}</option>
-                    @foreach($categories as $categorie)
-                        <option value="{{ $categorie->id }}">{{ $categorie->name }}</option>
-                    @endforeach
-                </select>
+        {{-- ── Barre : filtre des categories + export, sur UNE ligne ─────────
+             (anti-infobesite : une ligne de moins). L'export suit le filtre. --}}
+        @php $orgSlug = currentOrganization()?->slug; @endphp
+        @if(! $showForm && ($categories->isNotEmpty() || ($items->isNotEmpty() && $orgSlug)))
+            <div class="flex items-center gap-2">
+                @if($categories->isNotEmpty())
+                    <div class="min-w-0 flex-1">
+                        <label for="watch-filter" class="sr-only">{{ __('veille.filter_label') }}</label>
+                        <select id="watch-filter" wire:model.live="filterCategory" data-watch-filter
+                                class="block min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                            <option value="">{{ __('veille.filter_all') }}</option>
+                            @foreach($categories as $categorie)
+                                <option value="{{ $categorie->id }}">{{ $categorie->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @else
+                    <span class="flex-1"></span>
+                @endif
+
+                {{-- Export (demande Cyril) : icones seules, intitule en
+                     `title` / `aria-label`. --}}
+                @if($items->isNotEmpty() && $orgSlug)
+                    @php
+                        $exportParams = fn (string $format) => array_filter([
+                            'organization' => $orgSlug,
+                            // `$this->loop` : `$loop` est la variable des @foreach de Blade.
+                            'loop' => $this->loop->id,
+                            'format' => $format,
+                            'categorie' => $filterCategory !== '' ? $filterCategory : null,
+                        ]);
+                    @endphp
+                    <div class="flex shrink-0 items-center" data-section="watch-export">
+                        @foreach([
+                            ['format' => 'imprimer', 'cle' => 'pdf', 'badge' => 'PDF', 'couleur' => 'text-rose-600 dark:text-rose-400', 'nouvelOnglet' => true],
+                            ['format' => 'csv', 'cle' => 'csv', 'badge' => 'CSV', 'couleur' => 'text-gray-600 dark:text-gray-300', 'nouvelOnglet' => false],
+                            ['format' => 'xlsx', 'cle' => 'xlsx', 'badge' => 'XLS', 'couleur' => 'text-emerald-600 dark:text-emerald-400', 'nouvelOnglet' => false],
+                        ] as $export)
+                            <a href="{{ route('organization.loops.watch.export', $exportParams($export['format'])) }}"
+                               @if($export['nouvelOnglet']) target="_blank" rel="noopener" @endif
+                               data-export="{{ $export['cle'] }}"
+                               aria-label="{{ __('veille.export_'.$export['cle'].'_title') }}"
+                               title="{{ __('veille.export_'.$export['cle'].'_title') }}"
+                               class="inline-flex h-11 w-11 flex-col items-center justify-center rounded-xl {{ $export['couleur'] }} transition hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500 dark:hover:bg-gray-800">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                                <span class="mt-0.5 text-[9px] font-bold leading-none" aria-hidden="true">{{ $export['badge'] }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         @endif
 
@@ -225,100 +263,110 @@
         @if($canCreate && ! $canManageCategories && ! $showForm)
             <button type="button" data-action="suggest-watch-category"
                     x-on:click="$dispatch('bp-close-loop-card-mobile'); Livewire.dispatch('veille-suggerer-categorie')"
-                    class="inline-flex min-h-[44px] items-center gap-1.5 self-start text-xs font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-300">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    class="-mt-1 inline-flex min-h-[44px] items-center gap-1.5 self-start text-xs font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-300">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 {{ __('veille.suggest_category_link') }}
             </button>
         @endif
 
-        {{-- ── Export (TASK-1879, demande Cyril) : suit le filtre courant ──── --}}
-        @if($items->isNotEmpty() && ! $showForm && ($orgSlug = currentOrganization()?->slug))
-            @php
-                $exportParams = fn (string $format) => array_filter([
-                    'organization' => $orgSlug,
-                    // `$this->loop` : `$loop` est la variable des @foreach de Blade.
-                    'loop' => $this->loop->id,
-                    'format' => $format,
-                    'categorie' => $filterCategory !== '' ? $filterCategory : null,
-                ]);
-            @endphp
-            {{-- Icones seules (demande Cyril) : le format se lit sur l'icone,
-                 l'intitule complet reste en `title` / `aria-label`. --}}
-            <div class="flex items-center justify-end gap-1" data-section="watch-export">
-                @foreach([
-                    ['format' => 'imprimer', 'cle' => 'pdf', 'badge' => 'PDF', 'couleur' => 'text-rose-600 dark:text-rose-400', 'nouvelOnglet' => true],
-                    ['format' => 'csv', 'cle' => 'csv', 'badge' => 'CSV', 'couleur' => 'text-gray-600 dark:text-gray-300', 'nouvelOnglet' => false],
-                    ['format' => 'xlsx', 'cle' => 'xlsx', 'badge' => 'XLS', 'couleur' => 'text-emerald-600 dark:text-emerald-400', 'nouvelOnglet' => false],
-                ] as $export)
-                    <a href="{{ route('organization.loops.watch.export', $exportParams($export['format'])) }}"
-                       @if($export['nouvelOnglet']) target="_blank" rel="noopener" @endif
-                       data-export="{{ $export['cle'] }}"
-                       aria-label="{{ __('veille.export_'.$export['cle'].'_title') }}"
-                       title="{{ __('veille.export_'.$export['cle'].'_title') }}"
-                       class="inline-flex h-11 w-11 flex-col items-center justify-center rounded-xl {{ $export['couleur'] }} transition hover:bg-gray-100 dark:hover:bg-gray-800">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
-                        <span class="mt-0.5 text-[9px] font-bold leading-none tracking-wide" aria-hidden="true">{{ $export['badge'] }}</span>
-                    </a>
-                @endforeach
-            </div>
-        @endif
-
-        {{-- ── Liste ─────────────────────────────────────────────────────── --}}
+        {{-- ── Liste ─────────────────────────────────────────────────────────
+             Chaque veille repond a deux questions : qu'a-t-on repere, et
+             qu'est-ce que ca change pour la Boucle. L'IMPACT est donc le bloc
+             mis en relief ; l'information se replie a 3 lignes (anti-
+             infobesite), la date sert de repere chronologique a gauche. --}}
         @if($items->isEmpty())
-            <div class="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-center dark:border-gray-700" data-watch-empty>
-                <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.cards.veille.empty_title') }}</p>
-                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('loops.cards.veille.empty_body') }}</p>
+            <div class="flex flex-col items-center rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-center dark:border-gray-700" data-watch-empty>
+                <span class="flex h-11 w-11 items-center justify-center rounded-full bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300" aria-hidden="true">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+                </span>
+                <p class="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('loops.cards.veille.empty_title') }}</p>
+                <p class="mt-1 max-w-xs text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('loops.cards.veille.empty_body') }}</p>
             </div>
         @else
-            <ul class="space-y-3">
+            <ul class="space-y-2.5">
                 @foreach($items as $ligne)
-                    @php $veille = $ligne['item']; @endphp
-                    <li class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
+                    @php
+                        $veille = $ligne['item'];
+                        $longue = mb_strlen((string) $veille->information) > 220 || substr_count((string) $veille->information, "\n") >= 3;
+                        $memeAnnee = $veille->observed_on->isSameYear(now());
+                    @endphp
+                    <li class="flex gap-3 rounded-2xl border border-gray-200 bg-white p-3 sm:p-4 dark:border-gray-800 dark:bg-gray-900"
                         data-watch-item="{{ $veille->id }}" wire:key="watch-item-{{ $veille->id }}">
-                        <div class="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                            <time datetime="{{ $veille->observed_on->format('Y-m-d') }}" class="font-semibold text-gray-700 dark:text-gray-200">
-                                {{ $veille->observed_on->isoFormat('D MMM YYYY') }}
-                            </time>
-                            @if($veille->category)
-                                <span class="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">{{ $veille->category->name }}</span>
+
+                        {{-- Repere de date : le jour d'abord, lisible d'un coup d'oeil. --}}
+                        <time datetime="{{ $veille->observed_on->format('Y-m-d') }}"
+                              class="flex h-12 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-gray-50 text-center dark:bg-gray-800/70"
+                              title="{{ $veille->observed_on->isoFormat('LL') }}">
+                            <span class="text-lg font-bold leading-none tabular-nums text-gray-900 dark:text-gray-100">{{ $veille->observed_on->format('j') }}</span>
+                            <span class="mt-0.5 text-[10px] leading-none text-gray-500 dark:text-gray-400">{{ $veille->observed_on->isoFormat($memeAnnee ? 'MMM' : 'MMM YY') }}</span>
+                        </time>
+
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 text-xs">
+                                <x-veille.categorie :category="$veille->category" />
+                                <span class="ml-auto shrink-0 truncate text-gray-400 dark:text-gray-500">{{ $veille->author?->name ?? __('veille.author_unknown') }}</span>
+                            </div>
+
+                            @if(filled($veille->subject))
+                                <h4 class="mt-1 break-words text-[15px] font-semibold leading-snug text-gray-900 dark:text-gray-50" data-watch-subject>{{ $veille->subject }}</h4>
                             @endif
-                            <span class="ml-auto truncate">{{ $veille->author?->name ?? __('veille.author_unknown') }}</span>
-                        </div>
 
-                        @if(filled($veille->subject))
-                            <p class="mt-2 break-words text-sm font-semibold text-gray-900 dark:text-gray-100" data-watch-subject>{{ $veille->subject }}</p>
-                        @endif
-                        <p class="mt-1 whitespace-pre-line break-words text-sm text-gray-800 dark:text-gray-200">{{ $veille->information }}</p>
-
-                        <div class="mt-2 rounded-xl bg-sky-50/70 px-3 py-2 dark:bg-sky-900/20">
-                            <p class="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">{{ __('veille.field_impact') }}</p>
-                            <p class="mt-0.5 whitespace-pre-line break-words text-sm text-gray-800 dark:text-gray-200">{{ $veille->impact }}</p>
-                        </div>
-
-                        @if(\App\Services\Loops\LoopWatchService::isSafeUrl($veille->source_url))
-                            <a href="{{ $veille->source_url }}" target="_blank" rel="noopener noreferrer nofollow"
-                               class="mt-2 inline-flex min-h-[44px] max-w-full items-center gap-1 break-all text-xs font-medium text-sky-700 hover:underline dark:text-sky-300">
-                                {{ __('veille.source_link') }} — {{ parse_url($veille->source_url, PHP_URL_HOST) }}
-                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
-                            </a>
-                        @endif
-
-                        @if($ligne['can_manage'] && ! $showForm)
-                            <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-2 dark:border-gray-800">
-                                @if($confirmingDeleteId === $veille->id)
-                                    <span class="text-xs text-gray-600 dark:text-gray-300">{{ __('veille.delete_confirm') }}</span>
-                                    <button type="button" wire:click="delete('{{ $veille->id }}')"
-                                            class="min-h-[44px] rounded-xl bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700">{{ __('veille.delete') }}</button>
-                                    <button type="button" wire:click="cancelDelete"
-                                            class="min-h-[44px] rounded-xl border border-gray-300 px-3 text-xs text-gray-700 dark:border-gray-600 dark:text-gray-200">{{ __('veille.cancel') }}</button>
-                                @else
-                                    <button type="button" wire:click="openEditForm('{{ $veille->id }}')" data-action="edit-watch"
-                                            class="min-h-[44px] rounded-xl px-3 text-xs font-medium text-sky-700 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-900/30">{{ __('veille.edit') }}</button>
-                                    <button type="button" wire:click="confirmDelete('{{ $veille->id }}')" data-action="delete-watch"
-                                            class="min-h-[44px] rounded-xl px-3 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">{{ __('veille.delete') }}</button>
+                            <div x-data="{ ouvert: false }" class="mt-1">
+                                <p class="whitespace-pre-line break-words text-sm leading-6 text-gray-600 dark:text-gray-300"
+                                   @if($longue) x-bind:class="ouvert ? '' : 'line-clamp-3'" @endif>{{ $veille->information }}</p>
+                                @if($longue)
+                                    <button type="button" x-on:click="ouvert = ! ouvert" x-bind:aria-expanded="ouvert"
+                                            class="mt-0.5 min-h-[32px] text-xs font-medium text-sky-700 hover:underline dark:text-sky-300">
+                                        <span x-show="! ouvert">{{ __('veille.read_more') }}</span>
+                                        <span x-show="ouvert" x-cloak>{{ __('veille.read_less') }}</span>
+                                    </button>
                                 @endif
                             </div>
-                        @endif
+
+                            {{-- L'impact : le bloc qui compte, mis en relief. --}}
+                            <div class="mt-2.5 rounded-r-xl border-l-[3px] border-sky-500 bg-sky-50/80 py-2 pl-3 pr-3 dark:border-sky-400 dark:bg-sky-950/40" data-watch-impact>
+                                <p class="flex items-center gap-1 text-xs font-semibold text-sky-800 dark:text-sky-200">
+                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.49 12 3.75 3.75m0 0-3.75 3.75m3.75-3.75H3.74V4.499"/></svg>
+                                    {{ __('veille.impact_heading') }}
+                                </p>
+                                <p class="mt-0.5 whitespace-pre-line break-words text-sm leading-6 text-gray-800 dark:text-gray-100">{{ $veille->impact }}</p>
+                            </div>
+
+                            <div class="mt-1.5 flex flex-wrap items-center gap-x-2">
+                                @if(\App\Services\Loops\LoopWatchService::isSafeUrl($veille->source_url))
+                                    <a href="{{ $veille->source_url }}" target="_blank" rel="noopener noreferrer nofollow"
+                                       title="{{ $veille->source_url }}"
+                                       class="inline-flex min-h-[44px] min-w-0 max-w-full items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-sky-700 hover:underline dark:text-gray-400 dark:hover:text-sky-300">
+                                        <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
+                                        <span class="sr-only">{{ __('veille.source_link') }} :</span>
+                                        <span class="truncate">{{ parse_url($veille->source_url, PHP_URL_HOST) }}</span>
+                                    </a>
+                                @endif
+
+                                @if($ligne['can_manage'] && ! $showForm)
+                                    <div class="ml-auto flex items-center gap-1">
+                                        @if($confirmingDeleteId === $veille->id)
+                                            <span class="text-xs text-gray-600 dark:text-gray-300">{{ __('veille.delete_confirm') }}</span>
+                                            <button type="button" wire:click="delete('{{ $veille->id }}')"
+                                                    class="min-h-[44px] rounded-xl bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700">{{ __('veille.delete') }}</button>
+                                            <button type="button" wire:click="cancelDelete"
+                                                    class="min-h-[44px] rounded-xl px-3 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">{{ __('veille.cancel') }}</button>
+                                        @else
+                                            <button type="button" wire:click="openEditForm('{{ $veille->id }}')" data-action="edit-watch"
+                                                    aria-label="{{ __('veille.edit') }}" title="{{ __('veille.edit') }}"
+                                                    class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-sky-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-sky-300">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"/></svg>
+                                            </button>
+                                            <button type="button" wire:click="confirmDelete('{{ $veille->id }}')" data-action="delete-watch"
+                                                    aria-label="{{ __('veille.delete') }}" title="{{ __('veille.delete') }}"
+                                                    class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+                                            </button>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
                     </li>
                 @endforeach
             </ul>

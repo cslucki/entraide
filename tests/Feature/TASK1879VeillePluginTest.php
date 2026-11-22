@@ -989,6 +989,20 @@ class TASK1879VeillePluginTest extends TestCase
             ->assertSet('body', '');
     }
 
+    public function test_le_design_met_l_impact_en_relief_et_replie_un_long_texte(): void
+    {
+        $this->activer();
+        $this->publier($this->membre, ['information' => 'Court']);
+        $this->publier($this->membre, ['information' => str_repeat('Une information longue. ', 20)]);
+
+        Livewire::actingAs($this->membre)->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertSee('data-watch-impact', false)
+            ->assertSee(__('veille.impact_heading'))
+            ->assertSee('data-watch-category-chip', false)
+            ->assertSeeHtmlInOrder(['line-clamp-3'])
+            ->assertSee(__('veille.read_more'));
+    }
+
     // ── Export ──────────────────────────────────────────────────────────────
 
     private function urlExport(string $format, array $extra = []): string

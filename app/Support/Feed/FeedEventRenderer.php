@@ -322,6 +322,11 @@ final class FeedEventRenderer
             return [
                 'url' => self::lien($post, $organizationSlug),
                 'image' => null,
+                // TASK-1879 (design) — l'oeil de la Card Veille, en sky, et la
+                // pastille de categorie (meme teinte que dans la Card).
+                'icone' => 'M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+                'teinte' => 'sky',
+                'categorie' => $objet->category,
                 'ronde' => false,
                 'titre' => filled($objet->subject) ? (string) $objet->subject : $objet->category?->name,
                 'texte' => \Illuminate\Support\Str::limit(trim((string) $objet->information), 160),
