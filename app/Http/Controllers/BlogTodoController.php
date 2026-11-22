@@ -261,9 +261,22 @@ class BlogTodoController extends Controller
         return $organization;
     }
 
+    /**
+     * « Pilote » de l'article : son auteur, ou — TASK-1884 #3 — le proprietaire
+     * ou un animateur d'une Boucle liee, qui gerent les taches comme l'auteur.
+     * Memoise par requete : la policy lit les Boucles liees.
+     *
+     * @var array<string, bool>
+     */
+    private array $pilotes = [];
+
     private function isAuthor(BlogPost $post, User $user): bool
     {
-        return $post->user_id === $user->id;
+        if ($post->user_id === $user->id) {
+            return true;
+        }
+
+        return $this->pilotes[$post->id.':'.$user->id] ??= app(\App\Policies\BlogPostPolicy::class)->canEditAsLoopLead($user, $post);
     }
 
     private function isAssigned(BlogTodo $todo, User $user): bool

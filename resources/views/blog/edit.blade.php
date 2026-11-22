@@ -738,6 +738,12 @@
                 <x-editor-panel name="todo" :title="__('blog.sidebar_todo')" width="max-w-2xl">
 
                 {{-- Todo card --}}
+                @php
+                    // TASK-1884 #3 — attribuer une tache : l'auteur, ou le proprietaire /
+                    // un animateur d'une Boucle liee (meme regle que BlogTodoController).
+                    $_piloteTaches = auth()->id() === $post->user_id
+                        || app(\App\Policies\BlogPostPolicy::class)->canEditAsLoopLead(auth()->user(), $post);
+                @endphp
                 <div
                     x-data="blogTodoCard({
                         indexUrl: @js($_blogRoute('todos.index', ['post' => $post])),
@@ -823,7 +829,7 @@
                             ></button>
                         </div>
                         {{-- Assignee picker --}}
-                        <div x-show="currentUserId === authorUserId" class="flex gap-1.5 items-center">
+                        <div x-show="{{ $_piloteTaches ? 'true' : 'false' }}" data-todo-assign-picker class="flex gap-1.5 items-center">
                             <span class="text-[9px] text-gray-400 shrink-0">{{ __('blog.todo_assign') }}</span>
                             <select x-model="newAssignee"
                                 class="flex-1 text-[10px] border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-0.5 px-1"

@@ -39,7 +39,22 @@ class BlogPostPolicy
             return true;
         }
 
-        return $this->canUpdateAsLoopRootDocument($user, $post);
+        return $this->canUpdateAsLoopRootDocument($user, $post)
+            || $this->canEditAsLoopLead($user, $post);
+    }
+
+    /**
+     * TASK-1884 #3 (demande Cyril, 22/11) — proprietaire et animateurs d'une
+     * Boucle liee a l'article (pivot `blog_post_loop` ou Dossier) le modifient
+     * comme son auteur, via `writing.edit_any` : `LoopPermissionResolver` reste
+     * la seule autorite (Boucle archivee = refus, role du simple membre = refus).
+     */
+    public function canEditAsLoopLead(User $user, BlogPost $post): bool
+    {
+        $resolver = app(LoopPermissionResolver::class);
+
+        return $post->linkedLoops()
+            ->contains(fn (Loop $loop) => $resolver->can($user, $loop, 'writing.edit_any'));
     }
 
     /**
