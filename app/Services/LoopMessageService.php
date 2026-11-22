@@ -14,6 +14,8 @@ use App\Models\LoopRoadmapItem;
 use App\Models\LoopWatchItem;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmitter;
 use App\Support\Notifications\NotificationPreferenceResolver;
@@ -440,6 +442,7 @@ class LoopMessageService
             // TASK-1879 — seule la CREATION notifie (jamais la cloture).
             if ($event === 'created') {
                 $this->notifierLaBoucle(NotificationCatalogue::LOOP_POLL_CREATED, $loop, $sender, $message);
+                $this->publierDansLeFlux(FeedEventCatalogue::SONDAGE_PUBLIE, $poll, $sender, $loop);
             }
 
             event(new LoopMessageCreated($message));
@@ -729,6 +732,7 @@ class LoopMessageService
 
             // TASK-1879 — UNE notification par depot, quel que soit le nombre de fichiers.
             $this->notifierLaBoucle(NotificationCatalogue::LOOP_DOSSIER_FILE_UPLOADED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::FICHIERS_DEPOSES, $message, $sender, $loop);
 
             event(new LoopMessageCreated($message));
 
@@ -788,6 +792,7 @@ class LoopMessageService
 
             // TASK-1879 — une seule fois par Article et par Boucle (dedoublonne plus haut).
             $this->notifierLaBoucle(NotificationCatalogue::LOOP_ARTICLE_PUBLISHED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::ARTICLE_PUBLIE, $post, $sender, $loop);
 
             event(new LoopMessageCreated($message));
 
@@ -916,6 +921,19 @@ class LoopMessageService
      * BOUCLE respectee (`loopScopeFor()`). Canaux demandes : in-app et Web Push
      * SEULEMENT — l'e-mail n'est ni demande ni declare au catalogue.
      */
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — le meme fait, une ligne dans le Flux
+     * (audience `loop`). Comme pour la Veille : un echec du Flux ne casse
+     * jamais l'annonce (`rescue`, et l'emetteur pose son propre point de
+     * sauvegarde), et une seconde emission rend la ligne existante.
+     */
+    private function publierDansLeFlux(string $type, mixed $objet, User $auteur, Loop $loop): void
+    {
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            $type, $objet, $auteur, (string) $loop->organization_id, $loop,
+        ), report: true);
+    }
+
     private function notifierLaBoucle(string $cle, Loop $loop, User $auteur, LoopMessage $message): void
     {
         $destinataires = User::query()

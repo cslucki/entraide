@@ -12,6 +12,10 @@ return [
         'loop_created' => ':name created the :object Loop',
         'loop_event_created' => ':name created the event :object',
         'loop_watch_item_created' => ':name shared a watch item in the Loop :object',
+        'loop_poll_created' => ':name posted a poll in the Loop :object',
+        'loop_article_published' => ':name published an article in the Loop :object',
+        'loop_dossier_files_uploaded' => ':name uploaded files in the Loop :object',
+        'files_count' => '1 file|:count files',
         // TASK-1809 (Cyril's decision, 12/11) — REPLACES the 05/11
         // arbitrage (only the helper was named): a trust-based platform
         // names both. The listing by its TITLE (:object) — BouclePro is a

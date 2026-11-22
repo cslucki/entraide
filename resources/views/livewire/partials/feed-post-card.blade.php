@@ -129,7 +129,13 @@
                              icone inventee pour le meme concept. --}}
                         {{-- TASK-1879 — `teinte` optionnelle (la Veille est sky) ;
                              par defaut, l'indigo de l'Entraide. --}}
-                        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl {{ ($_apercu['teinte'] ?? null) === 'sky' ? 'bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300' }}">
+                        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl {{ match ($_apercu['teinte'] ?? null) {
+                            'sky' => 'bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300',
+                            'violet' => 'bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300',
+                            'rose' => 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300',
+                            'emerald' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
+                            default => 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300',
+                        } }}">
                             <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="{{ $_apercu['icone'] }}" />
                             </svg>

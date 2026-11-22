@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\BlogPost;
 use App\Models\Dossier;
 use App\Models\DossierFile;
+use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopNotificationPreference;
@@ -13,6 +14,8 @@ use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\LoopMessageService;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventRenderer;
 use App\Support\Notifications\NotificationCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -147,6 +150,60 @@ class TASK1879NotificationsCollectivesBoucleTest extends TestCase
         $this->assertSame(0, $this->notifications(NotificationCatalogue::LOOP_POLL_CREATED)->count());
         Mail::assertNothingSent();
         Mail::assertNothingQueued();
+    }
+
+    public function test_sondage_article_et_depot_apparaissent_dans_le_flux_de_la_boucle(): void
+    {
+        $sondage = LoopPoll::create([
+            'loop_id' => $this->loop->id,
+            'organization_id' => $this->organization->id,
+            'created_by' => $this->auteur->id,
+            'question' => 'Bruit le soir ?',
+            'status' => 'open',
+        ]);
+        $sondage->options()->create(['label' => 'Oui', 'position' => 1]);
+        $sondage->options()->create(['label' => 'Non', 'position' => 2]);
+        $this->service()->sendPollEventMessage($this->loop, $this->auteur, $sondage, 'created');
+        $this->service()->sendPollEventMessage($this->loop, $this->auteur, $sondage, 'closed');
+
+        $article = BlogPost::create([
+            'organization_id' => $this->organization->id,
+            'user_id' => $this->auteur->id,
+            'title' => 'Article du Flux',
+            'content' => '<p>Un <strong>contenu</strong> riche.</p>',
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+        $this->service()->sendArticlePublishedMessage($this->loop, $this->auteur, $article);
+
+        $dossier = Dossier::factory()->create(['organization_id' => $this->organization->id, 'owner_id' => null, 'loop_id' => $this->loop->id]);
+        $fichiers = DossierFile::factory()->count(2)->create(['organization_id' => $this->organization->id, 'dossier_id' => $dossier->id, 'uploaded_by' => $this->auteur->id]);
+        $depot = $this->service()->sendDossierFileMessage($this->loop, $this->auteur, $fichiers);
+
+        foreach ([
+            FeedEventCatalogue::SONDAGE_PUBLIE => [$sondage->id, 'violet', 'Bruit le soir ?', 'Oui / Non'],
+            FeedEventCatalogue::ARTICLE_PUBLIE => [$article->id, 'rose', 'Article du Flux', 'Un contenu riche.'],
+            FeedEventCatalogue::FICHIERS_DEPOSES => [$depot->id, 'emerald', '2 fichiers', $fichiers->map->nomLisible()->implode(', ')],
+        ] as $type => [$objetId, $teinte, $titre, $texte]) {
+            $lignes = FeedPost::query()->where('type', $type)->get();
+            $this->assertCount(1, $lignes, "{$type} : une seule ligne (la cloture d'un sondage n'en ajoute pas)");
+            $ligne = $lignes->first();
+            $this->assertSame((string) $objetId, (string) $ligne->object_id);
+            $this->assertSame(FeedEventCatalogue::VISIBILITE_BOUCLE, $ligne->visibility, "{$type} : membres de la Boucle seulement");
+            $this->assertSame($this->loop->id, $ligne->loop_id);
+
+            $apercu = FeedEventRenderer::apercu($ligne, (string) $this->organization->slug);
+            $this->assertNotNull($apercu, $type);
+            $this->assertSame($teinte, $apercu['teinte']);
+            $this->assertSame($titre, $apercu['titre']);
+            $this->assertSame($texte, $apercu['texte']);
+            $this->assertNotNull($apercu['url'], "{$type} : la carte mene quelque part");
+            $this->assertStringContainsString((string) $this->loop->name, (string) FeedEventRenderer::ligneHtml($ligne, (string) $this->organization->slug));
+        }
+
+        // Un ancien membre (retire) ne voit pas ces lignes ; un membre actif, si.
+        $this->assertSame(0, FeedPost::query()->visibleTo($this->parti)->whereIn('type', [FeedEventCatalogue::SONDAGE_PUBLIE, FeedEventCatalogue::ARTICLE_PUBLIE, FeedEventCatalogue::FICHIERS_DEPOSES])->count());
+        $this->assertSame(3, FeedPost::query()->visibleTo($this->membre)->whereIn('type', [FeedEventCatalogue::SONDAGE_PUBLIE, FeedEventCatalogue::ARTICLE_PUBLIE, FeedEventCatalogue::FICHIERS_DEPOSES])->count());
     }
 
     // ── Outils ──────────────────────────────────────────────────────────────

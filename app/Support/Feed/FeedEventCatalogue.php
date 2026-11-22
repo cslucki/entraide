@@ -2,9 +2,12 @@
 
 namespace App\Support\Feed;
 
+use App\Models\BlogPost;
 use App\Models\Loop;
 use App\Models\LoopEvent;
 use App\Models\LoopMember;
+use App\Models\LoopMessage;
+use App\Models\LoopPoll;
 use App\Models\LoopWatchItem;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -68,6 +71,22 @@ final class FeedEventCatalogue
      * dans la Boucle, la ligne de Flux ne le fait pas sortir.
      */
     public const VEILLE_PUBLIEE = 'event.loop_watch_item_created';
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — meme logique que la Veille pour trois
+     * faits de Boucle : un Sondage pose, un Article publie DANS la Boucle, un
+     * depot de fichiers dans Dossiers. Audience TOUJOURS `loop` (membres).
+     *
+     * Le depot a pour objet l'ANNONCE ChatLoop (`LoopMessage` de type
+     * `dossier_file`) : un depot = N fichiers, un seul fait, et l'annonce
+     * porte deja noms et nombre. Un Article partage dans DEUX Boucles ne
+     * produit qu'une ligne (cle d'unicite = type + objet) : la premiere.
+     */
+    public const SONDAGE_PUBLIE = 'event.loop_poll_created';
+
+    public const ARTICLE_PUBLIE = 'event.loop_article_published';
+
+    public const FICHIERS_DEPOSES = 'event.loop_dossier_files_uploaded';
 
     /**
      * TASK-1757 §9.5, puis TASK-1809 §2 — une entraide terminee.
@@ -144,6 +163,21 @@ final class FeedEventCatalogue
                 'object' => LoopWatchItem::class,
                 'visibilite' => self::VISIBILITE_BOUCLE,
                 'libelle' => 'feed.events.loop_watch_item_created',
+            ],
+            self::SONDAGE_PUBLIE => [
+                'object' => LoopPoll::class,
+                'visibilite' => self::VISIBILITE_BOUCLE,
+                'libelle' => 'feed.events.loop_poll_created',
+            ],
+            self::ARTICLE_PUBLIE => [
+                'object' => BlogPost::class,
+                'visibilite' => self::VISIBILITE_BOUCLE,
+                'libelle' => 'feed.events.loop_article_published',
+            ],
+            self::FICHIERS_DEPOSES => [
+                'object' => LoopMessage::class,
+                'visibilite' => self::VISIBILITE_BOUCLE,
+                'libelle' => 'feed.events.loop_dossier_files_uploaded',
             ],
             self::ENTRAIDE_TERMINEE => [
                 'object' => Transaction::class,

@@ -2,10 +2,13 @@
 
 namespace App\Support\Feed;
 
+use App\Models\BlogPost;
 use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopEvent;
 use App\Models\LoopMember;
+use App\Models\LoopMessage;
+use App\Models\LoopPoll;
 use App\Models\LoopWatchItem;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -194,6 +197,13 @@ final class FeedEventRenderer
                 'organization' => $organizationSlug,
                 'loop' => $objet->slug ?: $objet->getKey(),
             ]),
+            // TASK-1879 — Sondage et depot de fichiers menent a LEUR Boucle ;
+            // l'Article a sa page (route org, comme la carte ChatLoop).
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage => self::lienDeBoucle($objet->loop_id, $organizationSlug),
+            $objet instanceof BlogPost => self::route('organization.blog.show', [
+                'organization' => $organizationSlug,
+                'post' => $objet->slug,
+            ]),
             // TASK-1879 — une veille mene a SA Boucle (la Card s'y ouvre).
             $objet instanceof LoopWatchItem => (fn () => (($b = Loop::withoutGlobalScopes()->find($objet->loop_id)) === null) ? null : self::route('organization.loops.show', [
                 'organization' => $organizationSlug,
@@ -217,6 +227,17 @@ final class FeedEventRenderer
             ]),
             default => null,
         };
+    }
+
+    /** TASK-1879 — la page d'une Boucle, lue sans scopes (comme `objet()`). */
+    private static function lienDeBoucle(?string $loopId, string $organizationSlug): ?string
+    {
+        $boucle = $loopId !== null ? Loop::withoutGlobalScopes()->find($loopId) : null;
+
+        return $boucle === null ? null : self::route('organization.loops.show', [
+            'organization' => $organizationSlug,
+            'loop' => $boucle->slug ?: $boucle->getKey(),
+        ]);
     }
 
     private static function route(string $nom, array $parametres): ?string
@@ -333,6 +354,61 @@ final class FeedEventRenderer
             ];
         }
 
+        // TASK-1879 (demande Cyril, 22/11) — Sondage, Article, depot : une carte
+        // dans la teinte de leur annonce ChatLoop (violet, rose, emeraude).
+        if ($objet instanceof LoopPoll) {
+            if (Loop::withoutGlobalScopes()->find($objet->loop_id) === null) {
+                return null;
+            }
+
+            $options = $objet->options()->orderBy('position')->limit(4)->pluck('label');
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z',
+                'teinte' => 'violet',
+                'ronde' => false,
+                'titre' => (string) $objet->question,
+                'texte' => $options->isEmpty() ? null : \Illuminate\Support\Str::limit($options->implode(' / '), 160),
+            ];
+        }
+
+        if ($objet instanceof BlogPost) {
+            if ($objet->status !== 'published') {
+                return null;
+            }
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => $objet->image_url,
+                'icone' => 'M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z',
+                'teinte' => 'rose',
+                'ronde' => false,
+                'titre' => (string) $objet->title,
+                'texte' => \Illuminate\Support\Str::limit(trim(html_entity_decode(strip_tags((string) $objet->content))), 160),
+            ];
+        }
+
+        if ($objet instanceof LoopMessage) {
+            $noms = array_values(array_filter((array) ($objet->metadata['files'] ?? []), 'is_string'));
+            $nombre = (int) ($objet->metadata['count'] ?? count($noms));
+
+            if ($objet->type !== 'dossier_file' || $nombre < 1 || Loop::withoutGlobalScopes()->find($objet->loop_id) === null) {
+                return null;
+            }
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => 'M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z',
+                'teinte' => 'emerald',
+                'ronde' => false,
+                'titre' => $nombre === 1 && $noms !== [] ? $noms[0] : trans_choice('feed.events.files_count', $nombre, ['count' => $nombre]),
+                'texte' => $nombre === 1 ? null : \Illuminate\Support\Str::limit(implode(', ', $noms), 160),
+            ];
+        }
+
         if ($objet instanceof LoopEvent) {
             return [
                 'url' => null,
@@ -412,6 +488,10 @@ final class FeedEventRenderer
             $objet instanceof ServiceRequest, $objet instanceof Service => (string) $objet->title,
             $objet instanceof LoopEvent => (string) $objet->title,
             $objet instanceof LoopWatchItem => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
+            // TASK-1879 — « dans la Boucle :object » : la Boucle du fait. Un
+            // Article n'a pas de Boucle propre : c'est celle de la LIGNE.
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
+            $objet instanceof BlogPost => (string) (Loop::withoutGlobalScopes()->find($post->loop_id)?->name ?? __('feed.events.object_gone')),
             $objet instanceof User => $objet->publicDisplayName(),
             // TASK-1809 (correctif Cyril, 12/11) — l'objet d'une entraide est
             // desormais le TITRE de l'annonce. REMPLACE l'arbitrage du 05/11

@@ -16,6 +16,10 @@ return [
         'loop_created' => ':name a créé la Boucle :object',
         'loop_event_created' => ':name a créé l\'évènement :object',
         'loop_watch_item_created' => ':name a partagé une veille dans la Boucle :object',
+        'loop_poll_created' => ':name a posé un sondage dans la Boucle :object',
+        'loop_article_published' => ':name a publié un article dans la Boucle :object',
+        'loop_dossier_files_uploaded' => ':name a déposé des fichiers dans la Boucle :object',
+        'files_count' => '1 fichier|:count fichiers',
         // TASK-1809 (decision Cyril, 12/11) — REMPLACE l'arbitrage du 05/11
         // (« seul l'AIDANT est nomme, jamais Barnabe ») : « Si on nomme les
         // deux, c'est une plateforme de confiance et ouverte. Et il faut
