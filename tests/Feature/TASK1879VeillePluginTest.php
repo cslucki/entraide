@@ -1003,6 +1003,21 @@ class TASK1879VeillePluginTest extends TestCase
             ->assertSee(__('veille.read_more'));
     }
 
+    /**
+     * Regression (recette Cyril, 22/11) : un `sr-only` est en position absolue.
+     * Sans ancetre `relative` DANS la zone qui defile, il se place hors du fil
+     * et allonge toute la page -> ChatLoop n'est plus fixe, page blanche dessous.
+     */
+    public function test_le_texte_sr_only_de_l_annonce_reste_ancre_dans_sa_carte(): void
+    {
+        $this->activer();
+        $this->publier($this->owner, ['subject' => 'Ancrage']);
+
+        $html = $this->chat($this->membre)->html();
+
+        $this->assertMatchesRegularExpression('/data-action="open-watch-card"\s+class="[^"]*\brelative\b/', $html);
+    }
+
     public function test_on_repond_a_une_carte_comme_a_un_message(): void
     {
         $this->activer();

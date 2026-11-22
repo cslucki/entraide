@@ -431,7 +431,7 @@
                                 <button type="button"
                                         x-on:click="$dispatch('bp-open-loop-card', { card: 'plugin.veille' })"
                                         data-action="open-watch-card"
-                                        class="group flex w-full items-start gap-3 rounded-xl border border-sky-200 bg-white p-3 text-left transition hover:border-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500 dark:border-sky-900/70 dark:bg-gray-900 dark:hover:border-sky-600">
+                                        class="group relative flex w-full items-start gap-3 rounded-xl border border-sky-200 bg-white p-3 text-left transition hover:border-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500 dark:border-sky-900/70 dark:bg-gray-900 dark:hover:border-sky-600">
                                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-900/50 dark:text-sky-300" aria-hidden="true">
                                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
                                     </span>

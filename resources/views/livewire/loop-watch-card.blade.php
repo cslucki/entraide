@@ -70,7 +70,7 @@
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('veille.categories_title') }}</h3>
                 <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ __('veille.categories_intro') }}</p>
 
-                <form wire:submit="createCategory" class="mt-3 flex gap-2">
+                <form wire:submit="createCategory" class="relative mt-3 flex gap-2">
                     <label for="watch-new-category" class="sr-only">{{ __('veille.category_name') }}</label>
                     <input id="watch-new-category" type="text" wire:model="newCategoryName" maxlength="80" required
                            placeholder="{{ __('veille.category_name_placeholder') }}"
@@ -208,7 +208,7 @@
         @if(! $showForm && ($categories->isNotEmpty() || ($items->isNotEmpty() && $orgSlug)))
             <div class="flex items-center gap-2">
                 @if($categories->isNotEmpty())
-                    <div class="min-w-0 flex-1">
+                    <div class="relative min-w-0 flex-1">
                         <label for="watch-filter" class="sr-only">{{ __('veille.filter_label') }}</label>
                         <select id="watch-filter" wire:model.live="filterCategory" data-watch-filter
                                 class="block min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
@@ -336,7 +336,7 @@
                                 @if(\App\Services\Loops\LoopWatchService::isSafeUrl($veille->source_url))
                                     <a href="{{ $veille->source_url }}" target="_blank" rel="noopener noreferrer nofollow"
                                        title="{{ $veille->source_url }}"
-                                       class="inline-flex min-h-[44px] min-w-0 max-w-full items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-sky-700 hover:underline dark:text-gray-400 dark:hover:text-sky-300">
+                                       class="relative inline-flex min-h-[44px] min-w-0 max-w-full items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-sky-700 hover:underline dark:text-gray-400 dark:hover:text-sky-300">
                                         <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>
                                         <span class="sr-only">{{ __('veille.source_link') }} :</span>
                                         <span class="truncate">{{ parse_url($veille->source_url, PHP_URL_HOST) }}</span>
