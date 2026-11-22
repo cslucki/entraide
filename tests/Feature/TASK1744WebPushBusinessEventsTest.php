@@ -333,6 +333,11 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             NotificationCatalogue::LOOP_JOURNAL_ENTRY_CREATED,
             NotificationCatalogue::FEED_POST_COMMENT_CREATED,
             NotificationCatalogue::FEED_POST_REACTION_CREATED,
+            // TASK-1880 (demande Cyril, 22/11) — mention dans une annonce du
+            // Flux (`@Nom`, `@tous`, `@membres`) : « un email qui part et
+            // notification PWA et app ». Meme regime que LOOP_MENTION_CREATED :
+            // in-app ON non configurable, email et Web Push ON configurables.
+            NotificationCatalogue::FEED_POST_MENTION_CREATED,
         ];
 
         sort($attendues);

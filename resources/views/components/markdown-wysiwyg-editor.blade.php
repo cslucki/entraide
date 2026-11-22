@@ -6,7 +6,7 @@
     — une regression visuelle sur un ecran qui n'a rien demande serait le pire
     resultat possible pour une amelioration d'ergonomie.
 --}}
-@props(['name' => 'description', 'value' => '', 'required' => false, 'minLength' => null, 'placeholder' => '', 'invalid' => false, 'rows' => 5, 'fullscreen' => false, 'tall' => false, 'format' => 'markdown', 'wireModel' => null, 'composer' => false])
+@props(['name' => 'description', 'value' => '', 'required' => false, 'minLength' => null, 'placeholder' => '', 'invalid' => false, 'rows' => 5, 'fullscreen' => false, 'tall' => false, 'format' => 'markdown', 'wireModel' => null, 'composer' => false, 'mentions' => null])
 {{-- TASK-1879 — `format="html"` : l'editeur lit et rend du HTML (annonces du Flux) ;
      `wireModel` : lie le champ a Livewire (le conteneur est alors `wire:ignore`,
      TipTap gerant son propre DOM). Sans ces attributs, sortie inchangee. --}}
@@ -169,6 +169,7 @@
 <div data-tiptap-container
      @if($format === 'html') data-format="html" @endif
      @if($composer) data-variante="composeur" data-placeholder="{{ $placeholder }}" @endif
+     @if($mentions) data-mentions="{{ json_encode($mentions, JSON_UNESCAPED_UNICODE) }}" @endif
      @if($wireModel) wire:ignore @endif
      class="markdown-wysiwyg-editor {{ $tall ? 'bp-editeur-grand' : '' }} {{ $composer ? 'bp-composeur' : '' }}"
      data-i18n-undo="{{ __('ai.markdown_undo') }}"

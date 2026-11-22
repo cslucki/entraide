@@ -191,6 +191,140 @@ function buildToolbar(editor, container) {
     return toolbar;
 }
 
+/**
+ * TASK-1880 (demande Cyril, 22/11) — le menu `@` des annonces du Flux.
+ *
+ * Opt-in : seul un conteneur qui porte `data-mentions` (configuration JSON
+ * rendue par `FeedMentions::configurationDuMenu()`) l'active. Tout est CLIENT
+ * et rien n'y est cru sur parole : le serveur re-analyse le texte a
+ * l'enregistrement (personnes, `@tous`, `@membres`, plafond, exclusivite).
+ *
+ * Les personnes proposees suivent les Boucles COCHEES dans le formulaire (lues
+ * dans le DOM : l'editeur vit sous `wire:ignore`), ou les Boucles deja
+ * enregistrees (`bouclesFixes`, page de modification).
+ */
+function installMentions(editor, container, editorDiv) {
+    let cfg;
+    try {
+        cfg = JSON.parse(container.dataset.mentions || 'null');
+    } catch {
+        return;
+    }
+    if (!cfg) return;
+
+    const menu = document.createElement('ul');
+    menu.setAttribute('role', 'listbox');
+    menu.setAttribute('aria-label', cfg.libelles?.liste || '');
+    menu.dataset.feedMentionMenu = '';
+    menu.hidden = true;
+    menu.className = 'mt-1 max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900';
+    editorDiv.after(menu);
+
+    const etat = { ouvert: false, debut: 0, fin: 0, resultats: [], index: 0 };
+
+    const bouclesChoisies = () => {
+        if (Array.isArray(cfg.bouclesFixes)) return cfg.bouclesFixes;
+        const form = container.closest('form');
+        if (!form) return [];
+        const cases = [...form.querySelectorAll('input[type="checkbox"][wire\\:model\\.live="selectedLoops"]')];
+        const toutes = form.querySelector('input[type="checkbox"][wire\\:model\\.live="allLoops"]');
+        return (toutes && toutes.checked ? cases : cases.filter((c) => c.checked)).map((c) => c.value);
+    };
+
+    const fermer = () => {
+        etat.ouvert = false;
+        menu.hidden = true;
+        menu.replaceChildren();
+    };
+
+    const rendre = () => {
+        menu.replaceChildren();
+        etat.resultats.forEach((r, i) => {
+            const li = document.createElement('li');
+            li.setAttribute('role', 'option');
+            li.setAttribute('aria-selected', i === etat.index ? 'true' : 'false');
+            li.dataset.feedMentionOption = r.special ? r.nom : r.id;
+            li.className = 'flex cursor-pointer flex-col px-3 py-2 text-sm '
+                + (i === etat.index ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200' : 'text-gray-800 dark:text-gray-100');
+            const nom = document.createElement('span');
+            nom.className = 'font-semibold';
+            nom.textContent = r.special ? r.nom : '@' + r.nom;
+            li.appendChild(nom);
+            if (r.libelle) {
+                const sous = document.createElement('span');
+                sous.className = 'text-xs text-gray-500 dark:text-gray-400';
+                sous.textContent = r.libelle;
+                li.appendChild(sous);
+            }
+            li.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                choisir(r);
+            });
+            menu.appendChild(li);
+        });
+        menu.hidden = etat.resultats.length === 0;
+    };
+
+    const detecter = () => {
+        const { $from, empty } = editor.state.selection;
+        if (!empty) { fermer(); return; }
+
+        const avant = $from.parent.textBetween(0, $from.parentOffset, undefined, '￼');
+        const m = avant.match(/(^|\s)@([^\s@]{0,30})$/);
+        if (!m) { fermer(); return; }
+
+        const q = m[2].toLowerCase();
+        const choisies = bouclesChoisies();
+        const speciaux = [];
+
+        if (cfg.admin && cfg.jetons.membres.slice(1).startsWith(q)) {
+            speciaux.push({ special: true, nom: cfg.jetons.membres, libelle: cfg.libelles.membres });
+        }
+        if ((cfg.animees || []).some((b) => choisies.includes(b)) && cfg.jetons.tous.slice(1).startsWith(q)) {
+            speciaux.push({ special: true, nom: cfg.jetons.tous, libelle: cfg.libelles.tous });
+        }
+
+        const personnes = (cfg.candidats || [])
+            .filter((c) => cfg.audience === 'organisation' || c.boucles.some((b) => choisies.includes(b)))
+            .filter((c) => q === '' || c.nom.toLowerCase().includes(q));
+
+        etat.ouvert = true;
+        etat.fin = $from.pos;
+        etat.debut = $from.pos - m[2].length - 1;
+        etat.resultats = [...speciaux, ...personnes].slice(0, 8);
+        etat.index = 0;
+        rendre();
+    };
+
+    const choisir = (r) => {
+        const texte = (r.special ? r.nom : '@' + r.nom) + ' ';
+        editor.chain().focus().insertContentAt({ from: etat.debut, to: etat.fin }, texte).run();
+        fermer();
+    };
+
+    // Capture : le menu passe AVANT ProseMirror (Entree ne doit pas couper le paragraphe).
+    editorDiv.addEventListener('keydown', (e) => {
+        if (!etat.ouvert || etat.resultats.length === 0) return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            const n = etat.resultats.length;
+            etat.index = (etat.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+            rendre();
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+            choisir(etat.resultats[etat.index]);
+        } else if (e.key === 'Escape') {
+            fermer();
+        } else {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+    }, true);
+
+    editor.on('selectionUpdate', detecter);
+    editor.on('update', detecter);
+    editor.on('blur', () => setTimeout(fermer, 150));
+}
+
 function setupEditor(container) {
     if (ACTIVE_EDITORS.has(container)) {
         return ACTIVE_EDITORS.get(container);
@@ -251,6 +385,11 @@ function setupEditor(container) {
     if (composeur) {
         toolbar.className = 'mt-2 flex flex-wrap items-center gap-0.5 border-t border-gray-100 pt-2 dark:border-gray-800';
         container.appendChild(toolbar);
+    }
+
+    // TASK-1880 — le menu `@` des annonces du Flux (opt-in).
+    if (container.dataset.mentions) {
+        installMentions(editor, container, editorDiv);
     }
 
     textarea.classList.add('hidden');

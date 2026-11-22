@@ -442,6 +442,25 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1880 (demande Cyril, 22/11) — « Prenom vous a identifie sur le
+        // Flux ». Pose AUSSI par la migration jumelle
+        // `2026_11_22_200000_add_feed_post_mention_created_email_template` ;
+        // les deux textes sont IDENTIQUES. `post_message` porte la TOTALITE du
+        // message de l'annonce.
+        'feed_post_mention_created' => [
+            'name_fr' => 'Mention dans une annonce du Flux',
+            'name_en' => 'Mention in a Feed announcement',
+            'subject_fr' => '{{ author_first_name }} vous a identifié sur le Flux',
+            'subject_en' => '{{ author_first_name }} tagged you on the Feed',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a identifié dans une annonce du Flux :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ post_message }}</blockquote><p><a href="{{ post_url }}">Voir l\'annonce dans le Flux</a></p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> tagged you in a Feed announcement:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ post_message }}</blockquote><p><a href="{{ post_url }}">View the announcement in the Feed</a></p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_first_name',
+                    'organization_name', 'post_message', 'post_url',
+                    'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_mention_created' => [
             'name_fr' => 'Mention dans une Boucle',
             'name_en' => 'Mention in a Loop',

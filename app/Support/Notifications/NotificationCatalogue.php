@@ -405,6 +405,13 @@ final class NotificationCatalogue
     public const FEED_POST_REACTION_CREATED = 'feed.post_reaction.created';
 
     /**
+     * TASK-1880 (demande Cyril, 22/11) — on m'a mentionne dans une annonce du
+     * Flux (`@Nom`, `@tous` ou `@membres`). Courriel + application + Web Push,
+     * le courriel portant la TOTALITE du message.
+     */
+    public const FEED_POST_MENTION_CREATED = 'feed.post_mention.created';
+
+    /**
      * Le type d'objet de cette cle, expose comme constante.
      *
      * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
@@ -1074,6 +1081,20 @@ final class NotificationCatalogue
                 // les items recoivent beaucoup de reactions doit pouvoir se
                 // taire, exactement comme pour un commentaire.
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1880 — une mention dans une annonce du Flux. Meme classement que
+        // `LOOP_MENTION_CREATED` : on m'interpelle nommement (ou collectivement),
+        // l'in-app n'est donc pas desactivable ; courriel et Web Push le sont.
+        self::FEED_POST_MENTION_CREATED => [
+            'category' => 'feed',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
+            'object_type' => self::OBJECT_FEED_POST,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
     ];

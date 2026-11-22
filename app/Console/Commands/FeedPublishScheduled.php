@@ -35,6 +35,9 @@ class FeedPublishScheduled extends Command
                 $post->broadcastToAssociatedLoops($loopMessageService, $post->user);
             }
 
+            // TASK-1880 — les mentions d'une annonce planifiee partent a sa publication.
+            $post->notifierLesMentions();
+
             $count++;
         }
 

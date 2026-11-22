@@ -40,7 +40,7 @@
         <div data-champ wire:key="champ-message-formulaire" class="scroll-mt-24">
             <label for="content" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.message') }}</label>
             <div class="mt-2">
-                <x-markdown-wysiwyg-editor name="content" format="html" wire-model="content" :value="$content" required rows="7" :invalid="$errors->has('content')" />
+                <x-markdown-wysiwyg-editor name="content" format="html" wire-model="content" :value="$content" required rows="7" :invalid="$errors->has('content')" :mentions="$mentions" />
             </div>
             {{-- Emplacement de l'alerte AVANT soumission (`x-form-live-validation`), sous l'editeur. --}}
             <ul id="content-error" hidden class="mt-1 space-y-1 text-sm text-red-600 dark:text-red-400"></ul>

@@ -83,4 +83,13 @@ return [
     'delete_action' => 'Delete',
     'delete_confirm' => 'Delete this announcement?',
     'view' => 'View',
+
+    // TASK-1880 — mentions in an announcement.
+    'mentions_one_mode' => 'A message can carry only one kind of mention: named people, @tous or @membres.',
+    'mentions_members_forbidden' => '@membres is reserved for the organization administrator.',
+    'mentions_all_forbidden' => '@tous is reserved for the owner or facilitator of one of the chosen Loops.',
+    'mentions_too_many' => 'You can mention :max people at most.',
+    'mention_all_option' => 'All members of the chosen Loops',
+    'mention_members_option' => 'All members of the organization',
+    'mentions_list_label' => 'People to mention',
 ];

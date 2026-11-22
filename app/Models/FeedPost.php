@@ -251,6 +251,20 @@ class FeedPost extends Model
         return route('organization.flux.show', ['organization' => $this->organization?->slug, 'feedPost' => $this->id]);
     }
 
+    /**
+     * TASK-1880 — notifier les personnes mentionnees (`@Nom`, `@tous`,
+     * `@membres`). L'eventail se calcule dans un job, apres le commit : voir
+     * `NotifyFeedPostMentions`. Sans effet si l'annonce ne mentionne personne.
+     */
+    public function notifierLesMentions(): void
+    {
+        if ($this->type === self::TYPE_ANNOUNCEMENT
+            && $this->status === self::STATUS_PUBLISHED
+            && str_contains((string) $this->content, '@')) {
+            \App\Jobs\NotifyFeedPostMentions::dispatch((string) $this->id);
+        }
+    }
+
     public function broadcastToAssociatedLoops(LoopMessageService $service, User $user): void
     {
         // TASK-1879 — texte BRUT : le ChatLoop affiche l'annonce en carte
