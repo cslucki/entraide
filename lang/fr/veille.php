@@ -77,4 +77,13 @@ return [
     'chat_created' => ':name a partagé une veille',
     'chat_open_card' => 'Voir la veille',
     'chat_unavailable' => "Cette veille n'est plus disponible.",
+    // TASK-1879 — export
+    'export_label' => 'Exporter :',
+    'export_pdf' => 'PDF (tableau)',
+    'export_file' => 'veille',
+    'export_sheet' => 'Veille',
+    'export_author' => 'Auteur',
+    'export_print_title' => 'Veille — :loop',
+    'export_print_meta' => 'Exporté le :date · :count veille(s)',
+    'export_print_button' => 'Imprimer / Enregistrer en PDF',
 ];

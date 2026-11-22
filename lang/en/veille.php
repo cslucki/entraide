@@ -77,4 +77,13 @@ return [
     'chat_created' => ':name shared a watch item',
     'chat_open_card' => 'View watch item',
     'chat_unavailable' => 'This watch item is no longer available.',
+    // TASK-1879 — export
+    'export_label' => 'Export:',
+    'export_pdf' => 'PDF (table)',
+    'export_file' => 'watch',
+    'export_sheet' => 'Watch',
+    'export_author' => 'Author',
+    'export_print_title' => 'Watch — :loop',
+    'export_print_meta' => 'Exported on :date · :count item(s)',
+    'export_print_button' => 'Print / Save as PDF',
 ];

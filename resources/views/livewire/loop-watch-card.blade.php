@@ -216,6 +216,28 @@
             </div>
         @endif
 
+        {{-- ── Export (TASK-1879, demande Cyril) : suit le filtre courant ──── --}}
+        @if($items->isNotEmpty() && ! $showForm && ($orgSlug = currentOrganization()?->slug))
+            @php
+                $exportParams = fn (string $format) => array_filter([
+                    'organization' => $orgSlug,
+                    // `$this->loop` : `$loop` est la variable des @foreach de Blade.
+                    'loop' => $this->loop->id,
+                    'format' => $format,
+                    'categorie' => $filterCategory !== '' ? $filterCategory : null,
+                ]);
+            @endphp
+            <div class="flex flex-wrap items-center gap-2" data-section="watch-export">
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('veille.export_label') }}</span>
+                <a href="{{ route('organization.loops.watch.export', $exportParams('imprimer')) }}" target="_blank" rel="noopener" data-export="pdf"
+                   class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">{{ __('veille.export_pdf') }}</a>
+                <a href="{{ route('organization.loops.watch.export', $exportParams('csv')) }}" data-export="csv"
+                   class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">CSV</a>
+                <a href="{{ route('organization.loops.watch.export', $exportParams('xlsx')) }}" data-export="xlsx"
+                   class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">Excel</a>
+            </div>
+        @endif
+
         {{-- ── Liste ─────────────────────────────────────────────────────── --}}
         @if($items->isEmpty())
             <div class="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-center dark:border-gray-700" data-watch-empty>

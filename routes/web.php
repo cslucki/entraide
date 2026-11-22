@@ -116,6 +116,7 @@ use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopInvitationController;
 use App\Http\Controllers\LoopPluginController;
 use App\Http\Controllers\LoopToolsController;
+use App\Http\Controllers\LoopWatchExportController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageAttachmentController;
@@ -1933,6 +1934,11 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
                 // TASK-1865 — voir la route courte `loops.preview`.
+                // TASK-1879 — export de la Veille (CSV, Excel, tableau imprimable/PDF).
+                Route::get('/loops/{loop}/veille/export/{format}', LoopWatchExportController::class)
+                    ->where('format', 'csv|xlsx|imprimer')
+                    ->middleware(['throttle:20,1', 'cache.headers:no_store'])
+                    ->name('loops.watch.export');
                 Route::get('/loops/{loop}/apercu', [LoopController::class, 'preview'])->middleware('cache.headers:no_store')->name('loops.preview');
                 // L'agenda de l'Organization. Voir la note sur la route courte :
                 // depuis TASK-1656 il porte le geste de REPONSE a une invitation.

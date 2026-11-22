@@ -937,6 +937,78 @@ class TASK1879VeillePluginTest extends TestCase
         $this->assertNull(FeedEventRenderer::apercu(FeedPost::query()->find($ligne->id), 'alpha'));
     }
 
+    // ── Export ──────────────────────────────────────────────────────────────
+
+    private function urlExport(string $format, array $extra = []): string
+    {
+        return route('organization.loops.watch.export', array_merge([
+            'organization' => $this->orgA->slug, 'loop' => $this->loop->id, 'format' => $format,
+        ], $extra));
+    }
+
+    public function test_un_membre_exporte_en_csv_excel_et_tableau_imprimable(): void
+    {
+        $this->activer();
+        $this->publier($this->membre, ['subject' => 'Sujet exporte', 'information' => '=HYPERLINK("http://x")']);
+
+        $csv = $this->actingAs($this->autreMembre)->get($this->urlExport('csv'));
+        $csv->assertOk();
+        $this->assertStringContainsString('text/csv', (string) $csv->headers->get('content-type'));
+        $contenu = $csv->streamedContent();
+        $this->assertStringContainsString('Sujet exporte', $contenu);
+        $this->assertStringContainsString("'=HYPERLINK", $contenu, 'formule neutralisee');
+
+        $xlsx = $this->actingAs($this->autreMembre)->get($this->urlExport('xlsx'));
+        $xlsx->assertOk();
+        $this->assertStringStartsWith('PK', $xlsx->streamedContent());
+
+        $this->actingAs($this->autreMembre)->get($this->urlExport('imprimer'))
+            ->assertOk()
+            ->assertSee('data-watch-export-table', false)
+            ->assertSee('Sujet exporte');
+    }
+
+    public function test_l_export_respecte_le_filtre_de_categorie(): void
+    {
+        $this->activer();
+        $autre = app(LoopWatchService::class)->createCategory($this->owner, $this->loop, 'Filtree');
+        $this->publier($this->membre, ['subject' => 'Dans la generale']);
+        $this->publier($this->membre, ['subject' => 'Dans la filtree', 'category_id' => $autre->id]);
+
+        $this->actingAs($this->membre)->get($this->urlExport('imprimer', ['categorie' => $autre->id]))
+            ->assertOk()
+            ->assertSee('Dans la filtree')
+            ->assertDontSee('Dans la generale');
+
+        // UUID invalide : ignore, jamais une 500.
+        $this->actingAs($this->membre)->get($this->urlExport('imprimer', ['categorie' => 'pas-un-uuid']))->assertOk();
+    }
+
+    public function test_l_export_est_refuse_hors_de_la_boucle_ou_plugin_eteint(): void
+    {
+        $this->actingAs($this->membre)->get($this->urlExport('csv'))->assertForbidden();
+
+        $this->activer();
+        $this->actingAs($this->ancien)->get($this->urlExport('csv'))->assertForbidden();
+        $this->actingAs($this->etranger)->get($this->urlExport('csv'))->assertNotFound();
+        $this->actingAs($this->membre)->get(str_replace('/csv', '/pdf', $this->urlExport('csv')))->assertNotFound();
+    }
+
+    public function test_la_card_propose_l_export_quand_il_y_a_des_veilles(): void
+    {
+        $this->activer();
+
+        Livewire::actingAs($this->membre)->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertDontSee('data-section="watch-export"', false);
+
+        $this->publier($this->membre);
+
+        Livewire::actingAs($this->membre)->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertSee('data-export="pdf"', false)
+            ->assertSee('data-export="csv"', false)
+            ->assertSee('data-export="xlsx"', false);
+    }
+
     public function test_l_echec_de_l_annonce_ne_perd_pas_la_veille(): void
     {
         $this->activer();
