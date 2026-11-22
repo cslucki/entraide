@@ -91,6 +91,16 @@ class LoopChat extends Component
 
     public ?string $replyToMessageId = null;
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — les cartes du fil auxquelles on
+     * repond comme a un message (`replyTo()` accepte deja tout message de la
+     * Boucle ; seule l'action manquait a l'ecran).
+     */
+    public const TYPES_CARTES_REPONDABLES = [
+        'loop_event', 'dossier_file', 'poll_event', 'roadmap_action',
+        'watch_item', 'blog_post', 'help_request',
+    ];
+
     public ?array $replyingTo = null;
 
     /**

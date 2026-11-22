@@ -834,6 +834,23 @@
                             {!! $msg->body !!}
                         </x-conversation.message-bubble>
                     @endif
+
+                    {{-- TASK-1879 (demande Cyril, 22/11) — on repond a une carte
+                         (Evenement, Sondage, Veille, Article, depot, Roadmap,
+                         demande d'aide) COMME a un message : meme evenement
+                         `reply-to-message` que la bulle, donc meme citation dans
+                         le composeur, meme mention automatique de l'auteur
+                         (notifie par le mecanisme existant), meme focus. --}}
+                    @if(! $isDeleted && $editingMessageId !== $msg->id && in_array($msg->type, \App\Livewire\LoopChat::TYPES_CARTES_REPONDABLES, true))
+                        <div class="mt-0.5 flex">
+                            <button type="button" data-action="reply-to-card"
+                                    x-on:click="$dispatch('reply-to-message', { messageId: '{{ $msg->id }}' }); document.querySelector('[data-composer-input]')?.focus()"
+                                    class="inline-flex min-h-[36px] items-center gap-1 rounded-lg px-2 text-[11px] font-medium text-gray-400 transition hover:bg-gray-100 hover:text-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-indigo-300">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
+                                {{ __('messages.reply') }}
+                            </button>
+                        </div>
+                    @endif
                 </div>
 
                 @if($debatDeCeMessage !== null)

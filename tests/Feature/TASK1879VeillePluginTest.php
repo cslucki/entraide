@@ -1003,6 +1003,25 @@ class TASK1879VeillePluginTest extends TestCase
             ->assertSee(__('veille.read_more'));
     }
 
+    public function test_on_repond_a_une_carte_comme_a_un_message(): void
+    {
+        $this->activer();
+        $this->publier($this->owner, ['subject' => 'Carte a commenter']);
+        $carte = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'watch_item')->sole();
+
+        $this->chat($this->membre)
+            ->assertSee('data-action="reply-to-card"', false)
+            ->call('replyTo', $carte->id)
+            ->assertSet('replyToMessageId', $carte->id)
+            ->assertSet('mentionsSelectionnees', [(string) $this->owner->id])
+            ->set('body', '@'.trim($this->owner->publicDisplayName()).' : bonne trouvaille')
+            ->call('sendMessage');
+
+        $reponse = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'user')->latest('created_at')->first();
+        $this->assertNotNull($reponse);
+        $this->assertSame($carte->id, $reponse->reply_to_id);
+    }
+
     // ── Export ──────────────────────────────────────────────────────────────
 
     private function urlExport(string $format, array $extra = []): string
