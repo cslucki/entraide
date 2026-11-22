@@ -198,18 +198,14 @@ final class FeedEventRenderer
                 'organization' => $organizationSlug,
                 'loop' => $objet->slug ?: $objet->getKey(),
             ]),
-            // TASK-1879 — Sondage et depot de fichiers menent a LEUR Boucle ;
-            // l'Article a sa page (route org, comme la carte ChatLoop).
-            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem => self::lienDeBoucle($objet->loop_id, $organizationSlug),
-            $objet instanceof BlogPost => self::route('organization.blog.show', [
-                'organization' => $organizationSlug,
-                'post' => $objet->slug,
-            ]),
-            // TASK-1879 — une veille mene a SA Boucle (la Card s'y ouvre).
-            $objet instanceof LoopWatchItem => (fn () => (($b = Loop::withoutGlobalScopes()->find($objet->loop_id)) === null) ? null : self::route('organization.loops.show', [
-                'organization' => $organizationSlug,
-                'loop' => $b->slug ?: $b->getKey(),
-            ]))(),
+            // TASK-1879 (demande Cyril, 22/11) — tout ce qui vit dans une Boucle
+            // (sondage, depot, Roadmap, article, veille, evenement de Boucle)
+            // mene a SON MESSAGE dans ChatLoop (`?message=`, mecanisme T1772 :
+            // la conversation se charge autour du message et le surligne).
+            // Sans message retrouve : la Boucle seule, comme avant.
+            $objet instanceof LoopEvent && ($objet->isOrganizationWide() || $objet->loop_id === null) => self::lienAgenda($objet, $organizationSlug),
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem,
+            $objet instanceof BlogPost, $objet instanceof LoopWatchItem, $objet instanceof LoopEvent => self::lienVersLeMessage($post, $objet, $organizationSlug),
             // Le parametre s'appelle `{request}` et non `{serviceRequest}` :
             // avec le mauvais nom, `route()` levait et le repli rendait
             // `null` — la pastille « Voir » disparaissait EN SILENCE.
@@ -231,6 +227,66 @@ final class FeedEventRenderer
     }
 
     /** TASK-1879 — la page d'une Boucle, lue sans scopes (comme `objet()`). */
+    /**
+     * TASK-1879 — l'annonce ChatLoop d'un objet de Boucle : son message, ou la
+     * Boucle seule si l'annonce est introuvable (anterieure, supprimee).
+     */
+    private static function lienVersLeMessage(FeedPost $post, mixed $objet, string $organizationSlug): ?string
+    {
+        $loopId = $objet instanceof BlogPost ? ($post->loop_id ?? $objet->loop_id) : $objet->loop_id;
+        $lien = self::lienDeBoucle($loopId, $organizationSlug);
+
+        if ($lien === null) {
+            return null;
+        }
+
+        $message = $objet instanceof LoopMessage ? $objet : self::annonceDe($objet, (string) $loopId);
+
+        return $message === null ? $lien : $lien.'?'.http_build_query(['message' => $message->getKey()]);
+    }
+
+    /** L'annonce ChatLoop d'un objet, dans SA Boucle (la plus ancienne : la creation). */
+    private static function annonceDe(mixed $objet, string $loopId): ?LoopMessage
+    {
+        [$type, $cle] = match (true) {
+            $objet instanceof LoopPoll => ['poll_event', 'poll_id'],
+            $objet instanceof LoopRoadmapItem => ['roadmap_action', 'roadmap_item_id'],
+            $objet instanceof BlogPost => ['blog_post', 'blog_post_id'],
+            $objet instanceof LoopWatchItem => ['watch_item', 'watch_item_id'],
+            $objet instanceof LoopEvent => ['loop_event', 'event_id'],
+            default => [null, null],
+        };
+
+        if ($type === null) {
+            return null;
+        }
+
+        return LoopMessage::query()
+            ->where('loop_id', $loopId)
+            ->where('type', $type)
+            ->where('metadata->'.$cle, (string) $objet->getKey())
+            ->orderBy('created_at')
+            ->first();
+    }
+
+    /**
+     * TASK-1879 (demande Cyril) — un evenement ouvert a toute l'Organization
+     * mene a SA ligne de l'Agenda (ancre `agenda-event-{id}`), dans l'onglet
+     * « a venir » ou « passes » selon sa date.
+     */
+    private static function lienAgenda(LoopEvent $evenement, string $organizationSlug): ?string
+    {
+        $lien = self::route('organization.events.agenda', ['organization' => $organizationSlug]);
+
+        if ($lien === null) {
+            return null;
+        }
+
+        $passe = $evenement->isPast() || $evenement->status === LoopEvent::STATUS_CANCELLED;
+
+        return $lien.($passe ? '?when=past' : '').'#agenda-event-'.$evenement->getKey();
+    }
+
     private static function lienDeBoucle(?string $loopId, string $organizationSlug): ?string
     {
         $boucle = $loopId !== null ? Loop::withoutGlobalScopes()->find($loopId) : null;
@@ -464,7 +520,7 @@ final class FeedEventRenderer
             $debut = $objet->startsAtLocal();
 
             return [
-                'url' => null,
+                'url' => self::lien($post, $organizationSlug),
                 'image' => null,
                 'date' => [
                     'jour' => $debut->translatedFormat('D'),

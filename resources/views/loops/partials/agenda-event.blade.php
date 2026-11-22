@@ -7,8 +7,12 @@
 
     `$organization` n'est pas passe explicitement : l'inclusion herite du
     contexte de la vue appelante, ou il est deja disponible.
+
+    TASK-1879 — `ancre` (vue liste seulement, l'id doit etre unique) : la carte
+    du Flux d'un evenement d'Organization y mene (`#agenda-event-{id}`).
 --}}
-<div x-data="{
+<div @if($ancre ?? false) id="agenda-event-{{ $event['id'] }}" @endif
+     x-data="{
         myResponse: @js($event['my_response']),
         going: {{ $event['counts']['going'] }},
         maybe: {{ $event['counts']['maybe'] }},
@@ -43,7 +47,7 @@
                 this.busy = false;
             }
         },
-    }">
+    }" class="scroll-mt-24 rounded-2xl target:ring-2 target:ring-indigo-500 target:ring-offset-2 dark:target:ring-offset-gray-900">
     @include('loops.partials.event-row', [
         'event' => $event,
         'interactive' => false,

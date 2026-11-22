@@ -286,6 +286,38 @@ class TASK1879NotificationsCollectivesBoucleTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    /**
+     * Demande Cyril (22/11) — dans le Flux, un objet de Boucle mene a SON
+     * message ChatLoop (`?message=`) ; un evenement d'Organization, a sa
+     * ligne de l'Agenda.
+     */
+    public function test_le_flux_mene_au_message_ou_a_l_agenda(): void
+    {
+        $slug = (string) $this->organization->slug;
+        $sondage = LoopPoll::create(['loop_id' => $this->loop->id, 'organization_id' => $this->organization->id, 'created_by' => $this->auteur->id, 'question' => 'Lien ?', 'status' => 'open']);
+        $annonce = $this->service()->sendPollEventMessage($this->loop, $this->auteur, $sondage, 'created');
+        $ligne = FeedPost::where('type', FeedEventCatalogue::SONDAGE_PUBLIE)->sole();
+
+        $this->assertStringEndsWith('?message='.$annonce->id, FeedEventRenderer::lien($ligne, $slug));
+        $this->assertSame(FeedEventRenderer::lien($ligne, $slug), FeedEventRenderer::apercu($ligne, $slug)['url']);
+
+        $emetteur = app(FeedEventEmitter::class);
+        $evenement = fn (string $visibilite, string $titre) => LoopEvent::create([
+            'organization_id' => $this->organization->id, 'loop_id' => $this->loop->id, 'created_by' => $this->auteur->id,
+            'status' => LoopEvent::STATUS_SCHEDULED, 'title' => $titre, 'format' => LoopEvent::FORMAT_IN_PERSON,
+            'starts_at' => now()->addWeek(), 'timezone' => 'Europe/Paris', 'location' => '', 'meeting_url' => '', 'visibility' => $visibilite,
+        ]);
+
+        $deBoucle = $evenement(LoopEvent::VISIBILITY_LOOP, 'De Boucle');
+        $message = $this->service()->sendEventMessage($this->loop, $this->auteur, $deBoucle, 'created');
+        $ligneBoucle = $emetteur->emettre(FeedEventCatalogue::EVENEMENT_CREE, $deBoucle, $this->auteur, (string) $this->organization->id, $this->loop);
+        $this->assertStringEndsWith('?message='.$message->id, FeedEventRenderer::lien($ligneBoucle, $slug));
+
+        $ouvert = $evenement(LoopEvent::VISIBILITY_ORGANIZATION, 'Pour tous');
+        $ligneOrg = $emetteur->emettre(FeedEventCatalogue::EVENEMENT_CREE, $ouvert, $this->auteur, (string) $this->organization->id, $this->loop);
+        $this->assertStringEndsWith('/agenda#agenda-event-'.$ouvert->id, FeedEventRenderer::lien($ligneOrg, $slug));
+    }
+
     // ── Outils ──────────────────────────────────────────────────────────────
 
     private function assertDestinataires(string $cle): void
