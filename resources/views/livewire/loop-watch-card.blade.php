@@ -42,6 +42,19 @@
             </p>
         @endif
 
+        {{-- ── Membre : demander une categorie au proprietaire (TASK-1879) ──
+             Le composeur ChatLoop se pre-remplit d'une mention du
+             proprietaire ; sur telephone, le panneau se ferme pour l'afficher.
+             Rien n'est envoye sans la personne. --}}
+        @if($canCreate && ! $canManageCategories && ! $showForm)
+            <button type="button" data-action="suggest-watch-category"
+                    x-on:click="$dispatch('bp-close-loop-card-mobile'); Livewire.dispatch('veille-suggerer-categorie')"
+                    class="inline-flex min-h-[44px] items-center gap-1.5 self-start text-xs font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-300">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                {{ __('veille.suggest_category_link') }}
+            </button>
+        @endif
+
         {{-- ── Actions principales ───────────────────────────────────────── --}}
         @if(! $showForm && ($canCreate || $canManageCategories))
             <div class="flex flex-wrap gap-2">

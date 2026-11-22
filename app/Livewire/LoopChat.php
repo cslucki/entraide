@@ -1141,6 +1141,65 @@ class LoopChat extends Component
         $this->dispatch('bp-mention-auto', id: $mentionnable['id'], ancien: $ancien);
     }
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — un membre ne cree pas de categorie
+     * de veille ; il la DEMANDE au proprietaire. La Card envoie cet evenement,
+     * le composeur se pre-remplit de « @Proprietaire : j'aimerais ajouter une
+     * categorie de veille, qui serait » et il n'y a plus qu'a completer.
+     *
+     * Meme mecanique que la mention automatique d'une reponse (T1872) : la
+     * mention est SELECTIONNEE (notification au proprietaire a l'envoi), et
+     * `composer-filled` donne le focus avec le curseur en fin de texte. Un
+     * brouillon deja ecrit n'est jamais efface : la phrase s'ajoute dessous.
+     * Rien n'est envoye : c'est la personne qui envoie.
+     */
+    #[On('veille-suggerer-categorie')]
+    public function suggererUneCategorieDeVeille(): void
+    {
+        $user = auth()->user();
+
+        if (! $user || ! app(\App\Services\Loops\LoopWatchService::class)->canCreate($user, $this->loop)) {
+            return;
+        }
+
+        $proprietaireId = LoopMember::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('status', 'active')
+            ->where('role', 'owner')
+            ->orderBy('created_at')
+            ->value('user_id');
+
+        $mentionnable = $proprietaireId === null
+            ? null
+            : collect($this->mentionablesReels())->firstWhere('id', (string) $proprietaireId);
+
+        $phrase = __('veille.suggest_category_message');
+        $texte = $mentionnable !== null ? '@'.$mentionnable['nom'].' : '.$phrase : $phrase;
+
+        $corps = (string) ($this->body ?? '');
+        $vierge = trim($corps) === '' || $corps === $this->mentionAutoTexte;
+
+        $this->body = $vierge ? $texte : rtrim($corps)."\n".$texte;
+
+        if ($vierge) {
+            // Le texte n'est plus une mention automatique de reponse : la
+            // retirer ne doit pas effacer ce que la personne completera.
+            $this->mentionAutoTexte = null;
+            $this->mentionAutoId = null;
+        }
+
+        if ($mentionnable !== null) {
+            $this->mentionsSelectionnees = array_values(array_unique(array_merge(
+                $this->mentionsSelectionnees,
+                [$mentionnable['id']],
+            )));
+            $this->dispatch('bp-mention-auto', id: $mentionnable['id'], ancien: null);
+        }
+
+        $this->dispatch('composer-filled');
+    }
+
     public function cancelReply(): void
     {
         $this->replyToMessageId = null;

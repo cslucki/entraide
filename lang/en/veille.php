@@ -36,6 +36,8 @@ return [
     'categories_title' => 'Watch categories',
     'categories_intro' => 'Categories offered to members. Each watch item must choose one: at least one active category is required. An archived category stays on the items that carry it.',
     'categories_empty' => 'No category yet: create at least one so watch items can be published.',
+    'suggest_category_link' => 'Would you like to add a category?',
+    'suggest_category_message' => 'I would like to add a watch category, which would be ',
     'needs_category_manager' => 'Create at least one category first: a watch item is always published in a category.',
     'needs_category_member' => 'Watch is not open yet: the Loop owner or facilitator must first create a category.',
     'category_name' => 'Category name',

@@ -937,6 +937,57 @@ class TASK1879VeillePluginTest extends TestCase
         $this->assertNull(FeedEventRenderer::apercu(FeedPost::query()->find($ligne->id), 'alpha'));
     }
 
+    // ── Demander une categorie au proprietaire ──────────────────────────────
+
+    public function test_le_membre_voit_le_lien_pour_demander_une_categorie(): void
+    {
+        $this->activer();
+
+        Livewire::actingAs($this->membre)->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertSee(__('veille.suggest_category_link'))
+            ->assertSee('data-action="suggest-watch-category"', false);
+
+        $this->categorieParDefaut();
+        Livewire::actingAs($this->membre)->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertSee('data-action="suggest-watch-category"', false);
+
+        foreach ([$this->owner, $this->facilitator] as $gestionnaire) {
+            Livewire::actingAs($gestionnaire)->test(LoopWatchCard::class, ['loop' => $this->loop])
+                ->assertDontSee('data-action="suggest-watch-category"', false);
+        }
+    }
+
+    public function test_la_demande_pre_remplit_le_composeur_avec_la_mention_du_proprietaire(): void
+    {
+        $this->activer();
+        $nom = trim($this->owner->publicDisplayName());
+
+        $this->chat($this->membre)
+            ->dispatch('veille-suggerer-categorie')
+            ->assertSet('body', '@'.$nom.' : '.__('veille.suggest_category_message'))
+            ->assertSet('mentionsSelectionnees', [(string) $this->owner->id])
+            ->assertDispatched('composer-filled');
+
+        $this->assertSame(0, LoopMessage::query()->where('loop_id', $this->loop->id)->where('type', 'user')->count(), 'rien n\'est envoye');
+    }
+
+    public function test_la_demande_ne_detruit_pas_un_brouillon(): void
+    {
+        $this->activer();
+
+        $this->chat($this->membre)
+            ->set('body', 'Mon brouillon')
+            ->dispatch('veille-suggerer-categorie')
+            ->assertSet('body', "Mon brouillon\n@".trim($this->owner->publicDisplayName()).' : '.__('veille.suggest_category_message'));
+    }
+
+    public function test_la_demande_est_ignoree_plugin_eteint(): void
+    {
+        $this->chat($this->membre)
+            ->dispatch('veille-suggerer-categorie')
+            ->assertSet('body', '');
+    }
+
     // ── Export ──────────────────────────────────────────────────────────────
 
     private function urlExport(string $format, array $extra = []): string

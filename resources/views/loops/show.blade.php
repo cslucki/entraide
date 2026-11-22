@@ -272,6 +272,9 @@
                     activeCard = $event.detail.card; focus = 'none';
                 }
             "
+            {{-- TASK-1879 — revenir au fil sur telephone (le panneau couvre
+                 l'ecran) ; sur grand ecran, fil et outil restent cote a cote. --}}
+            @bp-close-loop-card-mobile.window="if (window.matchMedia('(max-width: 1023px)').matches) { closeCard() }"
             x-bind:data-resizing="resizing ? 'true' : 'false'"
             class="loops-show-container h-dvh flex flex-col bg-[var(--bp-page)]"
             data-loop-workspace-shell
