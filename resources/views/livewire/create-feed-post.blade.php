@@ -88,12 +88,17 @@
             @error('image') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-gray-800/70">
-            <label class="flex items-center gap-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                <input type="checkbox" wire:model="pin" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                {{ __('feed-post.pin') }}
-            </label>
-        </div>
+        {{-- TASK-1879 (demande Cyril, 22/11) — epingler est reserve a l'administrateur
+             de l'Organization (meme regle que `FeedPostPolicy::pin`, deja exigee
+             par `submit`) : les autres membres ne voient plus la case. --}}
+        @can('pin', App\Models\FeedPost::class)
+            <div class="rounded-2xl bg-gray-50 p-4 dark:bg-gray-800/70" data-feed-pin-field>
+                <label class="flex items-center gap-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    <input type="checkbox" wire:model="pin" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    {{ __('feed-post.pin') }}
+                </label>
+            </div>
+        @endcan
 
         <div>
             <label for="loopMessage" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.loop_message') }}</label>

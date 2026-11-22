@@ -875,6 +875,20 @@ class OrganizationFeedTest extends TestCase
             ->assertForbidden();
     }
 
+    /** TASK-1879 (demande Cyril, 22/11) — la case « Epingler » n'est proposee qu'a l'administrateur. */
+    public function test_pin_field_is_shown_to_the_organization_admin_only(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertDontSeeHtml('data-feed-pin-field');
+
+        Livewire::actingAs($this->admin)
+            ->test(CreateFeedPost::class)
+            ->assertSeeHtml('data-feed-pin-field');
+    }
+
     public function test_published_post_visible_in_feed(): void
     {
         FeedPost::create([
