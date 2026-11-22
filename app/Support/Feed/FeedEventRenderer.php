@@ -270,6 +270,9 @@ final class FeedEventRenderer
      *
      * @return array{url: ?string, image: ?string, ronde: bool, titre: ?string, texte: ?string}|null
      */
+    /** Le trace « Mon profil public » du menu avatar (app-side-nav). */
+    private const ICONE_PROFIL = 'M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z M4.5 20.25a8.25 8.25 0 1116.5 0';
+
     public static function apercu(FeedPost $post, ?string $organizationSlug): ?array
     {
         $type = (string) $post->type;
@@ -285,10 +288,14 @@ final class FeedEventRenderer
                 return null;
             }
 
+            // TASK-1879 (demande Cyril, 22/11) — l'icone « Mon profil public » du
+            // menu avatar (l'avatar, lui, est deja dans la gouttiere de la ligne).
             return [
                 'url' => self::lienProfil($personne, $organizationSlug),
-                'image' => filled($personne->avatar) ? $personne->avatar_url : null,
-                'ronde' => true,
+                'image' => null,
+                'icone' => self::ICONE_PROFIL,
+                'teinte' => 'indigo',
+                'ronde' => false,
                 'titre' => null,
                 'texte' => \Illuminate\Support\Str::limit(trim((string) $personne->bio), 180),
             ];
@@ -307,9 +314,12 @@ final class FeedEventRenderer
         };
 
         if ($boucle !== null) {
+            // TASK-1879 (demande Cyril) — sans couverture, l'icone « Boucles » du rail.
             return [
                 'url' => self::lien($post, $organizationSlug),
                 'image' => $boucle->cover_image_url,
+                'icone' => config('navigation_icons.loops'),
+                'teinte' => 'teal',
                 'ronde' => false,
                 'titre' => (string) $boucle->name,
                 'texte' => filled($boucle->tagline)
@@ -318,10 +328,17 @@ final class FeedEventRenderer
             ];
         }
 
+        // TASK-1879 (demande Cyril) — une moitie de l'icone « Entraide » du rail :
+        // fleche vers le haut = je veux recevoir (demande), vers le bas = je veux
+        // donner (proposition).
         if ($objet instanceof Service || $objet instanceof ServiceRequest) {
+            $demande = $objet instanceof ServiceRequest;
+
             return [
                 'url' => self::lien($post, $organizationSlug),
                 'image' => null,
+                'icone' => $demande ? 'M12 20V4m0 0-6 6m6-6 6 6' : 'M12 4v16m0 0-6-6m6 6 6-6',
+                'teinte' => $demande ? 'amber' : 'teal',
                 'ronde' => false,
                 'titre' => (string) $objet->title,
                 'texte' => \Illuminate\Support\Str::limit(trim((string) $objet->description), 160),
@@ -409,13 +426,24 @@ final class FeedEventRenderer
             ];
         }
 
+        // TASK-1879 (demande Cyril) — la tuile date de la Card Evenements
+        // (jour, quantieme, mois, heure), dans le fuseau de l'evenement.
         if ($objet instanceof LoopEvent) {
+            $debut = $objet->startsAtLocal();
+
             return [
                 'url' => null,
                 'image' => null,
+                'date' => [
+                    'jour' => $debut->translatedFormat('D'),
+                    'quantieme' => $debut->translatedFormat('d'),
+                    'mois' => $debut->translatedFormat('M'),
+                    'heure' => $debut->format('H:i'),
+                    'annule' => $objet->status === LoopEvent::STATUS_CANCELLED,
+                ],
                 'ronde' => false,
                 'titre' => (string) $objet->title,
-                'texte' => $objet->starts_at?->isoFormat('LLL'),
+                'texte' => $debut->isoFormat('LLL'),
             ];
         }
 

@@ -7,14 +7,18 @@ use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\FeedPost;
 use App\Models\Loop;
+use App\Models\LoopEvent;
 use App\Models\LoopMember;
 use App\Models\LoopNotificationPreference;
 use App\Models\LoopPoll;
 use App\Models\MemberNotification;
 use App\Models\Organization;
+use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\LoopMessageService;
 use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\Feed\FeedEventRenderer;
 use App\Support\Notifications\NotificationCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -204,6 +208,37 @@ class TASK1879NotificationsCollectivesBoucleTest extends TestCase
         // Un ancien membre (retire) ne voit pas ces lignes ; un membre actif, si.
         $this->assertSame(0, FeedPost::query()->visibleTo($this->parti)->whereIn('type', [FeedEventCatalogue::SONDAGE_PUBLIE, FeedEventCatalogue::ARTICLE_PUBLIE, FeedEventCatalogue::FICHIERS_DEPOSES])->count());
         $this->assertSame(3, FeedPost::query()->visibleTo($this->membre)->whereIn('type', [FeedEventCatalogue::SONDAGE_PUBLIE, FeedEventCatalogue::ARTICLE_PUBLIE, FeedEventCatalogue::FICHIERS_DEPOSES])->count());
+    }
+
+    /**
+     * Demande Cyril (22/11) — les autres lignes du Flux ont aussi leur icone :
+     * profil (presentation), Boucles (adhesion), tuile date (evenement),
+     * fleche haut (demande d'aide) et fleche bas (proposition).
+     */
+    public function test_les_autres_lignes_du_flux_portent_leur_icone(): void
+    {
+        $emetteur = app(FeedEventEmitter::class);
+        $org = (string) $this->organization->id;
+
+        $this->auteur->forceFill(['bio' => 'Je suis benevole.'])->save();
+        $presentation = $emetteur->emettre(FeedEventCatalogue::PRESENTATION_TERMINEE, $this->auteur, $this->auteur, $org);
+        $adhesion = $emetteur->emettre(FeedEventCatalogue::ADHESION_BOUCLE, LoopMember::where('user_id', $this->membre->id)->sole(), $this->membre, $org, $this->loop);
+        $demande = $emetteur->emettre(FeedEventCatalogue::DEMANDE_PUBLIEE, ServiceRequest::factory()->create(['organization_id' => $org, 'user_id' => $this->auteur->id]), $this->auteur, $org);
+        $offre = $emetteur->emettre(FeedEventCatalogue::PROPOSITION_PUBLIEE, Service::factory()->create(['organization_id' => $org, 'user_id' => $this->auteur->id]), $this->auteur, $org);
+        $evenement = $emetteur->emettre(FeedEventCatalogue::EVENEMENT_CREE, LoopEvent::create([
+            'organization_id' => $org, 'loop_id' => $this->loop->id, 'created_by' => $this->auteur->id,
+            'status' => LoopEvent::STATUS_SCHEDULED, 'title' => 'Reunion', 'format' => LoopEvent::FORMAT_IN_PERSON,
+            'starts_at' => \Carbon\CarbonImmutable::parse('2026-12-01 10:00', 'Europe/Paris')->utc(),
+            'timezone' => 'Europe/Paris', 'location' => '', 'meeting_url' => '', 'visibility' => 'loop',
+        ]), $this->auteur, $org, $this->loop);
+
+        $apercu = fn ($ligne) => FeedEventRenderer::apercu($ligne, (string) $this->organization->slug);
+
+        $this->assertStringStartsWith('M15.75 7.5a3.75', $apercu($presentation)['icone']);
+        $this->assertSame(config('navigation_icons.loops'), $apercu($adhesion)['icone']);
+        $this->assertSame('M12 20V4m0 0-6 6m6-6 6 6', $apercu($demande)['icone']);
+        $this->assertSame('M12 4v16m0 0-6-6m6 6 6-6', $apercu($offre)['icone']);
+        $this->assertSame(['01', '10:00', false], [$apercu($evenement)['date']['quantieme'], $apercu($evenement)['date']['heure'], $apercu($evenement)['date']['annule']]);
     }
 
     // ── Outils ──────────────────────────────────────────────────────────────

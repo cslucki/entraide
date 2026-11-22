@@ -123,6 +123,16 @@
                     @if($_apercu['image'])
                         <img src="{{ $_apercu['image'] }}" alt=""
                              class="{{ $_apercu['ronde'] ? 'h-14 w-14 rounded-full' : 'h-14 w-20 rounded-xl' }} shrink-0 object-cover">
+                    @elseif(! empty($_apercu['date']))
+                        {{-- TASK-1879 (demande Cyril) — la tuile date de la Card Evenements. --}}
+                        <span class="flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-xl text-center text-white {{ $_apercu['date']['annule']
+                                ? 'bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-600 dark:to-gray-700'
+                                : 'bg-gradient-to-br from-indigo-600 to-indigo-700 dark:from-indigo-500 dark:to-indigo-600' }}" data-feed-event-date>
+                            <span class="text-[9px] font-bold uppercase leading-none opacity-80">{{ $_apercu['date']['jour'] }}</span>
+                            <span class="font-mono text-xl font-bold leading-tight tabular-nums">{{ $_apercu['date']['quantieme'] }}</span>
+                            <span class="text-[9px] font-semibold leading-none opacity-90">{{ $_apercu['date']['mois'] }}</span>
+                            <span class="mt-1 rounded-full bg-white/20 px-1 font-mono text-[9px] leading-tight tabular-nums">{{ $_apercu['date']['heure'] }}</span>
+                        </span>
                     @elseif(! empty($_apercu['icone']))
                         {{-- TASK-1809 (correctif Cyril) — la MEME icone que le
                              rail gauche (« Entraide »), jamais une seconde
@@ -134,6 +144,8 @@
                             'violet' => 'bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300',
                             'rose' => 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300',
                             'emerald' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
+                            'amber' => 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
+                            'teal' => 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-300',
                             default => 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300',
                         } }}">
                             <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
