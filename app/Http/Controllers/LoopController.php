@@ -443,6 +443,8 @@ class LoopController extends Controller
             'messages' => $messages,
             'members' => $members,
             'memberCount' => $memberCount,
+            // TASK-1885 C4 — vide sans $canRead : aucun membre charge.
+            'joinReasons' => LoopJoinRequest::joinReasonsFor($loop, $members->pluck('user_id')),
         ]);
     }
 

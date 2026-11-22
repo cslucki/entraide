@@ -490,6 +490,8 @@ class LoopMembersCard extends Component
         return view('livewire.loop-members-card', [
             'members' => $members,
             'shownMembers' => $shown,
+            // TASK-1885 C4 — une requete pour toute la liste.
+            'joinReasons' => LoopJoinRequest::joinReasonsFor($this->loop, $shown->pluck('user_id')),
             'segmentCounts' => $counts,
             'candidates' => $candidates,
             'invitations' => $this->invitations(),
