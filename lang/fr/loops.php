@@ -785,6 +785,10 @@ return [
     'search_no_results' => 'Aucune Boucle ne correspond à votre recherche.',
     'tagline_label' => 'Accroche courte',
     'tagline_placeholder' => 'En une phrase, à qui s\'adresse cette Boucle ?',
+    // TASK-1885 C7 — le Pitch en surimpression de la couverture.
+    'pitch_label' => 'Pitch',
+    'pitch_placeholder' => 'Ex. ENTRAIDE',
+    'pitch_help' => 'Un mot fort, :max caractères maximum, affiché en grand sur l\'image de la Boucle. Laisser vide pour ne rien afficher.',
     'access_mode_label' => 'Mode d\'accès',
     'access_mode_open' => 'Ouverte',
     'access_mode_open_desc' => 'Toute personne de l\'organisation peut rejoindre immédiatement.',

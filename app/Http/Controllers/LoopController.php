@@ -698,6 +698,8 @@ class LoopController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'tagline' => 'nullable|string|max:140',
+            // TASK-1885 C7 — le Pitch, sur l'ecran de modification.
+            'pitch' => Loop::pitchRules(),
             'description' => 'nullable|string|max:5000',
             'access_mode' => ['nullable', Rule::in(Loop::ACCESS_MODES)],
             'cover_image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
@@ -716,6 +718,11 @@ class LoopController extends Controller
         // frappe dans la description.
         if (empty($data['slug'])) {
             unset($data['slug']);
+        }
+
+        // Absent du formulaire = INCHANGE ; vide = efface.
+        if (array_key_exists('pitch', $data)) {
+            $data['pitch'] = Loop::normaliserPitch($data['pitch']);
         }
 
         // TASK-1725 — le `false` distingue « n'y touche pas » de « efface ». Les
