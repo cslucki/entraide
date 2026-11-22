@@ -11,6 +11,7 @@ use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
 use App\Models\LoopRoadmapItem;
+use App\Models\LoopWatchItem;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Support\Notifications\NotificationCatalogue;
@@ -823,6 +824,64 @@ class LoopMessageService
                 'metadata' => [
                     'event' => 'created',
                     'roadmap_item_id' => $item->id,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * TASK-1879 — annoncer dans ChatLoop qu'une veille a ete publiee.
+     *
+     * Meme forme que `sendRoadmapActionMessage()` : un `type` propre et des
+     * metadata MINIMALES — l'identifiant de la veille, rien de son texte ni de
+     * sa source. La vue relit la veille EN DIRECT (`LoopChat::projectedWatchItems()`) :
+     * modifiee, elle montre la version actuelle ; supprimee, plugin eteint ou
+     * lecteur sans droit, elle ne montre plus rien d'elle.
+     *
+     * Le corps ne porte que le nom de l'auteur : un message supprime de la
+     * veille ne laisse donc aucun contenu dans le fil.
+     *
+     * **Aucune notification Push ni e-mail.** Cette methode n'appelle pas
+     * NotificationEmitter (decision MASTER anti-infobesite) ; seul
+     * `LoopMessageCreated` part, pour le rafraichissement temps reel du fil.
+     *
+     * IDEMPOTENT : une veille n'est annoncee qu'une fois.
+     */
+    public function sendWatchItemMessage(Loop $loop, User $sender, LoopWatchItem $item): ?LoopMessage
+    {
+        $this->assertCanSend($loop, $sender);
+
+        if ($item->loop_id !== $loop->id || $item->organization_id !== $loop->organization_id) {
+            throw new \RuntimeException('Watch item not found.');
+        }
+
+        $dejaAnnonce = LoopMessage::where('loop_id', $loop->id)
+            ->where('type', 'watch_item')
+            ->where('metadata->watch_item_id', $item->id)
+            ->exists();
+
+        if ($dejaAnnonce) {
+            return null;
+        }
+
+        $body = __('veille.chat_created', ['name' => $sender->publicDisplayName()]);
+
+        return DB::transaction(function () use ($loop, $sender, $item, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'watch_item',
+                'metadata' => [
+                    'event' => 'created',
+                    'watch_item_id' => $item->id,
                 ],
                 'organization_id' => $loop->organization_id,
             ]);

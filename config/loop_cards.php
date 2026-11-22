@@ -183,6 +183,38 @@ return [
             'mobile' => 'drawer',
             'default_enabled' => true,
         ],
+        // ── Veille (TASK-1879) ──────────────────────────────────────────────
+        //
+        // La Card d'un PLUGIN, pas d'un type. `requires_plugin` la retire de
+        // toute composition manuelle (LoopCardRegistry::manageableKeys) : elle
+        // n'existe dans une Boucle que tant que le plugin `veille` y est actif,
+        // et c'est LoopTypeRegistry::activeCardsFor() qui l'y ajoute. Elle
+        // n'est jamais un outil principal par defaut (primaryKeysFor) : elle
+        // s'ouvre depuis les autres outils.
+        'plugin.veille' => [
+            'key' => 'plugin.veille',
+            'label_key' => 'loops.cards.veille.label',
+            'description_key' => 'loops.cards.veille.description',
+            'empty_title_key' => 'loops.cards.veille.empty_title',
+            'empty_body_key' => 'loops.cards.veille.empty_body',
+            'action_key' => 'loops.cards.veille.action',
+            'icon' => 'eye',
+            'component' => 'loop-watch-card',
+            'view' => null,
+            'view_permission' => 'veille.view',
+            'required' => false,
+            'order' => 95,
+            'placement' => 'grid',
+            'category' => 'documentary',
+            'scope' => 'universal',
+            'requires' => [],
+            'incompatible_with' => [],
+            'replaceable' => false,
+            'permission' => 'loop.active_member',
+            'mobile' => 'drawer',
+            'default_enabled' => false,
+            'requires_plugin' => 'veille',
+        ],
         // ── Dossiers ────────────────────────────────────────────────────────
         //
         // Cette Card ne cree aucun systeme documentaire : elle donne une fenetre

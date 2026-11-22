@@ -295,6 +295,14 @@ return [
     'ai_not_configured_for_organization' => 'AI is not configured for this organization. An organization administrator must set the provider, model and API key first.',
     'ai_summary_temporarily_unavailable' => 'AI summaries are temporarily unavailable for this organization.',
     'cards' => [
+        // TASK-1879 — the Watch plugin Card.
+        'veille' => [
+            'label' => 'Watch',
+            'description' => 'Watch items shared by members, with their impact and source.',
+            'empty_title' => 'No watch item',
+            'empty_body' => 'Share something you spotted, its impact for the Loop and its source.',
+            'action' => 'Add a watch item',
+        ],
         'events' => [
             'label' => 'Events',
             'description' => 'Organise the Loop\'s meetings and know who is coming.',
@@ -1237,6 +1245,7 @@ return [
     'permissions_invariants_intro' => 'These are not permissions: they always apply and can neither be configured nor disabled.',
     'permissions_module_loops' => 'Loop',
     'permissions_module_polls' => 'Polls',
+    'permissions_module_veille' => 'Watch', // TASK-1879
     'permissions_module_events' => 'Events',
     'permissions_module_dossiers' => 'Folders',
     'permissions_module_journal' => 'Journal',

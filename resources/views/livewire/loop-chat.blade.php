@@ -410,6 +410,42 @@
                             @endif
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
+                    @elseif($msg->type === 'watch_item')
+                        {{-- TASK-1879 — une veille publiee. Ligne compacte, meme
+                             famille que Sondage / Roadmap : un reperage, pas une
+                             prise de parole. Le message ne porte que
+                             l'identifiant ; categorie et extrait sont relus EN
+                             DIRECT ($projectedWatchItems). Supprimee, plugin
+                             eteint ou lecteur sans droit : rien d'elle ne
+                             s'affiche. Le bouton ouvre la Card Veille. --}}
+                        @php
+                            $wiMeta = $msg->metadata ?? [];
+                            $wiItem = $projectedWatchItems->get($wiMeta['watch_item_id'] ?? null);
+                        @endphp
+                        <div data-watch-announcement="{{ $wiItem ? 'available' : 'unavailable' }}"
+                             class="flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2 dark:border-sky-800/50 dark:bg-sky-900/20">
+                            <svg class="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+                            @if($wiItem)
+                                <span class="min-w-0 flex-1 text-xs leading-5 text-sky-900 dark:text-sky-100">
+                                    {{ $msg->body }}
+                                    <span class="block text-[11px] text-sky-800/80 dark:text-sky-200/80">
+                                        @if($wiItem->category)
+                                            <span class="font-semibold">{{ $wiItem->category->name }}</span> ·
+                                        @endif
+                                        {{ \Illuminate\Support\Str::limit($wiItem->information, 140) }}
+                                    </span>
+                                </span>
+                                <button type="button"
+                                        x-on:click="$dispatch('bp-open-loop-card', { card: 'plugin.veille' })"
+                                        data-action="open-watch-card"
+                                        class="shrink-0 rounded-lg bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-sky-700">
+                                    {{ __('veille.chat_open_card') }}
+                                </button>
+                            @else
+                                <span class="min-w-0 flex-1 text-xs italic leading-5 text-sky-900/60 dark:text-sky-100/60">{{ __('veille.chat_unavailable') }}</span>
+                            @endif
+                            <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                        </div>
                     @elseif($msg->type === 'blog_post')
                         {{-- TASK-1826 — un Article publie ou partage dans la
                              Boucle. Carte PREMIUM (meme famille que la

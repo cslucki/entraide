@@ -555,6 +555,24 @@ class LoopTypeRegistry
 
         $registry = app(LoopCardRegistry::class);
 
+        // TASK-1879 — les Cards de PLUGIN. Aucune ligne `loop_cards` ni aucun
+        // preset ne les porte : une telle cle trouvee en base est ignoree, et la
+        // Card n'est ajoutee que si son plugin est ACTIF dans la Boucle (gate
+        // Organization compris). Plugin eteint -> Card absente -> chaque
+        // permission `requires_card` qui la nomme est refusee par le resolveur.
+        $cartesDePlugin = $registry->pluginCards();
+
+        if ($cartesDePlugin !== []) {
+            $keys = array_values(array_diff($keys, array_keys($cartesDePlugin)));
+            $actifs = app(\App\Services\Loops\LoopPluginActivation::class)->enabledPluginKeysFor($loop);
+
+            foreach ($cartesDePlugin as $carte => $plugin) {
+                if (in_array($plugin, $actifs, true)) {
+                    $keys[] = $carte;
+                }
+            }
+        }
+
         return collect($keys)
             ->filter(fn ($k) => $registry->exists($k))
             ->sortBy(fn ($k) => $registry->get($k)['order'] ?? 0)

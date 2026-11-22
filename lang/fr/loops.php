@@ -299,6 +299,14 @@ return [
     'ai_not_configured_for_organization' => 'L\'IA n\'est pas configurée pour cette organisation. Un administrateur de l\'organisation doit d\'abord renseigner le fournisseur, le modèle et la clé API.',
     'ai_summary_temporarily_unavailable' => 'Le résumé IA est temporairement indisponible pour cette organisation.',
     'cards' => [
+        // TASK-1879 — la Card du plugin Veille.
+        'veille' => [
+            'label' => 'Veille',
+            'description' => 'Les informations de veille partagées par les membres, avec leur impact et leur source.',
+            'empty_title' => 'Aucune veille',
+            'empty_body' => 'Partagez une information repérée, son impact pour la Boucle et sa source.',
+            'action' => 'Ajouter une veille',
+        ],
         'events' => [
             'label' => 'Événements',
             'description' => 'Organise les rencontres de la Boucle et sait qui vient.',
@@ -1251,6 +1259,7 @@ return [
     'permissions_invariants_intro' => 'Ces règles ne sont pas des permissions : elles s\'appliquent toujours et ne peuvent être ni configurées ni désactivées.',
     'permissions_module_loops' => 'Boucle',
     'permissions_module_polls' => 'Sondages',
+    'permissions_module_veille' => 'Veille', // TASK-1879
     'permissions_module_events' => 'Événements',
     'permissions_module_dossiers' => 'Dossiers',
     'permissions_module_journal' => 'Journal',

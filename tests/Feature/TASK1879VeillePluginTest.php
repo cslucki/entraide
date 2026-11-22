@@ -1,0 +1,885 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Livewire\LoopChat;
+use App\Livewire\LoopWatchCard;
+use App\Models\Loop;
+use App\Models\LoopMember;
+use App\Models\LoopMessage;
+use App\Models\LoopWatchCategory;
+use App\Models\LoopWatchItem;
+use App\Models\MemberNotification;
+use App\Models\Organization;
+use App\Models\User;
+use App\Services\LoopMessageService;
+use App\Services\LoopPermissionSettingsService;
+use App\Services\Loops\LoopCardCompositionService;
+use App\Services\Loops\LoopLifecycleService;
+use App\Services\Loops\LoopPluginActivation;
+use App\Services\Loops\LoopPluginAvailabilityService;
+use App\Services\Loops\LoopWatchService;
+use App\Services\Loops\WatchException;
+use App\Services\UserDataLifecycleRegistry;
+use App\Support\Loops\LoopCardRegistry;
+use App\Support\Loops\LoopPermissionResolver;
+use App\Support\Loops\LoopPluginRegistry;
+use App\Support\Loops\LoopTypeRegistry;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\TestCase;
+
+/**
+ * TASK-1879 — le plugin Veille collaborative.
+ *
+ * Trois objets distincts, et ce fichier les mesure separement :
+ *
+ *  - le PLUGIN : catalogue, disponibilite par Organization, activation par
+ *    Boucle, et les routes IA qui ne doivent jamais le traiter comme un
+ *    plugin a assistants ;
+ *  - la CARD `plugin.veille` : presente seulement quand le plugin est actif,
+ *    jamais composee a la main, jamais principale par defaut ; ses droits ;
+ *  - l'ANNONCE ChatLoop `watch_item` : metadata minimales, relecture en
+ *    direct, aucune notification Push/Email.
+ */
+class TASK1879VeillePluginTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private const PLUGIN = 'veille';
+
+    private Organization $orgA;
+
+    private Organization $orgB;
+
+    private Loop $loop;
+
+    private Loop $autreBoucle;
+
+    private Loop $boucleB;
+
+    private User $superAdmin;
+
+    private User $owner;
+
+    private User $facilitator;
+
+    private User $membre;
+
+    private User $autreMembre;
+
+    private User $ancien;
+
+    private User $etranger;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Organization::factory()->create(['is_active' => true, 'is_default' => true]);
+
+        $this->orgA = Organization::factory()->create([
+            'name' => 'Alpha', 'is_active' => true, 'loops_enabled' => true,
+            'loop_composition_policy' => 'owner_allowed',
+        ]);
+        $this->orgB = Organization::factory()->create([
+            'name' => 'Beta', 'is_active' => true, 'loops_enabled' => true,
+        ]);
+
+        $this->superAdmin = User::factory()->create([
+            'is_admin' => true, 'organization_id' => $this->orgA->id, 'preferred_locale' => 'fr',
+        ]);
+
+        $this->owner = $this->personne($this->orgA, 'Owner');
+        $this->facilitator = $this->personne($this->orgA, 'Animateur');
+        $this->membre = $this->personne($this->orgA, 'Membre');
+        $this->autreMembre = $this->personne($this->orgA, 'Autre');
+        $this->ancien = $this->personne($this->orgA, 'Ancien');
+        $this->etranger = $this->personne($this->orgB, 'Etranger');
+
+        $this->loop = $this->boucle($this->orgA, $this->owner);
+        $this->autreBoucle = $this->boucle($this->orgA, $this->owner);
+        $this->boucleB = $this->boucle($this->orgB, $this->etranger);
+
+        $this->adhesion($this->loop, $this->owner, 'owner');
+        $this->adhesion($this->loop, $this->facilitator, 'facilitator');
+        $this->adhesion($this->loop, $this->membre, 'member');
+        $this->adhesion($this->loop, $this->autreMembre, 'member');
+        $this->adhesion($this->loop, $this->ancien, 'member', 'removed');
+        $this->adhesion($this->autreBoucle, $this->owner, 'owner');
+        $this->adhesion($this->boucleB, $this->etranger, 'owner');
+
+        app()->instance('current_organization', $this->orgA);
+    }
+
+    // ── Administration ──────────────────────────────────────────────────────
+
+    public function test_l_index_admin_presente_les_deux_plugins(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-plugins'))
+            ->assertOk()
+            ->assertSee('data-plugin="multi_ai_assistants"', false)
+            ->assertSee('data-plugin="veille"', false)
+            ->assertSee(route('admin.loop-plugins.show', 'pour-contre'), false)
+            ->assertSee(route('admin.loop-plugins.show', 'veille'), false)
+            // L'index n'est plus l'ecran de configuration IA.
+            ->assertDontSee('data-section="plugin-models"', false);
+    }
+
+    public function test_le_detail_pour_contre_garde_la_configuration_ia(): void
+    {
+        Http::fake();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-plugins.show', 'pour-contre'))
+            ->assertOk()
+            ->assertSee('data-section="plugin-models"', false)
+            ->assertSee('data-assistant-model="aperio"', false)
+            ->assertSee('Alpha');
+    }
+
+    public function test_le_detail_veille_n_a_aucune_configuration_ia(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loop-plugins.show', 'veille'))
+            ->assertOk()
+            ->assertSee('data-plugin="veille"', false)
+            ->assertSee('data-plugin-status="experimental"', false)
+            ->assertDontSee('data-section="plugin-models"', false)
+            ->assertSee('Alpha')
+            ->assertSee('Beta');
+    }
+
+    public function test_un_slug_inconnu_ou_une_cle_technique_rend_404(): void
+    {
+        $this->actingAs($this->superAdmin)->get(route('admin.loop-plugins.show', 'inconnu'))->assertNotFound();
+        // Un slug bien forme mais absent du catalogue : 404, jamais une cle devinee.
+        $this->actingAs($this->superAdmin)->get('/admin/loop-plugins/multi-ai-assistants')->assertNotFound();
+    }
+
+    public function test_le_detail_est_reserve_au_superadmin(): void
+    {
+        $this->actingAs($this->owner)->get(route('admin.loop-plugins.show', 'veille'))->assertForbidden();
+    }
+
+    public function test_le_superadmin_autorise_la_veille_pour_une_organization(): void
+    {
+        $this->actingAs($this->superAdmin)
+            ->put(route('admin.loop-plugins.update', self::PLUGIN), [
+                'organization_id' => $this->orgA->id,
+                'available' => 1,
+            ])
+            ->assertRedirect(route('admin.loop-plugins.show', 'veille'));
+
+        $this->assertTrue(app(LoopPluginAvailabilityService::class)->isAvailable(self::PLUGIN, $this->orgA));
+        $this->assertFalse(app(LoopPluginAvailabilityService::class)->isAvailable(self::PLUGIN, $this->orgB));
+    }
+
+    public function test_les_routes_ia_repondent_404_pour_la_veille_sans_aucun_effet(): void
+    {
+        Http::fake();
+        $this->activer();
+
+        $this->actingAs($this->superAdmin)
+            ->put(route('admin.loop-plugins.models.update', self::PLUGIN), [
+                'assistant_key' => 'aperio', 'model_slug' => 'vendor/x:free',
+            ])
+            ->assertNotFound();
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('admin.loop-plugins.models.refresh', self::PLUGIN))
+            ->assertNotFound();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('admin.loops.plugins.configure', ['loop' => $this->loop->id, 'plugin' => self::PLUGIN]))
+            ->assertNotFound();
+
+        $this->actingAs($this->owner)
+            ->put(route('organization.loops.plugins.configure.update', [
+                'organization' => $this->orgA->slug, 'loop' => $this->loop->id, 'plugin' => self::PLUGIN,
+            ]), ['assistants' => ['aperio' => ['instruction' => 'forge', 'enabled' => 1]]])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('loop_plugin_ai_models', 0);
+        $this->assertDatabaseCount('loop_ai_assistants', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_l_ecran_outils_n_offre_pas_configurer_pour_la_veille(): void
+    {
+        app(LoopPluginAvailabilityService::class)->setAvailability(self::PLUGIN, $this->orgA, true, $this->superAdmin);
+
+        $this->actingAs($this->owner)
+            ->get(route('organization.loops.tools', ['organization' => $this->orgA->slug, 'loop' => $this->loop->id]))
+            ->assertOk()
+            ->assertSee('data-plugin="veille"', false)
+            ->assertDontSee('/plugins/veille/configurer', false);
+    }
+
+    public function test_le_registre_distingue_les_plugins_a_assistants(): void
+    {
+        $registre = app(LoopPluginRegistry::class);
+
+        $this->assertTrue($registre->hasAssistants('multi_ai_assistants'));
+        $this->assertFalse($registre->hasAssistants('veille'));
+        $this->assertFalse($registre->hasAssistants('inconnu'));
+        $this->assertSame('veille', $registre->keyForAdminSlug('veille'));
+        $this->assertSame('multi_ai_assistants', $registre->keyForAdminSlug('pour-contre'));
+        $this->assertNull($registre->keyForAdminSlug('multi_ai_assistants'));
+    }
+
+    // ── Disponibilite, activation, Card ─────────────────────────────────────
+
+    public function test_le_plugin_et_sa_card_sont_absents_par_defaut(): void
+    {
+        $this->assertFalse(app(LoopWatchService::class)->isEnabled($this->loop));
+        $this->assertNotContains('plugin.veille', app(LoopTypeRegistry::class)->activeCardsFor($this->loop));
+        $this->assertFalse(app(LoopWatchService::class)->canView($this->membre, $this->loop));
+        $this->assertFalse(app(LoopPermissionResolver::class)->can($this->owner, $this->loop, 'veille.view'));
+    }
+
+    public function test_disponible_mais_non_active_dans_la_boucle_reste_ferme(): void
+    {
+        app(LoopPluginAvailabilityService::class)->setAvailability(self::PLUGIN, $this->orgA, true, $this->superAdmin);
+
+        $this->assertNotContains('plugin.veille', app(LoopTypeRegistry::class)->activeCardsFor($this->loop));
+        $this->assertFalse(app(LoopWatchService::class)->canCreate($this->membre, $this->loop));
+    }
+
+    public function test_une_organization_non_autorisee_ne_peut_pas_activer(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->boucleB, true, $this->etranger);
+    }
+
+    public function test_active_la_card_apparait_parmi_les_outils_secondaires(): void
+    {
+        $this->activer();
+
+        $this->assertContains('plugin.veille', app(LoopTypeRegistry::class)->activeCardsFor($this->loop));
+        $this->assertNotContains('plugin.veille', app(LoopCardCompositionService::class)->primaryKeysFor($this->loop));
+        $this->assertContains('plugin.veille', app(LoopCardCompositionService::class)->secondaryKeysFor($this->loop));
+        // Jamais composable a la main.
+        $this->assertNotContains('plugin.veille', app(LoopCardRegistry::class)->manageableKeys());
+    }
+
+    public function test_la_card_ne_se_compose_pas_independamment_du_plugin(): void
+    {
+        $this->expectException(\Throwable::class);
+
+        app(LoopCardCompositionService::class)->enable($this->loop, 'plugin.veille');
+    }
+
+    public function test_l_activation_est_vue_dans_la_meme_requete(): void
+    {
+        $registre = app(LoopTypeRegistry::class);
+        app(LoopPluginAvailabilityService::class)->setAvailability(self::PLUGIN, $this->orgA, true, $this->superAdmin);
+
+        // Le memo se remplit « eteint »…
+        $this->assertNotContains('plugin.veille', $registre->activeCardsFor($this->loop));
+
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->loop, true, $this->owner);
+        $this->assertContains('plugin.veille', $registre->activeCardsFor($this->loop));
+
+        app(LoopPluginAvailabilityService::class)->setAvailability(self::PLUGIN, $this->orgA, false, $this->superAdmin);
+        $this->assertNotContains('plugin.veille', $registre->activeCardsFor($this->loop));
+    }
+
+    public function test_les_resolutions_repetees_ne_relisent_pas_les_plugins(): void
+    {
+        $this->activer();
+        $resolveur = app(LoopPermissionResolver::class);
+        $resolveur->can($this->membre, $this->loop, 'veille.view');
+
+        \DB::enableQueryLog();
+        \DB::flushQueryLog();
+
+        for ($i = 0; $i < 5; $i++) {
+            $resolveur->can($this->membre, $this->loop, 'veille.view');
+        }
+
+        $lecturesPlugins = collect(\DB::getQueryLog())
+            ->filter(fn ($q) => str_contains($q['query'], 'loop_plugins'))
+            ->count();
+
+        $this->assertSame(0, $lecturesPlugins);
+    }
+
+    public function test_la_card_est_rendue_dans_la_boucle_quand_le_plugin_est_actif(): void
+    {
+        $this->activer();
+
+        $this->actingAs($this->membre)
+            ->get(route('organization.loops.show', [$this->orgA->slug, $this->loop]))
+            ->assertOk()
+            ->assertSee('data-watch-root', false);
+    }
+
+    // ── Droits sur les veilles ──────────────────────────────────────────────
+
+    public function test_un_membre_actif_publie_une_veille(): void
+    {
+        $this->activer();
+
+        $item = $this->publier($this->membre);
+
+        $this->assertSame($this->loop->id, $item->loop_id);
+        $this->assertSame($this->orgA->id, $item->organization_id);
+        $this->assertSame($this->membre->id, $item->created_by);
+        $this->assertNull($item->category_id);
+    }
+
+    public function test_un_membre_non_actif_est_refuse(): void
+    {
+        $this->activer();
+
+        $this->expectException(WatchException::class);
+        $this->publier($this->ancien);
+    }
+
+    public function test_un_utilisateur_d_une_autre_organization_est_refuse(): void
+    {
+        $this->activer();
+
+        $this->expectException(WatchException::class);
+        $this->publier($this->etranger);
+    }
+
+    public function test_un_superadmin_non_membre_ne_publie_pas(): void
+    {
+        $this->activer();
+
+        $this->expectException(WatchException::class);
+        $this->publier($this->superAdmin);
+    }
+
+    public function test_l_auteur_gere_ses_veilles_et_pas_celles_des_autres(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+        $sienne = $this->publier($this->membre);
+        $autre = $this->publier($this->autreMembre);
+
+        $service->update($this->membre, $this->loop, $sienne->id, $this->donnees(['information' => 'Corrigee']));
+        $this->assertSame('Corrigee', $sienne->fresh()->information);
+
+        try {
+            $service->update($this->membre, $this->loop, $autre->id, $this->donnees(['information' => 'Forge']));
+            $this->fail('Un membre ne doit pas modifier la veille d\'un autre.');
+        } catch (WatchException) {
+        }
+
+        try {
+            $service->delete($this->membre, $this->loop, $autre->id);
+            $this->fail('Un membre ne doit pas supprimer la veille d\'un autre.');
+        } catch (WatchException) {
+        }
+
+        $this->assertNotSame('Forge', $autre->fresh()->information);
+        $this->assertNotNull(LoopWatchItem::find($autre->id));
+    }
+
+    public function test_proprietaire_et_animateur_gerent_toutes_les_veilles(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+        $item = $this->publier($this->membre);
+
+        $service->update($this->facilitator, $this->loop, $item->id, $this->donnees(['impact' => 'Revu par l\'animateur']));
+        $this->assertSame('Revu par l\'animateur', $item->fresh()->impact);
+        $this->assertSame($this->facilitator->id, $item->fresh()->updated_by);
+
+        $service->delete($this->owner, $this->loop, $item->id);
+        $this->assertNull(LoopWatchItem::find($item->id));
+    }
+
+    public function test_la_suppression_est_douce(): void
+    {
+        $this->activer();
+        $item = $this->publier($this->membre);
+
+        app(LoopWatchService::class)->delete($this->membre, $this->loop, $item->id);
+
+        $this->assertSoftDeleted('loop_watch_items', ['id' => $item->id]);
+        $this->assertNull(app(LoopWatchService::class)->findItem($this->loop, $item->id));
+    }
+
+    public function test_une_veille_d_une_autre_boucle_n_est_pas_atteignable(): void
+    {
+        $this->activer();
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->autreBoucle, true, $this->owner);
+
+        $ailleurs = app(LoopWatchService::class)->create($this->owner, $this->autreBoucle, $this->donnees());
+
+        $this->expectException(WatchException::class);
+        app(LoopWatchService::class)->update($this->owner, $this->loop, $ailleurs->id, $this->donnees(['information' => 'Forge']));
+    }
+
+    public function test_un_uuid_invalide_est_controle(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+
+        $this->assertNull($service->findItem($this->loop, 'pas-un-uuid'));
+        $this->assertNull($service->findCategory($this->loop, "1' or '1'='1"));
+
+        try {
+            $service->delete($this->owner, $this->loop, 'pas-un-uuid');
+            $this->fail('Un identifiant invalide doit etre refuse proprement.');
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_not_found'), $e->getMessage());
+        }
+
+        try {
+            $this->publier($this->membre, ['category_id' => 'pas-un-uuid']);
+            $this->fail('Une categorie invalide doit etre refusee proprement.');
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_category_not_found'), $e->getMessage());
+        }
+
+        Livewire::actingAs($this->owner)
+            ->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->call('openEditForm', 'pas-un-uuid')
+            ->assertSet('errorMessage', __('veille.error_not_allowed'))
+            ->call('archiveCategory', 'pas-un-uuid')
+            ->assertSet('errorMessage', __('veille.error_category_not_found'));
+    }
+
+    #[DataProvider('urlsRefusees')]
+    public function test_les_sources_non_http_sont_refusees(string $url): void
+    {
+        $this->activer();
+
+        try {
+            $this->publier($this->membre, ['source_url' => $url]);
+            $this->fail("La source {$url} aurait du etre refusee.");
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_source_invalid'), $e->getMessage());
+        }
+
+        $this->assertDatabaseCount('loop_watch_items', 0);
+    }
+
+    public static function urlsRefusees(): array
+    {
+        return [
+            'javascript' => ['javascript:alert(1)'],
+            'data' => ['data:text/html;base64,PHNjcmlwdD4='],
+            'ftp' => ['ftp://exemple.org/fichier'],
+            'sans schema' => ['exemple.org/article'],
+            'file' => ['file:///etc/passwd'],
+        ];
+    }
+
+    public function test_les_champs_obligatoires_sont_verifies_cote_serveur(): void
+    {
+        $this->activer();
+
+        foreach (['information' => '   ', 'impact' => '', 'source_url' => '', 'observed_on' => '2026-02-31'] as $champ => $valeur) {
+            try {
+                $this->publier($this->membre, [$champ => $valeur]);
+                $this->fail("Le champ {$champ} vide ou invalide aurait du etre refuse.");
+            } catch (WatchException) {
+            }
+        }
+
+        $this->assertDatabaseCount('loop_watch_items', 0);
+    }
+
+    public function test_une_boucle_archivee_est_en_lecture_seule_meme_pour_le_superadmin(): void
+    {
+        $this->activer();
+        $item = $this->publier($this->membre);
+
+        app(LoopLifecycleService::class)->archive($this->owner, $this->loop);
+        $boucle = $this->loop->fresh();
+        $service = app(LoopWatchService::class);
+
+        $this->assertTrue($service->canView($this->membre, $boucle));
+        $this->assertFalse($service->canCreate($this->owner, $boucle));
+        $this->assertFalse($service->canManageCategories($this->owner, $boucle));
+        $this->assertFalse($service->canManageItem($this->superAdmin, $item, $boucle));
+        $this->assertFalse($service->canManageItem($this->membre, $item, $boucle));
+
+        $this->expectException(WatchException::class);
+        $service->delete($this->superAdmin, $boucle, $item->id);
+    }
+
+    // ── Categories ──────────────────────────────────────────────────────────
+
+    public function test_seuls_proprietaire_et_animateur_gerent_les_categories(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+
+        $service->createCategory($this->owner, $this->loop, 'Reglementation');
+        $service->createCategory($this->facilitator, $this->loop, 'Marche');
+
+        $this->expectException(WatchException::class);
+        $service->createCategory($this->membre, $this->loop, 'Forge');
+    }
+
+    public function test_la_gestion_des_categories_est_verrouillee_contre_une_surcharge(): void
+    {
+        $this->activer();
+        $settings = app(LoopPermissionSettingsService::class);
+
+        $this->assertTrue($settings->isLocked('veille.manage_categories'));
+        $this->assertTrue($settings->isLocked('veille.manage'));
+        $this->assertFalse(
+            app(LoopPermissionResolver::class)->resolveForRole($this->orgA, 'general', 'member', 'veille.manage_categories')
+        );
+    }
+
+    public function test_un_nom_de_categorie_ne_se_repete_pas_a_la_casse_et_aux_espaces_pres(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+        $service->createCategory($this->owner, $this->loop, 'Réglementation');
+
+        try {
+            $service->createCategory($this->owner, $this->loop, '  RÉGLEMENTATION ');
+            $this->fail('Doublon accepte.');
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_category_name_taken'), $e->getMessage());
+        }
+
+        // Une autre Boucle peut porter le meme nom.
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->autreBoucle, true, $this->owner);
+        $service->createCategory($this->owner, $this->autreBoucle, 'Réglementation');
+
+        $this->assertSame(2, LoopWatchCategory::count());
+    }
+
+    public function test_la_categorie_devient_obligatoire_des_qu_une_active_existe(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+
+        $this->publier($this->membre); // sans categorie : permis
+
+        $categorie = $service->createCategory($this->owner, $this->loop, 'Technique');
+
+        try {
+            $this->publier($this->membre);
+            $this->fail('La categorie aurait du etre obligatoire.');
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_category_required'), $e->getMessage());
+        }
+
+        $item = $this->publier($this->membre, ['category_id' => $categorie->id]);
+        $this->assertSame($categorie->id, $item->category_id);
+    }
+
+    public function test_une_categorie_d_une_autre_boucle_est_refusee(): void
+    {
+        $this->activer();
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->autreBoucle, true, $this->owner);
+        $etrangere = app(LoopWatchService::class)->createCategory($this->owner, $this->autreBoucle, 'Ailleurs');
+
+        try {
+            $this->publier($this->owner, ['category_id' => $etrangere->id]);
+            $this->fail('Categorie etrangere acceptee.');
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_category_not_found'), $e->getMessage());
+        }
+
+        $this->expectException(WatchException::class);
+        app(LoopWatchService::class)->renameCategory($this->owner, $this->loop, $etrangere->id, 'Detournee');
+    }
+
+    public function test_archiver_une_categorie_preserve_l_historique(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+        $categorie = $service->createCategory($this->owner, $this->loop, 'Ancienne');
+        $item = $this->publier($this->membre, ['category_id' => $categorie->id]);
+
+        $service->archiveCategory($this->owner, $this->loop, $categorie->id);
+
+        $this->assertSame($categorie->id, $item->fresh()->category_id);
+        $this->assertNotContains($categorie->id, $service->categoriesFor($this->loop)->pluck('id')->all());
+
+        // Plus selectionnable pour une nouvelle veille…
+        try {
+            $this->publier($this->membre, ['category_id' => $categorie->id]);
+            $this->fail('Categorie archivee selectionnee.');
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_category_archived'), $e->getMessage());
+        }
+
+        // …mais conservable sur la veille qui la portait.
+        $service->update($this->membre, $this->loop, $item->id, $this->donnees([
+            'category_id' => $categorie->id, 'information' => 'Retouche',
+        ]));
+        $this->assertSame($categorie->id, $item->fresh()->category_id);
+
+        // Le nom se libere pour une nouvelle categorie active.
+        $service->createCategory($this->owner, $this->loop, 'Ancienne');
+    }
+
+    public function test_renommer_et_ordonner_les_categories(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+        $a = $service->createCategory($this->owner, $this->loop, 'A');
+        $b = $service->createCategory($this->owner, $this->loop, 'B');
+
+        $service->moveCategory($this->owner, $this->loop, $b->id, 'up');
+        $this->assertSame([$b->id, $a->id], $service->categoriesFor($this->loop)->pluck('id')->all());
+
+        $service->renameCategory($this->owner, $this->loop, $a->id, 'Alpha');
+        $this->assertSame('Alpha', $a->fresh()->name);
+
+        $this->expectException(WatchException::class);
+        $service->moveCategory($this->membre, $this->loop, $a->id, 'up');
+    }
+
+    // ── Card Livewire ───────────────────────────────────────────────────────
+
+    public function test_la_card_publie_liste_et_filtre(): void
+    {
+        $this->activer();
+        $categorie = app(LoopWatchService::class)->createCategory($this->owner, $this->loop, 'Marche');
+
+        Livewire::actingAs($this->membre)
+            ->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->call('openCreateForm')
+            ->assertSet('observedOn', now()->format('Y-m-d'))
+            ->set('categoryId', $categorie->id)
+            ->set('information', 'Nouvelle norme publiee')
+            ->set('impact', 'Revoir nos fiches')
+            ->set('sourceUrl', 'https://exemple.org/norme')
+            ->call('save')
+            ->assertSet('errorMessage', null)
+            ->assertSee('Nouvelle norme publiee')
+            ->assertSee('rel="noopener noreferrer nofollow"', false)
+            ->assertSee('target="_blank"', false)
+            ->set('filterCategory', '00000000-0000-4000-8000-000000000000')
+            ->assertDontSee('Nouvelle norme publiee');
+    }
+
+    public function test_un_membre_ne_voit_pas_la_gestion_des_categories(): void
+    {
+        $this->activer();
+
+        Livewire::actingAs($this->membre)
+            ->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertDontSee('data-action="toggle-categories"', false)
+            ->call('toggleCategories')
+            ->set('newCategoryName', 'Forge')
+            ->call('createCategory')
+            ->assertSet('errorMessage', __('veille.error_not_allowed'));
+
+        $this->assertDatabaseCount('loop_watch_categories', 0);
+    }
+
+    public function test_la_card_d_un_plugin_eteint_ne_montre_rien(): void
+    {
+        Livewire::actingAs($this->membre)
+            ->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertSee(__('veille.unavailable'))
+            ->call('openCreateForm')
+            ->assertSet('showForm', false);
+    }
+
+    // ── Conservation ────────────────────────────────────────────────────────
+
+    public function test_desactiver_conserve_les_donnees_et_reactiver_les_retrouve(): void
+    {
+        $this->activer();
+        $categorie = app(LoopWatchService::class)->createCategory($this->owner, $this->loop, 'Gardee');
+        $item = $this->publier($this->membre, ['category_id' => $categorie->id]);
+        $messages = LoopMessage::where('type', 'watch_item')->count();
+
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->loop, false, $this->owner);
+
+        $this->assertFalse(app(LoopWatchService::class)->canView($this->membre, $this->loop));
+        $this->assertNotContains('plugin.veille', app(LoopTypeRegistry::class)->activeCardsFor($this->loop));
+        try {
+            $this->publier($this->membre, ['category_id' => $categorie->id]);
+            $this->fail('Ecriture acceptee plugin eteint.');
+        } catch (WatchException) {
+        }
+
+        app(LoopPluginAvailabilityService::class)->setAvailability(self::PLUGIN, $this->orgA, false, $this->superAdmin);
+
+        $this->assertDatabaseHas('loop_watch_items', ['id' => $item->id, 'deleted_at' => null]);
+        $this->assertDatabaseHas('loop_watch_categories', ['id' => $categorie->id]);
+        $this->assertSame($messages, LoopMessage::where('type', 'watch_item')->count());
+
+        $this->activer();
+
+        $this->assertSame([$item->id], app(LoopWatchService::class)->itemsFor($this->loop)->pluck('id')->all());
+        $this->assertTrue(app(LoopWatchService::class)->canView($this->membre, $this->loop));
+    }
+
+    public function test_desactiver_la_veille_ne_touche_pas_pour_contre(): void
+    {
+        $dispo = app(LoopPluginAvailabilityService::class);
+        $dispo->setAvailability('multi_ai_assistants', $this->orgA, true, $this->superAdmin);
+        app(LoopPluginActivation::class)->setEnabled('multi_ai_assistants', $this->loop, true, $this->owner);
+        $this->activer();
+
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->loop, false, $this->owner);
+        $dispo->setAvailability(self::PLUGIN, $this->orgA, false, $this->superAdmin);
+
+        $this->assertTrue(app(LoopPluginActivation::class)->isEnabled('multi_ai_assistants', $this->loop));
+        $this->assertTrue($dispo->isAvailable('multi_ai_assistants', $this->orgA));
+    }
+
+    // ── ChatLoop ────────────────────────────────────────────────────────────
+
+    public function test_une_veille_est_annoncee_avec_des_metadata_minimales(): void
+    {
+        $this->activer();
+        $item = $this->publier($this->membre, ['information' => 'Secret du texte', 'source_url' => 'https://exemple.org/source-privee']);
+
+        $message = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'watch_item')->sole();
+
+        $this->assertSame(['event' => 'created', 'watch_item_id' => $item->id], $message->metadata);
+        $this->assertStringNotContainsString('Secret du texte', $message->body);
+        $this->assertStringNotContainsString('exemple.org', $message->body);
+        $this->assertSame($this->orgA->id, $message->organization_id);
+    }
+
+    public function test_une_veille_ne_declenche_ni_push_ni_email(): void
+    {
+        Mail::fake();
+        $this->activer();
+        $avant = MemberNotification::query()->count();
+
+        $this->publier($this->membre);
+
+        $this->assertSame($avant, MemberNotification::query()->count());
+        Mail::assertNothingSent();
+        Mail::assertNothingQueued();
+    }
+
+    public function test_l_echec_de_l_annonce_ne_perd_pas_la_veille(): void
+    {
+        $this->activer();
+        $this->mock(LoopMessageService::class, function ($mock) {
+            $mock->shouldReceive('sendWatchItemMessage')->andThrow(new \RuntimeException('annonce en panne'));
+        });
+
+        $item = $this->publier($this->membre);
+
+        $this->assertDatabaseHas('loop_watch_items', ['id' => $item->id]);
+        $this->assertSame(0, LoopMessage::where('type', 'watch_item')->count());
+    }
+
+    public function test_l_annonce_relit_la_veille_et_ouvre_la_card(): void
+    {
+        $this->activer();
+        $item = $this->publier($this->membre, ['information' => 'Version initiale']);
+
+        $this->chat($this->autreMembre)
+            ->assertSee('data-watch-announcement="available"', false)
+            ->assertSee('Version initiale')
+            ->assertSee("\$dispatch('bp-open-loop-card', { card: 'plugin.veille' })", false);
+
+        app(LoopWatchService::class)->update($this->membre, $this->loop, $item->id, $this->donnees(['information' => 'Version corrigee']));
+
+        $this->chat($this->autreMembre)
+            ->assertSee('Version corrigee')
+            ->assertDontSee('Version initiale');
+    }
+
+    public function test_l_annonce_d_une_veille_supprimee_ne_fuit_rien(): void
+    {
+        $this->activer();
+        $item = $this->publier($this->membre, ['information' => 'Contenu a effacer']);
+        app(LoopWatchService::class)->delete($this->membre, $this->loop, $item->id);
+
+        $this->chat($this->autreMembre)
+            ->assertSee('data-watch-announcement="unavailable"', false)
+            ->assertSee(__('veille.chat_unavailable'))
+            ->assertDontSee('Contenu a effacer');
+    }
+
+    public function test_l_annonce_plugin_eteint_ne_fuit_rien(): void
+    {
+        $this->activer();
+        $this->publier($this->membre, ['information' => 'Contenu du plugin eteint']);
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->loop, false, $this->owner);
+
+        $this->chat($this->autreMembre)
+            ->assertSee(__('veille.chat_unavailable'))
+            ->assertDontSee('Contenu du plugin eteint');
+    }
+
+    public function test_le_registre_rgpd_declare_les_colonnes_utilisateur(): void
+    {
+        $cles = collect(app(UserDataLifecycleRegistry::class)->entries())->pluck('key')->all();
+
+        foreach (['loop_watch_categories_created_by', 'loop_watch_items_created_by', 'loop_watch_items_updated_by'] as $cle) {
+            $this->assertContains($cle, $cles);
+        }
+    }
+
+    // ── Outils ──────────────────────────────────────────────────────────────
+
+    private function activer(): void
+    {
+        app(LoopPluginAvailabilityService::class)->setAvailability(self::PLUGIN, $this->orgA, true, $this->superAdmin);
+        app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->loop, true, $this->owner);
+    }
+
+    private function donnees(array $surcharges = []): array
+    {
+        return array_merge([
+            'observed_on' => '2026-11-20',
+            'category_id' => null,
+            'information' => 'Une information reperee',
+            'impact' => 'Ce que cela change',
+            'source_url' => 'https://exemple.org/article',
+        ], $surcharges);
+    }
+
+    private function publier(User $auteur, array $surcharges = []): LoopWatchItem
+    {
+        return app(LoopWatchService::class)->create($auteur, $this->loop, $this->donnees($surcharges));
+    }
+
+    private function chat(User $lecteur)
+    {
+        return Livewire::actingAs($lecteur)->test(LoopChat::class, ['loop' => $this->loop->fresh()]);
+    }
+
+    private function personne(Organization $organization, string $nom): User
+    {
+        return User::factory()->create([
+            'is_admin' => false,
+            'organization_id' => $organization->id,
+            'preferred_locale' => 'fr',
+            'name' => $nom.' '.$organization->name,
+        ]);
+    }
+
+    private function boucle(Organization $organization, User $createur): Loop
+    {
+        return Loop::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $createur->id,
+            'status' => 'active',
+            'type' => 'general',
+        ]);
+    }
+
+    private function adhesion(Loop $loop, User $user, string $role, string $status = 'active'): void
+    {
+        LoopMember::create([
+            'loop_id' => $loop->id,
+            'user_id' => $user->id,
+            'organization_id' => $loop->organization_id,
+            'role' => $role,
+            'status' => $status,
+        ]);
+    }
+}

@@ -716,7 +716,7 @@ class LoopChat extends Component
     {
         return $fenetre->contains(
             fn (LoopMessage $message) => $message->isServiceRequestProjection()
-                || in_array($message->type, ['blog_post', 'dossier_file', 'roadmap_action'], true)
+                || in_array($message->type, ['blog_post', 'dossier_file', 'roadmap_action', 'watch_item'], true)
         );
     }
 
@@ -3686,6 +3686,8 @@ class LoopChat extends Component
         $projectedDossierFiles = $this->projectedDossierFiles($messages);
         $projectedDossierFileUrls = $this->projectedDossierFileUrls($projectedDossierFiles);
         $projectedRoadmapItems = $this->projectedRoadmapItems($messages);
+        // TASK-1879 — les veilles annoncees, relues en direct et filtrees par droit.
+        $projectedWatchItems = $this->projectedWatchItems($messages);
         $aiRoute = $this->aiRoute();
         $canDeleteMessages = $this->canDeleteDisplayedMessages();
         // La vue retire le compositeur plutot que d'accepter un message que
@@ -3747,6 +3749,7 @@ class LoopChat extends Component
             'projectedDossierFiles',
             'projectedDossierFileUrls',
             'projectedRoadmapItems',
+            'projectedWatchItems',
             'aiRoute',
             'canDeleteMessages',
             'canCapitalize',
@@ -3907,6 +3910,42 @@ class LoopChat extends Component
      *
      * @return Collection<string, LoopRoadmapItem>
      */
+    /**
+     * TASK-1879 — les veilles annoncees (`type='watch_item'`), relues EN DIRECT.
+     *
+     * Le message ne porte que l'identifiant : tout ce qui s'affiche vient de la
+     * veille ACTUELLE. Rien ne resout — et la vue rend « Cette veille n'est
+     * plus disponible » — quand la veille est supprimee (soft delete), quand le
+     * plugin est eteint dans la Boucle ou l'Organization, ou quand le lecteur
+     * n'a pas `veille.view`. Bornee a l'Organization ET a la Boucle courantes.
+     *
+     * @return Collection<string, \App\Models\LoopWatchItem>
+     */
+    private function projectedWatchItems(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->type === 'watch_item')
+            ->map(fn (LoopMessage $message) => $message->metadata['watch_item_id'] ?? null)
+            ->filter(fn ($id) => is_string($id) && \Illuminate\Support\Str::isUuid($id))
+            ->unique()
+            ->values();
+
+        $user = auth()->user();
+
+        if ($ids->isEmpty() || ! $user instanceof User
+            || ! app(\App\Services\Loops\LoopWatchService::class)->canView($user, $this->loop)) {
+            return collect();
+        }
+
+        return \App\Models\LoopWatchItem::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->whereIn('id', $ids)
+            ->with('category:id,name')
+            ->get()
+            ->keyBy('id');
+    }
+
     private function projectedRoadmapItems(Collection $messages): Collection
     {
         $ids = $messages
