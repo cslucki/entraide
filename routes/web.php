@@ -1434,6 +1434,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             ->middleware('throttle:10,1')
             ->name('outils.my-push-devices.destroy');
     });
+    // TASK-1882 — clonage d'un compte (et de ses billets) vers une autre Organization.
+    Route::get('/outils/clonage-de-comptes', [\App\Http\Controllers\Admin\AdminAccountCloneController::class, 'index'])->name('outils.clonage-de-comptes');
+    Route::post('/outils/clonage-de-comptes', [\App\Http\Controllers\Admin\AdminAccountCloneController::class, 'store'])->name('outils.clonage-de-comptes.store');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 
