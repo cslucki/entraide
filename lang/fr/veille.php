@@ -25,7 +25,7 @@ return [
     'field_subject_placeholder' => 'La veille résumée en une phrase.',
     'read_more' => 'Lire la suite',
     'read_less' => 'Réduire',
-    'impact_heading' => 'Ce que ça change pour la Boucle',
+    'impact_heading' => 'Impact',
     'field_information' => 'Information',
     'field_information_placeholder' => 'Ce que vous avez repéré.',
     'field_impact' => 'Impact',

@@ -25,7 +25,7 @@ return [
     'field_subject_placeholder' => 'The watch item in one sentence.',
     'read_more' => 'Read more',
     'read_less' => 'Show less',
-    'impact_heading' => 'What it changes for the Loop',
+    'impact_heading' => 'Impact',
     'field_information' => 'Information',
     'field_information_placeholder' => 'What you spotted.',
     'field_impact' => 'Impact',
