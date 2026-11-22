@@ -353,7 +353,14 @@
                                 <x-user-avatar :user="$comment->user" size="md" variant="solid" class="mt-0.5 shrink-0" />
                             @endif
                             <div class="min-w-0 flex-1 rounded-2xl bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
-                                <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}</p>
+                                {{-- TASK-1885 C3 — le nom mene aussi au profil, comme l'avatar. --}}
+                                <p class="font-semibold text-gray-800 dark:text-gray-100">
+                                    @if($_lienCommentateur)
+                                        <a href="{{ $_lienCommentateur }}" data-feed-comment-author="{{ $comment->user?->id }}" class="hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-accent)] rounded-sm">{{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}</a>
+                                    @else
+                                        {{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}
+                                    @endif
+                                </p>
                                 <p class="mt-0.5 whitespace-pre-line break-words text-gray-600 dark:text-gray-300">{{ $comment->content }}</p>
                             </div>
                         </div>
