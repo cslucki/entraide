@@ -678,6 +678,8 @@ return [
             'detail_read_full_article' => 'Lire l\'article complet',
             'detail_select_file' => 'Plusieurs fichiers ont été déposés, choisissez-en un :',
             'detail_back_to_selection' => 'Revenir à la sélection',
+            'detail_back_to_dossiers' => 'Retour aux Dossiers',
+            'detail_back_to_articles' => 'Retour aux Articles',
             'detail_download' => 'Télécharger',
             'detail_preview_unavailable' => 'Aucun aperçu disponible pour ce type de fichier.',
         ],

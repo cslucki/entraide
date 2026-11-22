@@ -110,6 +110,19 @@ class LoopDossiersCard extends Component
     }
 
     /**
+     * TASK-1879 (recette Cyril, 22/11) — un apercu Fichier ou Article ouvert
+     * depuis ChatLoop restait affiche quand on rouvrait la Card par le menu
+     * « Dossiers ». Ouverte depuis le menu, la Card repart de sa liste.
+     */
+    #[On('loop-card-opened-from-menu')]
+    public function ouvertureDepuisLeMenu(string $card = ''): void
+    {
+        if ($card === 'core.dossiers') {
+            $this->closeDetail();
+        }
+    }
+
+    /**
      * TASK-1684 — se remettre a jour apres un depot fait depuis la ChatLoop.
      *
      * Le depot du menu « + » du composeur passe par l'endpoint Dossiers en

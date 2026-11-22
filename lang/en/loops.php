@@ -674,6 +674,8 @@ return [
             'detail_read_full_article' => 'Read the full article',
             'detail_select_file' => 'Several files were uploaded, pick one:',
             'detail_back_to_selection' => 'Back to selection',
+            'detail_back_to_dossiers' => 'Back to Dossiers',
+            'detail_back_to_articles' => 'Back to Articles',
             'detail_download' => 'Download',
             'detail_preview_unavailable' => 'No preview available for this file type.',
         ],

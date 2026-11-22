@@ -68,12 +68,21 @@
                 {!! $detailArticle->content !!}
             </div>
 
-            @if($detailArticleUrl)
-                <a href="{{ $detailArticleUrl }}" class="{{ $quiet }}">
-                    {{ __('loops.cards.dossiers.detail_read_full_article') }}
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
-                </a>
-            @endif
+            <div class="flex flex-wrap gap-2">
+                {{-- TASK-1879 (recette Cyril) — revenir aux Articles de la Card. --}}
+                <button type="button" data-action="dossier-back-to-articles"
+                        x-on:click="$wire.closeDetail().then(() => $nextTick(() => document.querySelector('[data-marqueur=dossier-articles]')?.scrollIntoView({ block: 'start' })))"
+                        class="{{ $quiet }}">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
+                    {{ __('loops.cards.dossiers.detail_back_to_articles') }}
+                </button>
+                @if($detailArticleUrl)
+                    <a href="{{ $detailArticleUrl }}" class="{{ $quiet }}">
+                        {{ __('loops.cards.dossiers.detail_read_full_article') }}
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+                    </a>
+                @endif
+            </div>
         </div>
 
     @elseif($detailFile || $highlightedFiles->isNotEmpty())
@@ -128,6 +137,11 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2">
+                    {{-- TASK-1879 (recette Cyril) — revenir a la Card Dossiers. --}}
+                    <button type="button" wire:click="closeDetail" data-action="dossier-back-to-dossiers" class="{{ $quiet }}">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                        {{ __('loops.cards.dossiers.detail_back_to_dossiers') }}
+                    </button>
                     @if($highlightedFiles->count() > 1)
                         <button type="button" wire:click="backToSelection" class="{{ $quiet }}">
                             {{ __('loops.cards.dossiers.detail_back_to_selection') }}
@@ -287,7 +301,7 @@
 
         {{-- ── Articles recents ───────────────────────────────────────────── --}}
         @if($articles->isNotEmpty())
-            <div class="{{ $tile }} p-3">
+            <div data-marqueur="dossier-articles" class="{{ $tile }} scroll-mt-3 p-3">
                 <p class="{{ $sectionTitle }}">{{ __('loops.cards.dossiers.recent_articles') }}</p>
                 <ul class="divide-y divide-[var(--bp-border)]">
                     @foreach($articles as $article)
