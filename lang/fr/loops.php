@@ -1679,6 +1679,8 @@ return [
 
     // TASK-1801 correctif 05 — le bouton « Derniers messages » de l'inventaire.
     'latest_messages_button' => 'Derniers messages',
+    // TASK-1880 (demande Cyril, 22/11) — libelle court du bouton, sur smartphone.
+    'latest_messages_button_short' => 'Historique',
     'latest_messages_title' => 'Derniers messages',
     'latest_messages_empty_before' => 'Vous n\'êtes membre d\'aucune Boucle, vous pouvez rejoindre une Boucle en cliquant',
     'latest_messages_empty_link' => 'ici',
