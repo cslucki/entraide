@@ -45,28 +45,43 @@ class NotificationDeviceController extends Controller
 {
     public function edit(Request $request, NotificationPreferenceResolver $resolver): View
     {
-        $user = $request->user();
-
-        abort_unless($user !== null, 404);
+        abort_unless($request->user() !== null, 404);
 
         $slug = $request->route('organization');
-        $routeParams = $slug ? ['organization' => $slug] : [];
+
+        return view('notifications.device', self::donneesDuBloc($request, $resolver) + [
+            // TASK-1878 — lien discret vers la console complete.
+            'routeDiagnostic' => $slug ? 'organization.pwa.diagnostic' : 'pwa.diagnostic',
+        ]);
+    }
+
+    /**
+     * Les variables du partiel `notifications.partials.push-device`, dans la
+     * forme (globale ou Organization) de la page courante.
+     *
+     * TASK-1878 — la console `/diagnostic-pwa` inclut le MEME partiel : elle
+     * appelle cette methode plutot que de recopier le calcul.
+     *
+     * @return array{pushActifs: int, routeParams: array<string, mixed>, routePush: string, routeTest: string, routePreferences: string}
+     */
+    public static function donneesDuBloc(Request $request, NotificationPreferenceResolver $resolver): array
+    {
+        $slug = $request->route('organization');
 
         // TASK-1744 — combien d'evenements cette personne a-t-elle ouverts au
-        // Push ? Calcul deplace a l'identique depuis `preferences.blade.php` :
-        // un appareil enregistre sans aucune case cochee ne recoit RIEN, et
-        // le panneau doit le dire.
-        $pushActifs = collect($resolver->overview($user))
+        // Push ? Un appareil enregistre sans aucune case cochee ne recoit
+        // RIEN, et le panneau doit le dire.
+        $pushActifs = collect($resolver->overview($request->user()))
             ->filter(fn (array $canaux) => ($canaux[NotificationCatalogue::CHANNEL_WEB_PUSH]['enabled'] ?? false) === true)
             ->count();
 
-        return view('notifications.device', [
+        return [
             'pushActifs' => $pushActifs,
-            'routeParams' => $routeParams,
+            'routeParams' => $slug ? ['organization' => $slug] : [],
             'routePush' => $slug ? 'organization.notifications.push.store' : 'notifications.push.store',
             'routeTest' => $slug ? 'organization.notifications.device.test' : 'notifications.device.test',
             'routePreferences' => $slug ? 'organization.notifications.preferences.edit' : 'notifications.preferences.edit',
-        ]);
+        ];
     }
 
     public function test(

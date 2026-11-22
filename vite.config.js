@@ -25,6 +25,8 @@ export default defineConfig({
                 // le bloc n'y est jamais rendu, faute de canal au catalogue.
                 // C'est l'integration de recette T1744+T1745 qui l'a montre.
                 'resources/js/push-first-run.js',
+                // TASK-1878 — la console de diagnostic PWA, sur sa page seule.
+                'resources/js/pwa-diagnostic.js',
             ],
             refresh: true,
         }),

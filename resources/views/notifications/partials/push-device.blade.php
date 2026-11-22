@@ -159,7 +159,8 @@
          T1744 — REPLIE par defaut : deplie, il repoussait le reste de
          l'ecran deux pages plus bas sur un telephone.
          ===================================================================== --}}
-    <details data-push-diag-panel class="mt-4 rounded-lg border border-dashed border-[var(--bp-border)] p-3">
+    {{-- TASK-1878 — deplie sur la console de diagnostic. --}}
+    <details data-push-diag-panel class="mt-4 rounded-lg border border-dashed border-[var(--bp-border)] p-3" @if(! empty($diagOuvert)) open @endif>
         <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-[var(--bp-muted)]">
             {{ __('push.diag.title') }}
         </summary>
