@@ -195,6 +195,9 @@ Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('loca
 // villes, biographies et affiliations. `auth` ferme l'acces anonyme,
 // `organization.member` ferme le cross-tenant authentifie — les deux sont
 // necessaires, et un sabotage le prouve.
+// TASK-1883 — desinscription de la newsletter : lien SIGNE, sans connexion.
+Route::get('/newsletter/desinscription/{compte}', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'show'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe');
+Route::post('/newsletter/desinscription/{compte}', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'destroy'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe.confirm');
 Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
 Route::view('/about', 'about')->name('about');
 
@@ -510,6 +513,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
     Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
     Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
+    // TASK-1883 — case « Newsletter hebdomadaire » des preferences.
+    Route::post('/notifications/preferences/newsletter', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.newsletter.update');
     Route::post('/notifications/preferences/loops', [NotificationPreferenceController::class, 'updateLoopPreferences'])->middleware('throttle:30,1')->name('notifications.preferences.loops.update');
     // TASK-1877 — « Notifications sur cet appareil », sur sa PROPRE page.
     // Declarees AVANT les routes `{notification}` par precaution d'ordre.
@@ -1875,6 +1880,7 @@ Route::prefix('/org/{organization}')
             Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
             Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
             Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
+            Route::post('/notifications/preferences/newsletter', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.newsletter.update');
             Route::post('/notifications/preferences/loops', [NotificationPreferenceController::class, 'updateLoopPreferences'])->middleware('throttle:30,1')->name('notifications.preferences.loops.update');
             // TASK-1877 — meme page « cet appareil », forme Organization.
             Route::get('/notifications/appareil', [NotificationDeviceController::class, 'edit'])->name('notifications.device.edit');
