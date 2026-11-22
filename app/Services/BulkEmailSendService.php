@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Controllers\NewsletterSubscriptionController;
 use App\Jobs\SendBulkEmailToRecipient;
 use App\Models\BulkEmailSend;
 use App\Models\BulkEmailSendRecipient;
@@ -9,7 +10,10 @@ use App\Models\EmailLog;
 use App\Models\EmailTemplate;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Email\HelpDigestBlocks;
+use App\Support\Email\SystemEmailTemplateResolver;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Mail\Markdown;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -40,6 +44,12 @@ use Throwable;
  */
 class BulkEmailSendService
 {
+    /** TASK-1883 — gabarit systeme global de la newsletter. */
+    public const NEWSLETTER_SLUG = 'weekly_help_digest';
+
+    /** Blocs memorises le temps d'une instance (un job). */
+    private ?HelpDigestBlocks $blocs = null;
+
     public function __construct(private readonly EmailerService $emailer) {}
 
     /**
@@ -273,7 +283,13 @@ class BulkEmailSendService
             return;
         }
 
-        $this->withOrganizationContext($send->organization_id, function () use ($recipient, $send): void {
+        // TASK-1883 — une newsletter peut viser plusieurs organisations : le
+        // tenant est celui du DESTINATAIRE, jamais celui de l'envoi.
+        $contexte = $send->estNewsletter()
+            ? User::query()->whereKey($recipient->user_id)->value('organization_id')
+            : $send->organization_id;
+
+        $this->withOrganizationContext($contexte, function () use ($recipient, $send): void {
             $user = User::find($recipient->user_id);
 
             if ($user === null) {
@@ -282,6 +298,15 @@ class BulkEmailSendService
                 // Pre-transport, donc un `failed` propre — jamais ambigu.
                 $recipient->update(['status' => BulkEmailSendRecipient::STATUS_FAILED]);
                 $send->increment('failed_count');
+                $this->maybeComplete($send);
+
+                return;
+            }
+
+            // TASK-1883 — desabonne entre-temps, ou plus rien a montrer pour son
+            // organisation : rien n'est envoye, la ligne est marquee `skipped`.
+            if ($send->estNewsletter() && $this->newsletterPour($user, $send) === null) {
+                $recipient->update(['status' => BulkEmailSendRecipient::STATUS_SKIPPED]);
                 $this->maybeComplete($send);
 
                 return;
@@ -486,25 +511,167 @@ class BulkEmailSendService
      * l'appelant (`processRecipient()`) doit pouvoir conclure sans jamais
      * risquer de rejouer un envoi peut-etre deja parti.
      */
+    /**
+     * TASK-1883 — cree un envoi de newsletter : une ou plusieurs organisations
+     * (`$organizationIds` vide = toutes), comptes actifs abonnes, et seulement
+     * dans les organisations qui ont quelque chose a montrer.
+     *
+     * @param  array{organization_ids: list<string>, subject: ?string, demand_count: int, offer_count: int}  $data
+     */
+    public function createNewsletterSend(array $data, User $admin): BulkEmailSend
+    {
+        return DB::transaction(function () use ($data, $admin) {
+            $ids = array_values(array_unique($data['organization_ids'] ?? []));
+
+            $send = BulkEmailSend::create([
+                'organization_id' => count($ids) === 1 ? $ids[0] : null,
+                'member_filter' => BulkEmailSend::MEMBER_FILTER_ALL,
+                'content_source' => BulkEmailSend::CONTENT_SOURCE_NEWSLETTER,
+                'system_template_slug' => self::NEWSLETTER_SLUG,
+                'subject' => filled($data['subject'] ?? null) ? $data['subject'] : null,
+                'demand_count' => $data['demand_count'],
+                'offer_count' => $data['offer_count'],
+                'status' => BulkEmailSend::STATUS_DRAFT,
+                'total_recipients' => 0,
+                'sent_count' => 0,
+                'failed_count' => 0,
+                'created_by' => $admin->id,
+            ]);
+
+            $send->organizations()->sync($ids);
+
+            $userIds = $this->newsletterRecipients($ids, (int) $data['demand_count'], (int) $data['offer_count'])->pluck('id');
+
+            $now = now();
+            foreach ($userIds->chunk(500) as $lot) {
+                BulkEmailSendRecipient::query()->insert($lot->map(fn (string $userId) => [
+                    'id' => (string) Str::orderedUuid(),
+                    'bulk_email_send_id' => $send->id,
+                    'user_id' => $userId,
+                    'status' => BulkEmailSendRecipient::STATUS_PENDING,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all());
+            }
+
+            $send->update([
+                'total_recipients' => $userIds->count(),
+                'status' => $userIds->isEmpty() ? BulkEmailSend::STATUS_COMPLETED : BulkEmailSend::STATUS_SENDING,
+            ]);
+
+            return $send->fresh();
+        });
+    }
+
+    /**
+     * Destinataires d'une newsletter : comptes actifs, abonnes, des
+     * organisations visees qui ont au moins une demande ou proposition.
+     *
+     * @param  list<string>  $organizationIds  vide = toutes
+     */
+    public function newsletterRecipients(array $organizationIds, int $demandCount, int $offerCount): Builder
+    {
+        $blocs = new HelpDigestBlocks;
+        $avecContenu = Organization::query()
+            ->when($organizationIds !== [], fn ($q) => $q->whereIn('id', $organizationIds))
+            ->get()
+            ->filter(fn (Organization $org) => $blocs->aDuContenu($org, $demandCount, $offerCount))
+            ->pluck('id')
+            ->all();
+
+        return User::query()
+            ->activeAccount()
+            ->whereNull('newsletter_unsubscribed_at')
+            // TASK-1881 — un membre bloque a la connexion ne pourrait ouvrir aucun lien.
+            ->whereNull('login_blocked_at')
+            ->whereIn('organization_id', $avecContenu)
+            ->orderBy('id');
+    }
+
+    /**
+     * Le courriel de newsletter de CE destinataire, ou null s'il ne faut rien
+     * envoyer (desabonne, organisation sans contenu, gabarit absent).
+     *
+     * Gabarit GLOBAL seulement : une organisation ne surcharge pas le texte
+     * envoye a toutes. Langue du membre ; blocs developpes AVANT
+     * l'interpolation ; habillage `emails.system-email`, comme l'apercu.
+     *
+     * @return array{subject: string, body: string, unsubscribe_url: string}|null
+     */
+    public function newsletterPour(User $user, BulkEmailSend $send, bool $memeSansContenu = false): ?array
+    {
+        $org = $user->organization;
+
+        if ($org === null || ($user->newsletter_unsubscribed_at !== null && ! $memeSansContenu)) {
+            return null;
+        }
+
+        $demandes = (int) ($send->demand_count ?? 3);
+        $propositions = (int) ($send->offer_count ?? 3);
+        $this->blocs ??= new HelpDigestBlocks;
+
+        if (! $memeSansContenu && ! $this->blocs->aDuContenu($org, $demandes, $propositions)) {
+            return null;
+        }
+
+        $langue = in_array($user->preferred_locale, ['fr', 'en'], true) ? $user->preferred_locale : 'fr';
+        $gabarit = app(SystemEmailTemplateResolver::class)->resolve($send->system_template_slug ?: self::NEWSLETTER_SLUG, null, $langue);
+
+        if ($gabarit === null) {
+            Log::warning('[TASK-1883] gabarit global de newsletter introuvable : rien envoye.', ['locale' => $langue]);
+
+            return null;
+        }
+
+        $desinscription = NewsletterSubscriptionController::urlDesinscription($user);
+        $vars = $this->emailer->availableVariables($user) + [
+            'recipient_name' => $user->publicDisplayName(),
+            'organization_name' => (string) $org->name,
+            'explorer_url' => $org->is_default ? route('explorer') : route('organization.explorer', ['organization' => $org->slug]),
+            'unsubscribe_url' => $desinscription,
+            'app_name' => (string) config('app.name'),
+        ];
+        $cles = ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name'];
+
+        $html = $this->blocs->developper((string) $gabarit->content_html, $org, $langue, $demandes, $propositions);
+        $html = $this->emailer->interpolate($html, $vars, $cles);
+
+        return [
+            'subject' => $this->emailer->interpolateSubject(filled($send->subject) ? $send->subject : (string) $gabarit->subject, $vars, $cles),
+            'body' => (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]),
+            'unsubscribe_url' => $desinscription,
+        ];
+    }
+
     private function sendOne(User $user, BulkEmailSend $send, ?User $sender): ?EmailLog
     {
-        $variables = $this->emailer->availableVariables($user);
+        $newsletter = $send->estNewsletter() ? $this->newsletterPour($user, $send) : null;
 
-        ['subject' => $subject, 'body' => $body, 'isHtml' => $isHtml] = $this->renderContent(
-            $send->content_source,
-            $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE ? $send->template : null,
-            $send->subject,
-            $send->content_format,
-            $send->content_raw,
-            $variables,
-        );
+        if ($newsletter !== null) {
+            ['subject' => $subject, 'body' => $body] = $newsletter;
+            $isHtml = true;
+        } else {
+            $variables = $this->emailer->availableVariables($user);
+
+            ['subject' => $subject, 'body' => $body, 'isHtml' => $isHtml] = $this->renderContent(
+                $send->content_source,
+                $send->content_source === BulkEmailSend::CONTENT_SOURCE_TEMPLATE ? $send->template : null,
+                $send->subject,
+                $send->content_format,
+                $send->content_raw,
+                $variables,
+            );
+        }
 
         try {
             if ($isHtml) {
-                Mail::html($body, function ($message) use ($user, $subject, $sender) {
+                Mail::html($body, function ($message) use ($user, $subject, $sender, $newsletter) {
                     $message->to($user->email, $user->fullName)->subject($subject);
                     if ($sender) {
                         $message->replyTo($sender->email, $sender->fullName);
+                    }
+                    if ($newsletter !== null) {
+                        $message->getHeaders()->addTextHeader('List-Unsubscribe', '<'.$newsletter['unsubscribe_url'].'>');
                     }
                 });
             } else {
@@ -556,7 +723,14 @@ class BulkEmailSendService
                 'error_message' => $error,
                 'body_html' => $body,
                 'body_hash' => hash('sha256', $body),
-                'data' => [
+                'data' => $newsletter !== null ? [
+                    'source' => 'newsletter',
+                    'sender_id' => $sender?->id,
+                    'bulk_email_send_id' => $send->id,
+                    'template_slug' => $send->system_template_slug,
+                    'demand_count' => $send->demand_count,
+                    'offer_count' => $send->offer_count,
+                ] : [
                     'source' => 'bulk-email',
                     'sender_id' => $sender?->id,
                     'bulk_email_send_id' => $send->id,
