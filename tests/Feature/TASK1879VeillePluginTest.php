@@ -1018,6 +1018,18 @@ class TASK1879VeillePluginTest extends TestCase
         $this->assertMatchesRegularExpression('/data-action="open-watch-card"\s+class="[^"]*\brelative\b/', $html);
     }
 
+    /** Recette Cyril (22/11) : toutes les cartes ChatLoop ont la largeur de la carte Veille. */
+    public function test_les_cartes_du_fil_ont_la_largeur_de_la_carte_veille(): void
+    {
+        $this->activer();
+        $this->publier($this->owner, ['subject' => 'Largeur']);
+        $carte = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'watch_item')->sole();
+
+        $html = $this->chat($this->membre)->html();
+
+        $this->assertMatchesRegularExpression('/id="loop-message-'.$carte->id.'"[^>]*class="relative max-w-md\b/', $html);
+    }
+
     public function test_on_repond_a_une_carte_comme_a_un_message(): void
     {
         $this->activer();

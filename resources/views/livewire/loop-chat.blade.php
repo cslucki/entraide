@@ -219,7 +219,7 @@
                 @endphp
 
                 @php $carteRepondable = ! $isDeleted && $editingMessageId !== $msg->id && in_array($msg->type, \App\Livewire\LoopChat::TYPES_CARTES_REPONDABLES, true); @endphp
-                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="{{ $carteRepondable ? 'relative' : '' }} transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }} {{ $_changeAuteur ? 'pt-1.5 md:pt-0' : '' }}">
+                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="{{ $carteRepondable ? 'relative max-w-md' : '' }} transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }} {{ $_changeAuteur ? 'pt-1.5 md:pt-0' : '' }}">
                     @if($isDeleted)
                         <x-conversation.message-bubble
                             :type="$isOwn ? 'sent' : 'received'"
@@ -847,6 +847,9 @@
                          automatique de l'auteur, focus). Ancre par le `relative`
                          du conteneur du message — jamais hors du fil (cf. bug
                          sr-only du 22/11). --}}
+                    {{-- TASK-1879 (demande Cyril, 22/11) — toutes les cartes ont la
+                         largeur de la carte Veille (`max-w-md` sur le conteneur) :
+                         l'icone Repondre reste dans leur coin, jamais au bout du fil. --}}
                     @if($carteRepondable && $msg->type !== 'watch_item')
                         @include('livewire.partials.loop-chat-reply-card')
                     @endif
