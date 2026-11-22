@@ -83,7 +83,8 @@ class TASK1884LoopLeadEditsArticleTest extends TestCase
 
         // Article rattache par un DOSSIER de la Boucle (sans pivot) : le droit vaut.
         $parDossier = BlogPost::create(['user_id' => $this->auteur->id, 'organization_id' => $this->org->id, 'title' => 'Doc', 'summary' => 'R', 'content' => 'x', 'status' => 'draft']);
-        $dossier = Dossier::factory()->create(['organization_id' => $this->org->id, 'owner_id' => $this->proprietaire->id, 'loop_id' => $this->boucle->id]);
+        // `dossiers_holder_xor` (PostgreSQL) : un Dossier de Boucle n'a pas de proprietaire individuel.
+        $dossier = Dossier::factory()->create(['organization_id' => $this->org->id, 'owner_id' => null, 'loop_id' => $this->boucle->id]);
         DossierBlogPost::create(['organization_id' => $this->org->id, 'dossier_id' => $dossier->id, 'blog_post_id' => $parDossier->id, 'added_by' => $this->auteur->id, 'position' => 1]);
         $this->assertTrue($this->animateur->can('update', $parDossier->fresh()));
 

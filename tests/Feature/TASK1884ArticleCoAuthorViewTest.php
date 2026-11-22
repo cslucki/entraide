@@ -99,8 +99,8 @@ class TASK1884ArticleCoAuthorViewTest extends TestCase
         $membre = User::factory()->create(['organization_id' => $this->org->id]);
         $reponse = $this->page($post, $membre)->assertOk()->assertSee('data-blog-coauthors', false);
 
-        $this->assertStringContainsString($this->coAuteur->publicDisplayName(), $reponse->getContent());
-        $this->assertStringNotContainsString($desactive->publicDisplayName() ?? 'Zoe', $reponse->getContent());
+        $this->assertStringContainsString(e($this->coAuteur->publicDisplayName()), $reponse->getContent());
+        $this->assertStringNotContainsString(e($desactive->publicDisplayName() ?? 'Zoe'), $reponse->getContent());
     }
 
     public function test_sans_co_auteur_rien_n_est_affiche(): void
