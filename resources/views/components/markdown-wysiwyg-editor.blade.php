@@ -6,7 +6,7 @@
     — une regression visuelle sur un ecran qui n'a rien demande serait le pire
     resultat possible pour une amelioration d'ergonomie.
 --}}
-@props(['name' => 'description', 'value' => '', 'required' => false, 'minLength' => null, 'placeholder' => '', 'invalid' => false, 'rows' => 5, 'fullscreen' => false, 'tall' => false, 'format' => 'markdown', 'wireModel' => null])
+@props(['name' => 'description', 'value' => '', 'required' => false, 'minLength' => null, 'placeholder' => '', 'invalid' => false, 'rows' => 5, 'fullscreen' => false, 'tall' => false, 'format' => 'markdown', 'wireModel' => null, 'composer' => false])
 {{-- TASK-1879 — `format="html"` : l'editeur lit et rend du HTML (annonces du Flux) ;
      `wireModel` : lie le champ a Livewire (le conteneur est alors `wire:ignore`,
      TipTap gerant son propre DOM). Sans ces attributs, sortie inchangee. --}}
@@ -129,6 +129,23 @@
     .bp-editeur-plein textarea {
         flex: 1;
     }
+    .bp-composeur .ProseMirror-wrapper .ProseMirror,
+    .dark .bp-composeur .ProseMirror-wrapper .ProseMirror {
+        border: 0;
+        border-radius: 0;
+        background-color: transparent;
+        padding: 0.25rem 0;
+        min-height: 7.5rem;
+        font-size: 1.25rem;
+        line-height: 1.5;
+    }
+    .bp-composeur .ProseMirror p.is-editor-empty:first-child::before {
+        content: attr(data-placeholder);
+        float: left;
+        height: 0;
+        pointer-events: none;
+        color: #9ca3af;
+    }
 </style>
 @if($fullscreen)
 {{-- TASK-1762 point 16 — l'enveloppe du plein ecran.
@@ -151,8 +168,9 @@
 @endif
 <div data-tiptap-container
      @if($format === 'html') data-format="html" @endif
+     @if($composer) data-variante="composeur" data-placeholder="{{ $placeholder }}" @endif
      @if($wireModel) wire:ignore @endif
-     class="markdown-wysiwyg-editor {{ $tall ? 'bp-editeur-grand' : '' }}"
+     class="markdown-wysiwyg-editor {{ $tall ? 'bp-editeur-grand' : '' }} {{ $composer ? 'bp-composeur' : '' }}"
      data-i18n-undo="{{ __('ai.markdown_undo') }}"
      data-i18n-redo="{{ __('ai.markdown_redo') }}"
      data-i18n-bold="{{ __('ai.markdown_bold') }}"

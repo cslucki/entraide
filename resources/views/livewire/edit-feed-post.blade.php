@@ -29,7 +29,7 @@
         </div>
 
         {{-- TASK-1879 (demande Cyril, 22/11) — le message s'ecrit avec TipTap, en HTML. --}}
-        <div data-champ class="scroll-mt-24">
+        <div data-champ wire:key="champ-message-formulaire" class="scroll-mt-24">
             <label for="content" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.message') }}</label>
             <div class="mt-2">
                 <x-markdown-wysiwyg-editor name="content" format="html" wire-model="content" :value="$content" required rows="7" :invalid="$errors->has('content')" />

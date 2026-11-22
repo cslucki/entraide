@@ -889,6 +889,25 @@ class OrganizationFeedTest extends TestCase
             ->assertSeeHtml('data-feed-pin-field');
     }
 
+    /** TASK-1879 (demande Cyril, 22/11) — composeur epure pour tous, sauf l'administrateur de l'Organization. */
+    public function test_members_get_the_simple_composer_and_the_owner_the_full_form(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertSeeHtml('data-feed-composer')
+            ->assertSeeHtml('data-variante="composeur"')
+            ->assertDontSeeHtml('id="title"')
+            ->assertDontSeeHtml('id="loopMessage"');
+
+        Livewire::actingAs($this->admin)
+            ->test(CreateFeedPost::class)
+            ->assertDontSeeHtml('data-feed-composer')
+            ->assertSeeHtml('id="title"')
+            ->assertSeeHtml('id="loopMessage"');
+    }
+
     public function test_published_post_visible_in_feed(): void
     {
         FeedPost::create([
