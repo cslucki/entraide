@@ -74,7 +74,8 @@
                  d'ecran, pas un menage de lexique. --}}
             {{-- TASK-1879 (demande Cyril, 22/11) — sur smartphone la barre du haut
                  dit deja « Flux » : le titre reste pour les lecteurs d'ecran. --}}
-            <h1 class="text-2xl font-bold text-gray-900 max-sm:sr-only dark:text-gray-100">{{ __('feed.title') }}</h1>
+            {{-- TASK-1885 C8 (demande Cyril, 22/11) — « Flux - <Organisation> ». --}}
+            <h1 class="text-2xl font-bold text-gray-900 max-sm:sr-only dark:text-gray-100" data-feed-title>{{ $_orgFlux ? __('feed.title_with_org', ['org' => $_orgFlux->name]) : __('feed.title') }}</h1>
         </div>
         {{-- TASK-1879 (demande Cyril, 22/11) — « Mes annonces » et « Nouvelle annonce »
              : administrateur de l'Organization seulement. Les autres membres
@@ -101,6 +102,32 @@
         @endunless
     @endcan
 
+    {{-- TASK-1885 C8 (demande Cyril, 22/11) — filtrer par type (seuls les types
+         presents dans ce Flux) et rechercher (titre, texte, auteur). --}}
+    @if(count($types) > 1 || $filtresActifs || $pinned->isNotEmpty() || $items->isNotEmpty())
+        <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center" data-feed-filters>
+            <label class="relative min-w-0 flex-1">
+                <span class="sr-only">{{ __('feed.search_label') }}</span>
+                <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
+                <input type="search" wire:model.live.debounce.400ms="q" maxlength="100" data-feed-search
+                       placeholder="{{ __('feed.search_placeholder') }}"
+                       class="min-h-[44px] w-full rounded-full border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+            </label>
+            @if(count($types) > 1)
+                <label class="sm:w-60">
+                    <span class="sr-only">{{ __('feed.filter_label') }}</span>
+                    <select wire:model.live="type" data-feed-type-filter
+                            class="min-h-[44px] w-full rounded-full border border-gray-300 bg-white py-2 pl-4 pr-8 text-sm text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                        <option value="">{{ __('feed.filter_all') }}</option>
+                        @foreach(collect($types)->mapWithKeys(fn ($t) => [$t => \Illuminate\Support\Facades\Lang::has('feed.filter_types.'.str_replace('.', '_', $t)) ? __('feed.filter_types.'.str_replace('.', '_', $t)) : $t])->sortBy(fn ($l) => \Illuminate\Support\Str::ascii($l), SORT_NATURAL | SORT_FLAG_CASE) as $_cle => $_libelle)
+                            <option value="{{ $_cle }}">{{ $_libelle }}</option>
+                        @endforeach
+                    </select>
+                </label>
+            @endif
+        </div>
+    @endif
+
     @if($pinned->isNotEmpty())
         <div class="mb-6 space-y-4">
             <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('feed.pinned') }}</h2>
@@ -114,8 +141,13 @@
         @if($pinned->isEmpty() && $items->isEmpty())
             <div class="text-center py-12">
                 <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+                @if($filtresActifs)
+                    <p class="text-gray-500 dark:text-gray-400" data-feed-no-result>{{ __('feed.no_result') }}</p>
+                    <button type="button" wire:click="resetFilters" class="mt-4 inline-flex min-h-[44px] items-center text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed.reset_filters') }}</button>
+                @else
                 <p class="text-gray-500 dark:text-gray-400">{{ __('feed.empty') }}</p>
-                @if($estProprietaireFlux)
+                @endif
+                @if($estProprietaireFlux && ! $filtresActifs)
                     <a href="{{ $createUrl }}" class="mt-4 inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 text-sm font-semibold hover:underline">
                         {{ __('feed.create_first') }}
                     </a>
