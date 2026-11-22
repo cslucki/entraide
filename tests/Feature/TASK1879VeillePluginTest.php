@@ -949,7 +949,8 @@ class TASK1879VeillePluginTest extends TestCase
 
         $this->categorieParDefaut();
         Livewire::actingAs($this->membre)->test(LoopWatchCard::class, ['loop' => $this->loop])
-            ->assertSee('data-action="suggest-watch-category"', false);
+            // Sous le menu des categories (le filtre), demande Cyril.
+            ->assertSeeInOrder(['data-watch-filter', 'data-action="suggest-watch-category"'], false);
 
         foreach ([$this->owner, $this->facilitator] as $gestionnaire) {
             Livewire::actingAs($gestionnaire)->test(LoopWatchCard::class, ['loop' => $this->loop])
@@ -1057,7 +1058,9 @@ class TASK1879VeillePluginTest extends TestCase
         Livewire::actingAs($this->membre)->test(LoopWatchCard::class, ['loop' => $this->loop])
             ->assertSee('data-export="pdf"', false)
             ->assertSee('data-export="csv"', false)
-            ->assertSee('data-export="xlsx"', false);
+            ->assertSee('data-export="xlsx"', false)
+            ->assertSee('aria-label="'.e(__('veille.export_xlsx_title')).'"', false)
+            ->assertDontSee('Exporter :');
     }
 
     public function test_l_echec_de_l_annonce_ne_perd_pas_la_veille(): void

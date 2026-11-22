@@ -80,8 +80,9 @@ return [
     'chat_open_card' => 'Voir la veille',
     'chat_unavailable' => "Cette veille n'est plus disponible.",
     // TASK-1879 — export
-    'export_label' => 'Exporter :',
-    'export_pdf' => 'PDF (tableau)',
+    'export_pdf_title' => 'Exporter en PDF (tableau)',
+    'export_csv_title' => 'Exporter en CSV',
+    'export_xlsx_title' => 'Exporter en Excel',
     'export_file' => 'veille',
     'export_sheet' => 'Veille',
     'export_author' => 'Auteur',

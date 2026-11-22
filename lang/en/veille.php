@@ -80,8 +80,9 @@ return [
     'chat_open_card' => 'View watch item',
     'chat_unavailable' => 'This watch item is no longer available.',
     // TASK-1879 — export
-    'export_label' => 'Export:',
-    'export_pdf' => 'PDF (table)',
+    'export_pdf_title' => 'Export as PDF (table)',
+    'export_csv_title' => 'Export as CSV',
+    'export_xlsx_title' => 'Export as Excel',
     'export_file' => 'watch',
     'export_sheet' => 'Watch',
     'export_author' => 'Author',

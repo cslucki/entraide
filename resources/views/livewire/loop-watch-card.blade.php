@@ -42,18 +42,6 @@
             </p>
         @endif
 
-        {{-- ── Membre : demander une categorie au proprietaire (TASK-1879) ──
-             Le composeur ChatLoop se pre-remplit d'une mention du
-             proprietaire ; sur telephone, le panneau se ferme pour l'afficher.
-             Rien n'est envoye sans la personne. --}}
-        @if($canCreate && ! $canManageCategories && ! $showForm)
-            <button type="button" data-action="suggest-watch-category"
-                    x-on:click="$dispatch('bp-close-loop-card-mobile'); Livewire.dispatch('veille-suggerer-categorie')"
-                    class="inline-flex min-h-[44px] items-center gap-1.5 self-start text-xs font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-300">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                {{ __('veille.suggest_category_link') }}
-            </button>
-        @endif
 
         {{-- ── Actions principales ───────────────────────────────────────── --}}
         @if(! $showForm && ($canCreate || $canManageCategories))
@@ -229,6 +217,20 @@
             </div>
         @endif
 
+        {{-- ── Membre : demander une categorie au proprietaire (TASK-1879) ──
+             Place SOUS le menu des categories (filtre) — demande Cyril.
+             Le composeur ChatLoop se pre-remplit d'une mention du
+             proprietaire ; sur telephone, le panneau se ferme pour l'afficher.
+             Rien n'est envoye sans la personne. --}}
+        @if($canCreate && ! $canManageCategories && ! $showForm)
+            <button type="button" data-action="suggest-watch-category"
+                    x-on:click="$dispatch('bp-close-loop-card-mobile'); Livewire.dispatch('veille-suggerer-categorie')"
+                    class="inline-flex min-h-[44px] items-center gap-1.5 self-start text-xs font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-300">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                {{ __('veille.suggest_category_link') }}
+            </button>
+        @endif
+
         {{-- ── Export (TASK-1879, demande Cyril) : suit le filtre courant ──── --}}
         @if($items->isNotEmpty() && ! $showForm && ($orgSlug = currentOrganization()?->slug))
             @php
@@ -240,14 +242,24 @@
                     'categorie' => $filterCategory !== '' ? $filterCategory : null,
                 ]);
             @endphp
-            <div class="flex flex-wrap items-center gap-2" data-section="watch-export">
-                <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('veille.export_label') }}</span>
-                <a href="{{ route('organization.loops.watch.export', $exportParams('imprimer')) }}" target="_blank" rel="noopener" data-export="pdf"
-                   class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">{{ __('veille.export_pdf') }}</a>
-                <a href="{{ route('organization.loops.watch.export', $exportParams('csv')) }}" data-export="csv"
-                   class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">CSV</a>
-                <a href="{{ route('organization.loops.watch.export', $exportParams('xlsx')) }}" data-export="xlsx"
-                   class="inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">Excel</a>
+            {{-- Icones seules (demande Cyril) : le format se lit sur l'icone,
+                 l'intitule complet reste en `title` / `aria-label`. --}}
+            <div class="flex items-center justify-end gap-1" data-section="watch-export">
+                @foreach([
+                    ['format' => 'imprimer', 'cle' => 'pdf', 'badge' => 'PDF', 'couleur' => 'text-rose-600 dark:text-rose-400', 'nouvelOnglet' => true],
+                    ['format' => 'csv', 'cle' => 'csv', 'badge' => 'CSV', 'couleur' => 'text-gray-600 dark:text-gray-300', 'nouvelOnglet' => false],
+                    ['format' => 'xlsx', 'cle' => 'xlsx', 'badge' => 'XLS', 'couleur' => 'text-emerald-600 dark:text-emerald-400', 'nouvelOnglet' => false],
+                ] as $export)
+                    <a href="{{ route('organization.loops.watch.export', $exportParams($export['format'])) }}"
+                       @if($export['nouvelOnglet']) target="_blank" rel="noopener" @endif
+                       data-export="{{ $export['cle'] }}"
+                       aria-label="{{ __('veille.export_'.$export['cle'].'_title') }}"
+                       title="{{ __('veille.export_'.$export['cle'].'_title') }}"
+                       class="inline-flex h-11 w-11 flex-col items-center justify-center rounded-xl {{ $export['couleur'] }} transition hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+                        <span class="mt-0.5 text-[9px] font-bold leading-none tracking-wide" aria-hidden="true">{{ $export['badge'] }}</span>
+                    </a>
+                @endforeach
             </div>
         @endif
 
