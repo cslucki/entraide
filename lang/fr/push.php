@@ -38,8 +38,8 @@ return [
      * cette personne-là : son appareil est prêt, et soit rien n'est encore
      * coché, soit quelque chose l'est.
      */
-    'ready_none' => 'Votre appareil est prêt, mais aucune notification n’est encore activée : cochez « Sur mes appareils » ci-dessous, puis enregistrez.',
-    'ready_some' => 'Votre appareil est prêt. Vous recevrez les notifications cochées « Sur mes appareils » ci-dessous.',
+    'ready_none' => 'Votre appareil est prêt, mais aucune notification n’est encore activée : cochez « Sur mes appareils » dans vos réglages par événement, puis enregistrez.',
+    'ready_some' => 'Votre appareil est prêt. Vous recevrez les notifications cochées « Sur mes appareils » dans vos réglages par événement.',
     'ready_none_action' => 'Aller aux réglages par événement',
 
     'enable_failed' => 'L’activation n’a pas abouti. Réessayez dans un instant.',
@@ -53,4 +53,59 @@ return [
     // JavaScript, jamais par le serveur (voir push-device.js).
     'device_registered' => 'Appareil enregistré : %label% · #%fingerprint%',
     'device_registered_unlabeled' => 'Appareil enregistré : #%fingerprint%',
+
+    // TASK-1877 — la page dédiée et son test Web Push RÉEL.
+    //
+    // Arbitrage MASTER (R2) : un fournisseur qui accepte n'a rien AFFICHÉ.
+    // Aucun de ces textes ne dit « reçue » : c'est la personne qui vérifie.
+    'device_back' => '← Retour aux réglages des notifications',
+    'device_settings_button' => 'Réglages sur cet appareil',
+    'test_button' => 'Envoyer une notification de test',
+    'test_payload_title' => 'Notification de test',
+    'test_payload_body' => 'Si vous voyez ce message, les notifications de BouclePro arrivent sur cet appareil.',
+    'test_sent' => 'Notification de test envoyée. Vérifiez sa réception sur cet appareil.',
+    'test_failed' => 'L’envoi a échoué : le service de notifications n’a pas accepté le message. Réessayez dans un instant ; si cela persiste, désactivez puis réactivez les notifications sur cet appareil.',
+    'test_revoked' => 'Abonnement expiré. Réactivez les notifications.',
+    'test_revoked_cleanup_failed' => 'Abonnement expiré, mais votre navigateur n’a pas pu l’oublier : cet appareil ne recevra pas de notification. Rechargez la page puis réactivez les notifications.',
+    'test_unknown' => 'Cet appareil n’est pas reconnu comme abonné à votre compte. Désactivez puis réactivez les notifications sur cet appareil.',
+    'test_throttled' => 'Trop d’essais rapprochés. Patientez une minute avant de recommencer.',
+
+    // TASK-1877 — « Diagnostic avancé », publié (option B MASTER), replié.
+    // `%s` est remplacé en JavaScript (voir push-device.js).
+    'diag' => [
+        'title' => 'Diagnostic avancé',
+        'permission' => 'Autorisation',
+        'origin' => 'Origine',
+        'secure' => 'Contexte sûr',
+        'scope' => 'Portée du Service Worker',
+        'version' => 'Service Worker actif',
+        'subscription' => 'Abonnement',
+        'fingerprint' => 'Empreinte',
+        'server' => 'Connu du serveur',
+        'key' => 'Clé d’abonnement',
+        'test_local' => 'Tester l’affichage local',
+        'simulate' => 'Simuler une notification',
+        'api_absent' => 'API absente',
+        'yes' => 'oui',
+        'no' => 'NON',
+        'none' => 'aucun',
+        'no_answer' => '(pas de réponse)',
+        'push_supported' => 'push pris en charge',
+        'sw_old' => 'ANCIEN — ne répond pas au diagnostic',
+        'server_silent' => '(serveur muet)',
+        'key_hidden' => '(non exposée par ce navigateur)',
+        'key_match' => 'concorde (%s…)',
+        'key_diverge' => 'DIVERGE — abonnement %s… ≠ serveur %s…',
+        'permission_refused' => 'Autorisation refusée : rien ne peut s’afficher.',
+        'local_title' => 'Affichage local',
+        'local_body' => 'Si vous voyez ceci, l’appareil sait afficher une notification.',
+        'local_done' => 'Demandé. Visible ? Alors l’affichage système fonctionne.',
+        'local_failed' => 'Échec de l’affichage local.',
+        'simulate_needs_permission' => 'Autorisation non accordée : commencez par « Tester l’affichage local ».',
+        'simulate_title' => 'Notification simulée',
+        'simulate_body' => 'Traitée par le Service Worker actif, sans réseau.',
+        'simulate_old' => 'Le Service Worker actif ne connaît pas ce diagnostic : exemplaire ancien. Fermez puis rouvrez l’application.',
+        'simulate_done' => 'Le Service Worker actif a affiché la notification : le chemin de réception est intact.',
+        'simulate_refused' => 'Le Service Worker a refusé la notification.',
+    ],
 ];

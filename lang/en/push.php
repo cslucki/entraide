@@ -29,8 +29,8 @@ return [
     // the catalogue), the exact opposite of the truth once T1744 opened it.
     // It told whoever had just enabled their device that they would receive
     // nothing, right above the very boxes they had to tick.
-    'ready_none' => 'Your device is ready, but no notification is enabled yet: tick “On my devices” below, then save.',
-    'ready_some' => 'Your device is ready. You will receive the notifications ticked “On my devices” below.',
+    'ready_none' => 'Your device is ready, but no notification is enabled yet: tick “On my devices” in your per-event settings, then save.',
+    'ready_some' => 'Your device is ready. You will receive the notifications ticked “On my devices” in your per-event settings.',
     'ready_none_action' => 'Go to per-event settings',
 
     'enable_failed' => 'Enabling did not go through. Try again in a moment.',
@@ -44,4 +44,59 @@ return [
     // substituted in JavaScript, never by the server (see push-device.js).
     'device_registered' => 'Registered device: %label% · #%fingerprint%',
     'device_registered_unlabeled' => 'Registered device: #%fingerprint%',
+
+    // TASK-1877 — the dedicated page and its REAL Web Push test.
+    //
+    // MASTER ruling (R2): a provider that accepts has DISPLAYED nothing.
+    // None of these texts says "received": the person checks for themself.
+    'device_back' => '← Back to notification settings',
+    'device_settings_button' => 'Settings on this device',
+    'test_button' => 'Send a test notification',
+    'test_payload_title' => 'Test notification',
+    'test_payload_body' => 'If you can see this message, BouclePro notifications reach this device.',
+    'test_sent' => 'Test notification sent. Check that it arrives on this device.',
+    'test_failed' => 'Sending failed: the notification service did not accept the message. Try again in a moment; if it persists, disable then re-enable notifications on this device.',
+    'test_revoked' => 'Subscription expired. Re-enable notifications.',
+    'test_revoked_cleanup_failed' => 'Subscription expired, but your browser could not forget it: this device will not receive notifications. Reload the page, then re-enable notifications.',
+    'test_unknown' => 'This device is not recognised as subscribed to your account. Disable then re-enable notifications on this device.',
+    'test_throttled' => 'Too many attempts in a row. Wait a minute before trying again.',
+
+    // TASK-1877 — "Advanced diagnostics", published (MASTER option B), folded.
+    // `%s` is substituted in JavaScript (see push-device.js).
+    'diag' => [
+        'title' => 'Advanced diagnostics',
+        'permission' => 'Permission',
+        'origin' => 'Origin',
+        'secure' => 'Secure context',
+        'scope' => 'Service Worker scope',
+        'version' => 'Active Service Worker',
+        'subscription' => 'Subscription',
+        'fingerprint' => 'Fingerprint',
+        'server' => 'Known to the server',
+        'key' => 'Subscription key',
+        'test_local' => 'Test local display',
+        'simulate' => 'Simulate a notification',
+        'api_absent' => 'API missing',
+        'yes' => 'yes',
+        'no' => 'NO',
+        'none' => 'none',
+        'no_answer' => '(no answer)',
+        'push_supported' => 'push supported',
+        'sw_old' => 'OLD — does not answer diagnostics',
+        'server_silent' => '(server silent)',
+        'key_hidden' => '(not exposed by this browser)',
+        'key_match' => 'matches (%s…)',
+        'key_diverge' => 'DIVERGES — subscription %s… ≠ server %s…',
+        'permission_refused' => 'Permission refused: nothing can be displayed.',
+        'local_title' => 'Local display',
+        'local_body' => 'If you can see this, the device can display a notification.',
+        'local_done' => 'Requested. Visible? Then system display works.',
+        'local_failed' => 'Local display failed.',
+        'simulate_needs_permission' => 'Permission not granted: start with “Test local display”.',
+        'simulate_title' => 'Simulated notification',
+        'simulate_body' => 'Handled by the active Service Worker, without network.',
+        'simulate_old' => 'The active Service Worker does not know this diagnostic: old copy. Close and reopen the app.',
+        'simulate_done' => 'The active Service Worker displayed the notification: the receiving path is intact.',
+        'simulate_refused' => 'The Service Worker refused the notification.',
+    ],
 ];

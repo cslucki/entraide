@@ -141,6 +141,71 @@ export const comparerCleVapid = (abonnement, vapid) => {
     return cleAbonnement === vapid ? CLE_CONCORDE : CLE_DIVERGE;
 };
 
+/* =========================================================================
+ * TASK-1877 — un abonnement RÉVOQUÉ par le fournisseur ne doit pas revivre.
+ *
+ * Quand le fournisseur répond « cet endpoint n'existe plus » au test Web
+ * Push, le serveur supprime sa ligne. Mais le navigateur peut encore DÉTENIR
+ * l'abonnement : `getSubscription()` le rend toujours, et les deux
+ * réconciliations (T1739 sur la page appareil, règle 4 de `push-first-run`)
+ * le RECONFIRMERAIENT au prochain affichage — un appareil mort présenté comme
+ * activé (arbitrage MASTER du 21/11, R1).
+ *
+ * D'où un MARQUEUR local, posé AVANT la tentative d'`unsubscribe()` : si la
+ * page se ferme entre les deux, ou si `unsubscribe()` échoue, l'abonnement
+ * reste reconnu comme révoqué, et aucune réconciliation ne le reconfirme.
+ *
+ * Le marqueur est l'EMPREINTE SHA-256 de l'endpoint, jamais l'endpoint : il
+ * suffit pour reconnaître CET abonnement, et un nouvel abonnement (autre
+ * endpoint) ne le porte pas. `localStorage` peut être indisponible
+ * (navigation privée) : on retombe alors sur le seul `unsubscribe()`.
+ * ========================================================================= */
+const CLE_REVOQUE = 'bouclepro.push.revoque';
+
+/** SHA-256 hexadécimal de l'endpoint — la même que le serveur calcule. */
+export const empreinteEndpoint = async (endpoint) => {
+    const condensat = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint));
+
+    return [...new Uint8Array(condensat)].map((o) => o.toString(16).padStart(2, '0')).join('');
+};
+
+/** Cet abonnement a-t-il été déclaré révoqué par le fournisseur ? */
+export const estRevoque = async (abonnement) => {
+    try {
+        const marque = localStorage.getItem(CLE_REVOQUE);
+
+        return marque !== null && marque === (await empreinteEndpoint(abonnement.endpoint));
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * Oublier côté navigateur un abonnement révoqué. Rend `true` seulement si le
+ * navigateur l'a RÉELLEMENT oublié ; sinon le marqueur reste en place.
+ */
+export const oublierAbonnementRevoque = async (abonnement) => {
+    try {
+        localStorage.setItem(CLE_REVOQUE, await empreinteEndpoint(abonnement.endpoint));
+    } catch { /* sans stockage : on tente quand même l'oubli */ }
+
+    let oublie = false;
+
+    try {
+        oublie = (await abonnement.unsubscribe()) === true;
+    } catch {
+        oublie = false;
+    }
+
+    if (oublie) {
+        try {
+            localStorage.removeItem(CLE_REVOQUE);
+        } catch { /* rien à nettoyer */ }
+    }
+
+    return oublie;
+};
+
 /**
  * Retirer cet abonnement, côté SERVEUR d'abord, puis côté navigateur.
  *
@@ -238,6 +303,16 @@ export const abonner = async (url, vapid) => {
     // justifie pas de détruire un abonnement qui fonctionne peut-être.
     if (existant !== null && comparerCleVapid(existant, vapid) === CLE_DIVERGE) {
         await retirerEtDesabonner(url, existant);
+        existant = null;
+    }
+
+    // TASK-1877 — un abonnement révoqué par le fournisseur ne se réutilise
+    // pas : on l'oublie d'abord, et l'échec de cet oubli est un échec.
+    if (existant !== null && (await estRevoque(existant))) {
+        if (!(await oublierAbonnementRevoque(existant))) {
+            throw new Error('push revoque non oublie');
+        }
+
         existant = null;
     }
 
