@@ -176,6 +176,11 @@ return [
     'view_all_requests' => 'Voir toutes mes demandes',
     'view_all_services' => 'Voir toutes mes propositions',
     'my_requests_page_title' => 'Mes demandes d\'aide',
+    // TASK-1885 C6 — a qui s'adresse la demande.
+    // Le badge porte le NOM seul (souvent deja « Boucle … ») ; l'infobulle dit le reste.
+    'request_audience_loop' => ':name',
+    'request_audience_loop_title' => 'Demande posée dans la Boucle « :name »',
+    'request_audience_everyone' => 'Tout le monde',
     'my_services_page_title' => 'Mes propositions d\'aide',
     'service_proposals_title' => 'Propositions d\'entraide',
     'help_requests_title' => 'Demandes d\'aide',
