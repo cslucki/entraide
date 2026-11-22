@@ -5,6 +5,7 @@ namespace App\Support\Feed;
 use App\Models\Loop;
 use App\Models\LoopEvent;
 use App\Models\LoopMember;
+use App\Models\LoopWatchItem;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\Transaction;
@@ -60,6 +61,13 @@ final class FeedEventCatalogue
     public const BOUCLE_CREEE = 'event.loop_created';
 
     public const EVENEMENT_CREE = 'event.loop_event_created';
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — une veille publiee dans une Boucle.
+     * Audience TOUJOURS `loop` : le contenu d'une veille n'est lisible que
+     * dans la Boucle, la ligne de Flux ne le fait pas sortir.
+     */
+    public const VEILLE_PUBLIEE = 'event.loop_watch_item_created';
 
     /**
      * TASK-1757 §9.5, puis TASK-1809 §2 — une entraide terminee.
@@ -131,6 +139,11 @@ final class FeedEventCatalogue
                 'object' => LoopEvent::class,
                 'visibilite' => self::VISIBILITE_ORGANIZATION,
                 'libelle' => 'feed.events.loop_event_created',
+            ],
+            self::VEILLE_PUBLIEE => [
+                'object' => LoopWatchItem::class,
+                'visibilite' => self::VISIBILITE_BOUCLE,
+                'libelle' => 'feed.events.loop_watch_item_created',
             ],
             self::ENTRAIDE_TERMINEE => [
                 'object' => Transaction::class,

@@ -6,6 +6,7 @@ use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopEvent;
 use App\Models\LoopMember;
+use App\Models\LoopWatchItem;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -193,6 +194,11 @@ final class FeedEventRenderer
                 'organization' => $organizationSlug,
                 'loop' => $objet->slug ?: $objet->getKey(),
             ]),
+            // TASK-1879 — une veille mene a SA Boucle (la Card s'y ouvre).
+            $objet instanceof LoopWatchItem => (fn () => (($b = Loop::withoutGlobalScopes()->find($objet->loop_id)) === null) ? null : self::route('organization.loops.show', [
+                'organization' => $organizationSlug,
+                'loop' => $b->slug ?: $b->getKey(),
+            ]))(),
             // Le parametre s'appelle `{request}` et non `{serviceRequest}` :
             // avec le mauvais nom, `route()` levait et le repli rendait
             // `null` — la pastille « Voir » disparaissait EN SILENCE.
@@ -301,6 +307,27 @@ final class FeedEventRenderer
             ];
         }
 
+        // TASK-1879 — apercu d'une veille : seulement si elle existe encore et
+        // que le plugin est toujours actif dans la Boucle (sinon la ligne
+        // reste, sans contenu). `objet()` lit sans scopes : on ecarte ici la
+        // veille supprimee (soft delete).
+        if ($objet instanceof LoopWatchItem) {
+            $boucle = Loop::withoutGlobalScopes()->find($objet->loop_id);
+
+            if ($objet->trashed() || $boucle === null
+                || ! in_array('veille', app(\App\Services\Loops\LoopPluginActivation::class)->enabledPluginKeysFor($boucle), true)) {
+                return null;
+            }
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'ronde' => false,
+                'titre' => $objet->category?->name,
+                'texte' => \Illuminate\Support\Str::limit(trim((string) $objet->information), 160),
+            ];
+        }
+
         if ($objet instanceof LoopEvent) {
             return [
                 'url' => null,
@@ -379,6 +406,7 @@ final class FeedEventRenderer
             $objet instanceof Loop => (string) $objet->name,
             $objet instanceof ServiceRequest, $objet instanceof Service => (string) $objet->title,
             $objet instanceof LoopEvent => (string) $objet->title,
+            $objet instanceof LoopWatchItem => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
             $objet instanceof User => $objet->publicDisplayName(),
             // TASK-1809 (correctif Cyril, 12/11) — l'objet d'une entraide est
             // desormais le TITRE de l'annonce. REMPLACE l'arbitrage du 05/11

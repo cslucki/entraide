@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Livewire\LoopChat;
 use App\Livewire\LoopWatchCard;
+use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
@@ -22,6 +23,8 @@ use App\Services\Loops\LoopPluginAvailabilityService;
 use App\Services\Loops\LoopWatchService;
 use App\Services\Loops\WatchException;
 use App\Services\UserDataLifecycleRegistry;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventRenderer;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopPluginRegistry;
@@ -867,6 +870,51 @@ class TASK1879VeillePluginTest extends TestCase
         $service->delete($this->membre, $this->loop, $item->id);
 
         $this->assertSame($avant, MemberNotification::query()->count());
+    }
+
+    public function test_membre_et_animateur_publient_une_veille(): void
+    {
+        $this->activer();
+
+        foreach ([$this->membre, $this->facilitator, $this->owner] as $auteur) {
+            $item = $this->publier($auteur);
+            $this->assertSame($auteur->id, $item->created_by);
+        }
+
+        $this->assertDatabaseCount('loop_watch_items', 3);
+    }
+
+    public function test_la_publication_figure_dans_le_flux_des_seuls_membres_de_la_boucle(): void
+    {
+        $this->activer();
+        $item = $this->publier($this->membre, ['information' => 'Info du flux']);
+
+        $ligne = FeedPost::query()->where('type', FeedEventCatalogue::VEILLE_PUBLIEE)->sole();
+
+        $this->assertSame($item->id, $ligne->object_id);
+        $this->assertSame($this->membre->id, $ligne->user_id);
+        $this->assertSame(FeedEventCatalogue::VISIBILITE_BOUCLE, $ligne->visibility);
+        $this->assertSame($this->loop->id, $ligne->loop_id);
+        $this->assertSame($this->orgA->id, $ligne->organization_id);
+
+        $this->assertTrue(FeedPost::query()->visibleTo($this->autreMembre)->whereKey($ligne->id)->exists());
+        $this->assertFalse(FeedPost::query()->visibleTo($this->ancien)->whereKey($ligne->id)->exists());
+        $this->assertFalse(FeedPost::query()->visibleTo($this->etranger)->whereKey($ligne->id)->exists());
+
+        $this->assertStringContainsString($this->loop->name, (string) FeedEventRenderer::libelle($ligne));
+        $this->assertSame('Info du flux', FeedEventRenderer::apercu($ligne, 'alpha')['texte'] ?? null);
+    }
+
+    public function test_une_veille_supprimee_n_a_plus_d_apercu_dans_le_flux(): void
+    {
+        $this->activer();
+        $item = $this->publier($this->membre, ['information' => 'Bientot supprimee']);
+        app(LoopWatchService::class)->delete($this->membre, $this->loop, $item->id);
+
+        $ligne = FeedPost::query()->where('type', FeedEventCatalogue::VEILLE_PUBLIEE)->sole();
+        $ligne->refresh();
+
+        $this->assertNull(FeedEventRenderer::apercu(FeedPost::query()->find($ligne->id), 'alpha'));
     }
 
     public function test_l_echec_de_l_annonce_ne_perd_pas_la_veille(): void

@@ -11,6 +11,7 @@ return [
         'loop_joined' => ':name joined the :object Loop',
         'loop_created' => ':name created the :object Loop',
         'loop_event_created' => ':name created the event :object',
+        'loop_watch_item_created' => ':name shared a watch item in the Loop :object',
         // TASK-1809 (Cyril's decision, 12/11) — REPLACES the 05/11
         // arbitrage (only the helper was named): a trust-based platform
         // names both. The listing by its TITLE (:object) — BouclePro is a

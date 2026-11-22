@@ -8,6 +8,8 @@ use App\Models\LoopWatchCategory;
 use App\Models\LoopWatchItem;
 use App\Models\User;
 use App\Services\LoopMessageService;
+use App\Support\Feed\FeedEventCatalogue;
+use App\Support\Feed\FeedEventEmitter;
 use App\Support\Loops\LoopPermissionResolver;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -190,6 +192,17 @@ class LoopWatchService
         ]));
 
         $this->announce($loop, $user, $item);
+
+        // TASK-1879 (demande Cyril, 22/11) — la publication figure dans le
+        // Flux, reservee aux membres de la Boucle. Un echec du Flux ne perd
+        // jamais la veille (meme discipline que l'annonce ChatLoop).
+        rescue(fn () => app(FeedEventEmitter::class)->emettre(
+            FeedEventCatalogue::VEILLE_PUBLIEE,
+            $item,
+            $user,
+            (string) $loop->organization_id,
+            $loop,
+        ), report: true);
 
         return $item;
     }
