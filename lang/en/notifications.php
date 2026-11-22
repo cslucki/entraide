@@ -97,6 +97,9 @@ return [
      * is what the person is looking for.
      */
     'push_body' => [
+        'loop_poll_created' => 'Open BouclePro to vote.',
+        'loop_article_published' => 'Open BouclePro to read the article.',
+        'loop_dossier_file_uploaded' => 'Open BouclePro to see the files.',
         // TASK-1879
         'loop_watch_item_created' => 'Open BouclePro to read the watch item.',
         'loop_mention_created' => 'Open BouclePro to read the message.',
@@ -128,6 +131,9 @@ return [
     ],
 
     'push_title' => [
+        'loop_poll_created' => 'A new poll in your Loop',
+        'loop_article_published' => 'A new article in your Loop',
+        'loop_dossier_file_uploaded' => 'New files in your Loop',
         // TASK-1879
         'loop_watch_item_created' => 'A new watch item in your Loop',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
@@ -166,6 +172,9 @@ return [
     ],
 
     'keys' => [
+        'loop_poll_created' => 'A new poll was posted',
+        'loop_article_published' => 'A new article was published',
+        'loop_dossier_file_uploaded' => 'Files were uploaded',
         // TASK-1879
         'loop_watch_item_created' => 'A new watch item was shared',
         'loop_mention_created' => 'You were mentioned in a Loop',
@@ -215,6 +224,9 @@ return [
      * longer always `:loop`.
      */
     'keys_named' => [
+        'loop_poll_created' => 'A new poll was posted in the Loop “:loop”',
+        'loop_article_published' => 'A new article was published in the Loop “:loop”',
+        'loop_dossier_file_uploaded' => 'Files were uploaded in the Loop “:loop”',
         // TASK-1879
         'loop_watch_item_created' => 'A new watch item was shared in the Loop “:loop”',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere

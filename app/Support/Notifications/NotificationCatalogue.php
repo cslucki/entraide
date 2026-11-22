@@ -291,6 +291,19 @@ final class NotificationCatalogue
      */
     public const LOOP_WATCH_ITEM_CREATED = 'loop.watch_item.created';
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — meme regime que la Veille pour trois
+     * annonces ChatLoop jusque-la muettes : un Sondage pose, un Article publie
+     * dans la Boucle, un depot de fichiers dans Dossiers. Faits COLLECTIFS
+     * (sourdine par Boucle), in-app + Web Push, JAMAIS d'e-mail. Seules les
+     * creations notifient : ni la cloture d'un Sondage, ni chaque vote.
+     */
+    public const LOOP_POLL_CREATED = 'loop.poll.created';
+
+    public const LOOP_ARTICLE_PUBLISHED = 'loop.article.published';
+
+    public const LOOP_DOSSIER_FILE_UPLOADED = 'loop.dossier_file.uploaded';
+
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
@@ -858,6 +871,39 @@ final class NotificationCatalogue
          * debrayables individuellement.
          */
         // TASK-1879 — une veille publiee : in-app + Web Push, JAMAIS d'e-mail.
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_POLL_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_ARTICLE_PUBLISHED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_DOSSIER_FILE_UPLOADED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
         self::LOOP_WATCH_ITEM_CREATED => [
             'category' => 'loop',
             'intention' => self::INTENTION_CHANGEMENTS,
@@ -1127,7 +1173,7 @@ final class NotificationCatalogue
         // meme fait collectif, meme `object_type` (OBJECT_LOOP), donc le meme
         // `object_id` EST deja l'identifiant de la Boucle.
         // TASK-1879 — LOOP_WATCH_ITEM_CREATED aussi : meme fait collectif.
-        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED, self::LOOP_WATCH_ITEM_CREATED], true)) {
+        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED, self::LOOP_WATCH_ITEM_CREATED, self::LOOP_POLL_CREATED, self::LOOP_ARTICLE_PUBLISHED, self::LOOP_DOSSIER_FILE_UPLOADED], true)) {
             return null;
         }
 

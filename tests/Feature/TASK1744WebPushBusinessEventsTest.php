@@ -319,6 +319,11 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             // TASK-1879 (demande Cyril, 22/11) — une veille publiee dans une
             // Boucle : fait collectif, in-app + Web Push, AUCUN canal email.
             NotificationCatalogue::LOOP_WATCH_ITEM_CREATED,
+            // TASK-1879 (meme demande) — Sondage pose, Article publie, depot
+            // de fichiers : memes canaux que la Veille, aucun e-mail.
+            NotificationCatalogue::LOOP_POLL_CREATED,
+            NotificationCatalogue::LOOP_ARTICLE_PUBLISHED,
+            NotificationCatalogue::LOOP_DOSSIER_FILE_UPLOADED,
             NotificationCatalogue::FEED_POST_COMMENT_CREATED,
             NotificationCatalogue::FEED_POST_REACTION_CREATED,
         ];

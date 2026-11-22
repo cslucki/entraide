@@ -132,10 +132,16 @@ class TASK1747HelpRequestNotificationTest extends TestCase
         ]);
         $this->service()->sendPollEventMessage($this->boucle, $this->auteur, $sondage, 'created');
 
+        // TASK-1879 (demande Cyril, 22/11) — un Sondage POSE notifie
+        // desormais, par SA propre cle (`loop.poll.created`). La garde reste
+        // entiere pour le reste : ni le message libre, ni le sondage ne
+        // produisent de notification de DEMANDE D'AIDE ou d'autre cle.
         $this->assertSame(
             $avant,
-            MemberNotification::query()->count(),
-            'aucun message ordinaire — libre ou de sondage — ne doit produire de notification',
+            MemberNotification::query()
+                ->where('notification_key', '!=', \App\Support\Notifications\NotificationCatalogue::LOOP_POLL_CREATED)
+                ->count(),
+            'aucun message ordinaire — libre ou de sondage — ne doit produire de notification hors de sa propre cle',
         );
     }
 

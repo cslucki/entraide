@@ -108,6 +108,9 @@ return [
      * place, qui est ce que la personne cherche.
      */
     'push_body' => [
+        'loop_poll_created' => 'Ouvrez BouclePro pour voter.',
+        'loop_article_published' => 'Ouvrez BouclePro pour lire l\'article.',
+        'loop_dossier_file_uploaded' => 'Ouvrez BouclePro pour voir les fichiers.',
         // TASK-1879
         'loop_watch_item_created' => 'Ouvrez BouclePro pour lire la veille.',
         'loop_mention_created' => 'Ouvrez BouclePro pour lire le message.',
@@ -143,6 +146,9 @@ return [
     ],
 
     'push_title' => [
+        'loop_poll_created' => 'Un nouveau sondage dans votre Boucle',
+        'loop_article_published' => 'Un nouvel article dans votre Boucle',
+        'loop_dossier_file_uploaded' => 'Nouveaux fichiers dans votre Boucle',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille dans votre Boucle',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
@@ -183,6 +189,9 @@ return [
     ],
 
     'keys' => [
+        'loop_poll_created' => 'Un nouveau sondage a été posé',
+        'loop_article_published' => 'Un nouvel article a été publié',
+        'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille a été partagée',
         'loop_mention_created' => 'On vous a mentionné dans une Boucle',
@@ -245,6 +254,9 @@ return [
      * controleur a pu resoudre, quelle qu'elle soit.
      */
     'keys_named' => [
+        'loop_poll_created' => 'Un nouveau sondage a été posé dans la Boucle « :loop »',
+        'loop_article_published' => 'Un nouvel article a été publié dans la Boucle « :loop »',
+        'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés dans la Boucle « :loop »',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille a été partagée dans la Boucle « :loop »',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere

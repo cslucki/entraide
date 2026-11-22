@@ -437,6 +437,11 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
+            // TASK-1879 — seule la CREATION notifie (jamais la cloture).
+            if ($event === 'created') {
+                $this->notifierLaBoucle(NotificationCatalogue::LOOP_POLL_CREATED, $loop, $sender, $message);
+            }
+
             event(new LoopMessageCreated($message));
 
             $loop->touch();
@@ -722,6 +727,9 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
+            // TASK-1879 — UNE notification par depot, quel que soit le nombre de fichiers.
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_DOSSIER_FILE_UPLOADED, $loop, $sender, $message);
+
             event(new LoopMessageCreated($message));
 
             $loop->touch();
@@ -777,6 +785,9 @@ class LoopMessageService
                 ],
                 'organization_id' => $loop->organization_id,
             ]);
+
+            // TASK-1879 — une seule fois par Article et par Boucle (dedoublonne plus haut).
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_ARTICLE_PUBLISHED, $loop, $sender, $message);
 
             event(new LoopMessageCreated($message));
 
@@ -850,7 +861,7 @@ class LoopMessageService
      *
      * Notification (demande Cyril, 22/11, qui remplace la decision initiale
      * « ni Push ni e-mail ») : **in-app + Web Push (PWA)** aux membres actifs
-     * sauf l'auteur, via `notifierNouvelleVeille()`. **Jamais d'e-mail** : la
+     * sauf l'auteur, via `notifierLaBoucle()`. **Jamais d'e-mail** : la
      * cle `LOOP_WATCH_ITEM_CREATED` ne declare pas ce canal.
      *
      * IDEMPOTENT : une veille n'est annoncee qu'une fois.
@@ -887,7 +898,7 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
-            $this->notifierNouvelleVeille($loop, $sender, $message);
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_WATCH_ITEM_CREATED, $loop, $sender, $message);
 
             event(new LoopMessageCreated($message));
 
@@ -898,13 +909,14 @@ class LoopMessageService
     }
 
     /**
-     * TASK-1879 (demande Cyril, 22/11) — prevenir la Boucle qu'une veille y a
-     * ete publiee. Meme forme que `notifierNouvelEvenement()` : membres ACTIFS
+     * TASK-1879 (demande Cyril, 22/11) — prevenir la Boucle d'un fait
+     * collectif : une veille publiee, puis (meme demande) un Sondage pose, un
+     * Article publie, un depot de fichiers dans Dossiers. Meme forme que `notifierNouvelEvenement()` : membres ACTIFS
      * de la Boucle, encore dans son Organization, sauf l'auteur ; sourdine PAR
      * BOUCLE respectee (`loopScopeFor()`). Canaux demandes : in-app et Web Push
      * SEULEMENT — l'e-mail n'est ni demande ni declare au catalogue.
      */
-    private function notifierNouvelleVeille(Loop $loop, User $auteur, LoopMessage $message): void
+    private function notifierLaBoucle(string $cle, Loop $loop, User $auteur, LoopMessage $message): void
     {
         $destinataires = User::query()
             ->whereIn(
@@ -925,7 +937,7 @@ class LoopMessageService
 
         $verdicts = app(NotificationPreferenceResolver::class)->allowsMany(
             $destinataires,
-            NotificationCatalogue::LOOP_WATCH_ITEM_CREATED,
+            $cle,
             [
                 NotificationCatalogue::CHANNEL_IN_APP,
                 NotificationCatalogue::CHANNEL_WEB_PUSH,
@@ -941,7 +953,7 @@ class LoopMessageService
 
         foreach ($destinataires as $destinataire) {
             $emetteur->emit(
-                notificationKey: NotificationCatalogue::LOOP_WATCH_ITEM_CREATED,
+                notificationKey: $cle,
                 organization: (string) $loop->organization_id,
                 recipient: $destinataire,
                 eventId: (string) $message->getKey(),
