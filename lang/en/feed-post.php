@@ -57,6 +57,8 @@ return [
     'composer_close' => 'Close',
     'composer_remove_photo' => 'Remove photo',
     'composer_publish' => 'Publish',
+    'post_actions' => 'Announcement actions',
+    'delete_irreversible' => 'It will disappear from the feed; in loops, its card will show it as unavailable.',
     'scope_label' => 'Scope',
     'cancel' => 'Cancel',
     'submit_draft' => 'Save draft',

@@ -53,7 +53,7 @@
 
          `min-w-0` sur la colonne de titre : sans lui, un mot long d'un titre
          traduit deborderait de la carte au lieu de se couper. --}}
-    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div class="mb-6 max-sm:mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         {{-- TASK-1788 correctif 09 — « Organisation » et le sous-titre sont
              RETIRES, sur demande de Cyril : trois lignes avant le premier
              contenu sur un ecran de telephone, pour dire ce que le titre dit
@@ -72,7 +72,9 @@
 
                  La cle `feed.dashboard` reste DEFINIE : c'est un changement
                  d'ecran, pas un menage de lexique. --}}
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('feed.title') }}</h1>
+            {{-- TASK-1879 (demande Cyril, 22/11) — sur smartphone la barre du haut
+                 dit deja « Flux » : le titre reste pour les lecteurs d'ecran. --}}
+            <h1 class="text-2xl font-bold text-gray-900 max-sm:sr-only dark:text-gray-100">{{ __('feed.title') }}</h1>
         </div>
         {{-- TASK-1879 (demande Cyril, 22/11) — « Mes annonces » et « Nouvelle annonce »
              : administrateur de l'Organization seulement. Les autres membres

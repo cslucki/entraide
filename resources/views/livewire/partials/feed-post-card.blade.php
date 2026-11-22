@@ -69,16 +69,54 @@
                 @endif
                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ ($post->published_at ?? $post->created_at)->isoFormat('lll') }}</p>
             </div>
-            {{-- TASK-1879 (demande Cyril, 22/11) — l'auteur modifie SON annonce par
-                 une icone, sans passer par « Mes annonces ». --}}
+            {{-- TASK-1879 (demandes Cyril, 22/11) — menu « ... » de l'auteur sur SON
+                 annonce : Modifier, Supprimer. La suppression se confirme DANS le
+                 menu (pas de `confirm()` du navigateur). --}}
             @if(! $estEvenement && auth()->id() === $post->user_id && $_slugOrganization)
-                @can('update', $post)
-                    <a href="{{ route('organization.flux.edit', ['organization' => $_slugOrganization, 'feedPost' => $post->id]) }}"
-                       data-feed-post-edit="{{ $post->id }}" title="{{ __('feed-post.edit_post') }}" aria-label="{{ __('feed-post.edit_post') }}"
-                       class="-mr-1 -mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-indigo-300">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.86 4.49a2.1 2.1 0 0 1 2.97 2.97L8.5 18.79 4.5 19.5l.71-4z"/><path d="m15 6.35 2.97 2.97"/></svg>
-                    </a>
-                @endcan
+                @canany(['update', 'delete'], $post)
+                    <div class="relative -mr-1 -mt-1 shrink-0" x-data="{ menu: false, confirmer: false }"
+                         x-on:click.outside="menu = false; confirmer = false" x-on:keydown.escape="menu = false; confirmer = false">
+                        <button type="button" data-feed-post-menu="{{ $post->id }}"
+                                x-on:click="menu = ! menu; confirmer = false" x-bind:aria-expanded="menu"
+                                aria-haspopup="menu" aria-label="{{ __('feed-post.post_actions') }}" title="{{ __('feed-post.post_actions') }}"
+                                class="grid h-10 w-10 place-items-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100">
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>
+                        </button>
+                        <div x-cloak x-show="menu" role="menu"
+                             x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                             class="absolute right-0 top-11 z-30 w-56 origin-top-right overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                            <div x-show="! confirmer">
+                                @can('update', $post)
+                                    <a href="{{ route('organization.flux.edit', ['organization' => $_slugOrganization, 'feedPost' => $post->id]) }}" role="menuitem"
+                                       data-feed-post-edit="{{ $post->id }}"
+                                       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                                        <svg class="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.86 4.49a2.1 2.1 0 0 1 2.97 2.97L8.5 18.79 4.5 19.5l.71-4z"/><path d="m15 6.35 2.97 2.97"/></svg>
+                                        {{ __('feed-post.edit_action') }}
+                                    </a>
+                                @endcan
+                                @can('delete', $post)
+                                    <button type="button" role="menuitem" x-on:click="confirmer = true" data-feed-post-delete="{{ $post->id }}"
+                                            class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10">
+                                        <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>
+                                        {{ __('feed-post.delete_action') }}
+                                    </button>
+                                @endcan
+                            </div>
+                            @can('delete', $post)
+                                <div x-show="confirmer" x-cloak class="p-2" data-feed-post-delete-confirm="{{ $post->id }}">
+                                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('feed-post.delete_confirm') }}</p>
+                                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('feed-post.delete_irreversible') }}</p>
+                                    <div class="mt-3 flex gap-2">
+                                        <button type="button" x-on:click="confirmer = false"
+                                                class="flex-1 rounded-xl bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">{{ __('feed-post.cancel') }}</button>
+                                        <button type="button" wire:click="deleteFeedPost('{{ $post->id }}')" wire:loading.attr="disabled"
+                                                class="flex-1 rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-60">{{ __('feed-post.delete_action') }}</button>
+                                    </div>
+                                </div>
+                            @endcan
+                        </div>
+                    </div>
+                @endcanany
             @endif
         </header>
         @unless($estEvenement)

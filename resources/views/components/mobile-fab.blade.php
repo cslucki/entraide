@@ -11,6 +11,18 @@
     $_fabRequestsHref = $_fabOrgSlug && Route::has('organization.requests.create') ? route('organization.requests.create', ['organization' => $_fabOrgSlug]) : route('requests.create');
     $_fabServicesHref = $_fabOrgSlug && Route::has('organization.services.create') ? route('organization.services.create', ['organization' => $_fabOrgSlug]) : route('services.create');
     $_fabBlogCreateHref = $_fabOrgSlug && Route::has('organization.blog.create') ? route('organization.blog.create', ['organization' => $_fabOrgSlug]) : route('blog.create');
+    // TASK-1879 (demande Cyril, 22/11) — « Ecrire une annonce » : le composeur du
+    // Flux (#ecrire l'ouvre) ; l'administrateur de l'Organization garde sa page
+    // de creation complete.
+    $_fabOrg = currentOrganization();
+    $_fabPeutAnnoncer = $_fabOrg !== null && auth()->user()->can('create', \App\Models\FeedPost::class);
+    $_fabProprietaire = $_fabOrg !== null && (auth()->id() === $_fabOrg->admin_id || auth()->user()->is_admin);
+    $_fabAnnonceHref = null;
+    if ($_fabPeutAnnoncer) {
+        $_fabAnnonceHref = $_fabProprietaire
+            ? ($_fabOrgSlug ? route('organization.flux.create', ['organization' => $_fabOrgSlug]) : route('flux.create'))
+            : ($_fabOrgSlug ? route('organization.flux', ['organization' => $_fabOrgSlug]) : route('flux')).'#ecrire';
+    }
 @endphp
 {{-- TASK-1403 : les libelles visibles de ce FAB viennent de `lang/*/navigation.php`
      et JAMAIS de `$T`. `$T` est `View::share('T', config('terms'))` — un
@@ -41,6 +53,13 @@
          x-transition:leave-end="opacity-0 scale-95"
          class="fixed bottom-32 right-4 z-50 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1"
          style="display:none">
+        @if($_fabAnnonceHref)
+            <a href="{{ $_fabAnnonceHref }}" x-on:click="open = false" data-fab-announcement
+               class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                <svg class="w-4 h-4 text-sky-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ config('navigation_icons.feed') }}"/></svg>
+                {{ __('navigation.mobile_fab_write_announcement') }}
+            </a>
+        @endif
         <a href="{{ $_fabRequestsHref }}" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
             <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             {{ __('navigation.mobile_fab_create_request') }}

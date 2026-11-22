@@ -926,6 +926,23 @@ class OrganizationFeedTest extends TestCase
             ->assertDontSee('data-feed-composer-inline', false);
     }
 
+    /** TASK-1879 (demande Cyril, 22/11) — la premiere Boucle du membre est cochee d'office ; raccourcis FAB et « Cooperer ». */
+    public function test_member_composer_preselects_first_loop_and_shortcuts_point_to_it(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $loop = $this->loopForOrganization($this->organization, $this->member);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertSet('selectedLoops', [(string) $loop->id]);
+
+        $url = route('organization.flux', ['organization' => $this->organization->slug]);
+        $this->actingAs($this->member)->get($url)->assertOk()
+            ->assertSee('data-fab-announcement', false)
+            ->assertSee(e($url.'#ecrire'), false)
+            ->assertSee(e(__('navigation.fab_announce')), false);
+    }
+
     /** TASK-1879 (demande Cyril, 22/11) — l'auteur modifie son annonce par une icone ; pas les autres. */
     public function test_author_gets_an_edit_icon_on_own_announcement_only(): void
     {
@@ -944,6 +961,37 @@ class OrganizationFeedTest extends TestCase
             ->assertOk()
             ->assertSee('data-feed-post-edit="'.$sienne->id.'"', false)
             ->assertDontSee('data-feed-post-edit="'.$autre->id.'"', false);
+    }
+
+    /** TASK-1879 (demande Cyril, 22/11) — menu « ... » : l'auteur supprime SON annonce depuis le Flux, pas celle d'un autre. */
+    public function test_author_deletes_own_announcement_from_the_flux_menu(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $sienne = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->member->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'A supprimer', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+        $autre = FeedPost::create([
+            'organization_id' => $this->organization->id, 'user_id' => $this->admin->id,
+            'type' => FeedPost::TYPE_ANNOUNCEMENT, 'content' => 'Pas a lui', 'status' => FeedPost::STATUS_PUBLISHED, 'published_at' => now(),
+        ]);
+
+        $this->actingAs($this->member)
+            ->get(route('organization.flux', ['organization' => $this->organization->slug]))
+            ->assertSee('data-feed-post-menu="'.$sienne->id.'"', false)
+            ->assertSee('data-feed-post-delete="'.$sienne->id.'"', false)
+            ->assertDontSee('data-feed-post-menu="'.$autre->id.'"', false);
+
+        Livewire::actingAs($this->member)
+            ->test(\App\Livewire\OrganizationFeed::class)
+            ->call('deleteFeedPost', $sienne->id);
+        $this->assertSoftDeleted('feed_posts', ['id' => $sienne->id]);
+
+        Livewire::actingAs($this->member)
+            ->test(\App\Livewire\OrganizationFeed::class)
+            ->call('deleteFeedPost', $autre->id)
+            ->assertForbidden();
+        $this->assertNotSoftDeleted('feed_posts', ['id' => $autre->id]);
     }
 
     /** TASK-1879 — un membre qui modifie son annonce revient au Flux, pas a « Mes annonces ». */

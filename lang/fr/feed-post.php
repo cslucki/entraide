@@ -57,6 +57,8 @@ return [
     'composer_close' => 'Fermer',
     'composer_remove_photo' => 'Retirer la photo',
     'composer_publish' => 'Publier',
+    'post_actions' => 'Actions sur l\'annonce',
+    'delete_irreversible' => 'Elle disparaîtra du Flux ; dans les Boucles, sa carte la dira indisponible.',
     'scope_label' => 'Portée',
     'cancel' => 'Annuler',
     'submit_draft' => 'Enregistrer le brouillon',

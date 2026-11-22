@@ -29,28 +29,51 @@
      ouvre le composeur en feuille montante (Alpine), fond floute, Echap ou
      clic dehors pour fermer, defilement de la page bloque pendant ce temps. --}}
 <div class="mb-6" data-feed-composer data-feed-composer-inline
-     x-data="{ ouvert: false }"
+     x-data="{
+        ouvert: false,
+        // Le curseur dans la zone d'ecriture des que la fenetre est visible
+        // (quelques essais : la fenetre est encore en transition).
+        viser(essai = 0) {
+            const zone = this.$root.querySelector('.ProseMirror');
+            zone?.focus();
+            if (document.activeElement !== zone && essai < 12) { setTimeout(() => this.viser(essai + 1), 60); }
+        },
+     }"
+     x-init="
+        {{-- TASK-1879 — « Ecrire une annonce » (FAB, « Cooperer ») arrive par
+             #ecrire : le composeur s'ouvre directement. --}}
+        const ecrire = () => {
+            if (location.hash !== '#ecrire') return;
+            history.replaceState(null, '', location.pathname + location.search);
+            ouvert = true;
+            $nextTick(() => viser());
+        };
+        ecrire();
+        window.addEventListener('hashchange', ecrire);
+     "
      x-effect="document.documentElement.classList.toggle('overflow-hidden', ouvert)"
      x-on:keydown.escape.window="ouvert = false">
     <button type="button" data-feed-composer-trigger
-            x-on:click="ouvert = true; setTimeout(() => $root.querySelector('.ProseMirror')?.focus(), 320)"
-            class="flex w-full items-center gap-3 rounded-3xl border border-gray-200 bg-white p-3 text-left shadow-sm transition active:scale-[0.99] sm:hidden dark:border-gray-700 dark:bg-gray-900">
+            x-on:click="ouvert = true; $nextTick(() => viser())"
+            class="flex w-full items-center gap-3 rounded-3xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-gray-300 active:scale-[0.99] sm:p-4 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600">
         <x-user-avatar :user="$moi" size="md" variant="solid" class="shrink-0" />
-        <span class="min-w-0 flex-1 truncate rounded-full bg-gray-100 px-4 py-2.5 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">{{ __('feed-post.composer_placeholder', ['name' => $prenom]) }}</span>
+        <span class="min-w-0 flex-1 truncate rounded-full bg-gray-100 px-4 py-2.5 text-sm text-gray-500 transition sm:text-base dark:bg-gray-800 dark:text-gray-400">{{ __('feed-post.composer_placeholder', ['name' => $prenom]) }}</span>
         <svg class="h-6 w-6 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg>
     </button>
 
     <style>
         @media (min-width: 640px) {
-            [data-feed-composer-inline] .bp-composeur .ProseMirror-wrapper .ProseMirror.ProseMirror { min-height: 3.5rem; }
+            [data-feed-composer-inline] .bp-composeur .ProseMirror-wrapper .ProseMirror.ProseMirror { min-height: 9rem; }
         }
     </style>
     <div x-cloak x-show="ouvert" x-transition.opacity.duration.250ms x-on:click="ouvert = false"
-         class="fixed inset-0 z-[60] bg-gray-950/60 backdrop-blur-sm sm:hidden" aria-hidden="true"></div>
+         class="fixed inset-0 z-[60] bg-gray-950/60 backdrop-blur-sm" aria-hidden="true"></div>
 
     <div role="dialog" aria-modal="true" aria-label="{{ __('feed-post.new_post') }}" data-feed-composer-sheet
-         x-bind:class="ouvert && 'max-sm:!translate-y-0 max-sm:!visible'"
-         class="max-sm:invisible max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-[61] max-sm:max-h-[92dvh] max-sm:translate-y-full max-sm:overflow-y-auto max-sm:rounded-t-3xl max-sm:bg-white max-sm:pb-[env(safe-area-inset-bottom)] max-sm:shadow-2xl max-sm:transition-[transform,visibility] max-sm:duration-300 max-sm:ease-out max-sm:dark:bg-gray-900">
+         {{-- TASK-1879 (demande Cyril, 22/11) — la meme invite partout ; elle ouvre
+              une feuille montante sur smartphone, une fenetre centree au-dela. --}}
+         x-bind:class="ouvert && '!visible !translate-y-0 sm:!opacity-100 sm:!scale-100'"
+         class="invisible fixed inset-x-0 bottom-0 z-[61] max-h-[92dvh] translate-y-full overflow-y-auto rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl transition-[transform,opacity,visibility] duration-300 ease-out dark:bg-gray-900 sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-[10vh] sm:max-h-[80vh] sm:w-[min(36rem,calc(100vw-2rem))] sm:-translate-x-1/2 sm:translate-y-4 sm:scale-95 sm:rounded-3xl sm:pb-0 sm:opacity-0 sm:ring-1 sm:ring-black/5 sm:duration-200 dark:sm:ring-white/10">
         <div class="flex justify-center pt-2 sm:hidden" aria-hidden="true"><span class="h-1.5 w-10 rounded-full bg-gray-300 dark:bg-gray-700"></span></div>
         @include('livewire.partials.feed-composer-form')
     </div>

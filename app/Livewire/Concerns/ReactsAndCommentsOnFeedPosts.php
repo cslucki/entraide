@@ -52,6 +52,29 @@ trait ReactsAndCommentsOnFeedPosts
     /** @var array<string, string> */
     public array $commentForms = [];
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — l'auteur supprime son annonce depuis
+     * le menu « ... » de sa carte (Flux ou page de l'annonce). Meme regle que
+     * « Mes annonces » : `FeedPostPolicy::delete`, Organization courante.
+     */
+    public function deleteFeedPost(string $feedPostId): void
+    {
+        $orgId = currentOrganization()?->id;
+        $post = $orgId ? FeedPost::query()->where('organization_id', $orgId)->find($feedPostId) : null;
+
+        if ($post === null || ! auth()->user()?->can('delete', $post)) {
+            abort(403);
+        }
+
+        $post->delete();
+
+        // Sur la page de l'annonce, elle n'existe plus : retour au Flux.
+        if ($this instanceof \App\Livewire\ViewFeedPost) {
+            $org = currentOrganization();
+            $this->redirectRoute('organization.flux', ['organization' => $org?->slug]);
+        }
+    }
+
     public function toggleReaction(string $feedPostId, string $reactionType): void
     {
         $orgId = currentOrganization()?->id;

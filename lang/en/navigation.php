@@ -79,6 +79,8 @@ return [
     // ── The rail's « Cooperate » shortcut ───────────────────────────────────
     'fab_label' => 'Cooperate',
     'fab_hint' => 'Open shortcuts',
+    'fab_announce' => 'I make an announcement',
+    'fab_announce_hint' => 'Post in the feed',
     'fab_need_help' => 'I need help',
     'fab_need_help_hint' => 'Post a request',
     'fab_offer_help' => 'I can help',
@@ -338,6 +340,7 @@ return [
     'mobile_fab_add' => 'Add',
     'mobile_fab_create_request' => 'Create a help request',
     'mobile_fab_offer_service' => 'Publish a proposal',
+    'mobile_fab_write_announcement' => 'Write an announcement',
     'mobile_fab_write_article' => 'Write an article',
 
     // TASK-1734 — the "My organizations" avatar-menu section.

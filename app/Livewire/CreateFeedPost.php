@@ -96,6 +96,17 @@ class CreateFeedPost extends Component
         if (! auth()->user() || ! auth()->user()->can('create', FeedPost::class)) {
             abort(403);
         }
+
+        // TASK-1879 (demande Cyril, 22/11) — un membre a deja une Boucle cochee :
+        // la premiere de la liste proposee (meme ordre, par nom). Il en change
+        // s'il en a plusieurs.
+        if (! $this->peutPublierATous()) {
+            $premiere = $this->bouclesDiffusables($org->id, auth()->user())->orderBy('name')->value('id');
+
+            if ($premiere !== null) {
+                $this->selectedLoops = [(string) $premiere];
+            }
+        }
     }
 
     /**

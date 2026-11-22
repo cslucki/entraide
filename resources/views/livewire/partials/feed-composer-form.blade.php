@@ -4,11 +4,11 @@
      ouverte sur smartphone. Variables : celles du composant + `$moi`, `$prenom`,
      `$fluxUrl`. --}}
 <form wire:submit="submit" data-live-validation
-      class="overflow-hidden {{ $integre ? 'max-sm:rounded-b-none max-sm:border-0' : '' }} rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
-    <header class="relative flex items-center justify-center {{ $integre ? 'sm:hidden' : '' }} border-b border-gray-100 px-14 py-4 dark:border-gray-800">
+      class="overflow-hidden {{ $integre ? '' : 'rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900' }}">
+    <header class="relative flex items-center justify-center border-b border-gray-100 px-14 py-4 dark:border-gray-800">
         <h1 class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ __('feed-post.new_post') }}</h1>
         @if($integre)
-            {{-- Sur le Flux : la croix ferme la feuille (smartphone seulement). --}}
+            {{-- Sur le Flux : la croix ferme la fenetre. --}}
             <button type="button" x-on:click="ouvert = false" aria-label="{{ __('feed-post.composer_close') }}"
                     class="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-gray-100 text-gray-600 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
