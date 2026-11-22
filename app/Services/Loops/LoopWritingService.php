@@ -8,6 +8,8 @@ use App\Models\BlogPostInvitation;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\User;
+use App\Support\Loops\LoopPermissionResolver;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
 /**
@@ -55,6 +57,39 @@ class LoopWritingService
      *
      * @return Collection<int, BlogPost>
      */
+    /**
+     * TASK-1884 #3 (demande Cyril, 22/11) — parmi des Articles de CETTE Boucle,
+     * ceux que `$user` peut modifier : tous s'il en est proprietaire ou animateur
+     * (`writing.edit_any`, meme regle que `BlogPostPolicy::canEditAsLoopLead`),
+     * sinon les siens et ceux dont il est co-auteur. Au plus UNE requete, quel
+     * que soit le nombre d'Articles (pas de policy par ligne).
+     *
+     * @param  Collection<int, BlogPost>  $articles
+     * @return list<string>
+     */
+    public function editableArticleIds(Loop $loop, ?User $user, Collection $articles): array
+    {
+        if ($user === null || $articles->isEmpty()) {
+            return [];
+        }
+
+        $ids = $articles->pluck('id')->map(fn ($id) => (string) $id);
+
+        if (app(LoopPermissionResolver::class)->can($user, $loop, 'writing.edit_any')) {
+            return $ids->values()->all();
+        }
+
+        $coEcrits = DB::table('blog_post_user')
+            ->where('user_id', $user->id)
+            ->whereIn('blog_post_id', $ids->all())
+            ->pluck('blog_post_id')
+            ->map(fn ($id) => (string) $id);
+
+        return $articles
+            ->filter(fn (BlogPost $a) => (string) $a->user_id === (string) $user->id || $coEcrits->contains((string) $a->id))
+            ->pluck('id')->map(fn ($id) => (string) $id)->values()->all();
+    }
+
     public function myDrafts(Loop $loop, User $author, int $limit = self::PAGE): Collection
     {
         $dossier = $this->dossierFor($loop);

@@ -305,11 +305,11 @@
                 <p class="{{ $sectionTitle }}">{{ __('loops.cards.dossiers.recent_articles') }}</p>
                 <ul class="divide-y divide-[var(--bp-border)]">
                     @foreach($articles as $article)
-                        <li wire:key="article-{{ $article->id }}">
+                        <li wire:key="article-{{ $article->id }}" class="flex items-center gap-1.5">
                             {{-- L'adresse **dans l'Organization de la Boucle** : la route nue retombe
                                  sur l'Organization par défaut. --}}
                             <a href="{{ $articleUrls[$article->id] }}"
-                               class="flex items-center gap-2.5 rounded-xl px-1.5 py-2 transition hover:bg-[var(--bp-surface)]">
+                               class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-2 transition hover:bg-[var(--bp-surface)]">
                                 <x-user-avatar :user="$article->user" size="xs" />
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate text-sm font-medium text-[var(--bp-text)]">{{ $article->title }}</span>
@@ -323,6 +323,14 @@
                                     </span>
                                 @endif
                             </a>
+                            {{-- TASK-1884 #3 — a COTE du lien de lecture, jamais dedans
+                                 (pas de lien dans un lien). --}}
+                            @isset($modifyUrls[$article->id])
+                                <a href="{{ $modifyUrls[$article->id] }}" data-dossier-card-modify
+                                   class="shrink-0 rounded-lg border border-[var(--bp-border)] px-2 py-0.5 text-[11px] font-semibold text-[var(--bp-primary)] transition hover:bg-[var(--bp-surface)]">
+                                    {{ __('blog.btn_edit') }}
+                                </a>
+                            @endisset
                         </li>
                     @endforeach
                 </ul>
