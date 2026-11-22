@@ -16,6 +16,7 @@
             subject: @js(old('subject', $gabarit?->subject ?? '')),
             demandes: @js((int) old('demand_count', 3)),
             propositions: @js((int) old('offer_count', 3)),
+            billets: @js((int) old('blog_count', 3)),
             locale: 'fr',
             onglet: 'apercu',
             rendu: null, chargement: false, erreur: null, minuteur: null,
@@ -27,14 +28,14 @@
                     const r = await fetch(@js(route('admin.newsletter.preview')), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': @js(csrf_token()) },
-                        body: JSON.stringify({ scope: this.scope, organization_ids: this.ids, subject: this.subject, demand_count: this.demandes, offer_count: this.propositions, locale: this.locale }),
+                        body: JSON.stringify({ scope: this.scope, organization_ids: this.ids, subject: this.subject, demand_count: this.demandes, offer_count: this.propositions, blog_count: this.billets, locale: this.locale }),
                     });
                     if (!r.ok) { this.erreur = 'Aperçu impossible (' + r.status + ').'; return; }
                     this.rendu = await r.json();
                 } catch (e) { this.erreur = 'Aperçu impossible.'; } finally { this.chargement = false; }
             },
          }"
-         x-init="apercu(); $watch('scope', () => planifier()); $watch('ids', () => planifier()); $watch('subject', () => planifier()); $watch('demandes', () => planifier()); $watch('propositions', () => planifier()); $watch('locale', () => apercu())">
+         x-init="apercu(); $watch('scope', () => planifier()); $watch('ids', () => planifier()); $watch('subject', () => planifier()); $watch('demandes', () => planifier()); $watch('propositions', () => planifier()); $watch('billets', () => planifier()); $watch('locale', () => apercu())">
 
         <form method="POST" action="{{ route('admin.newsletter.store') }}" class="space-y-5" data-admin-newsletter-form>
             @csrf
@@ -66,6 +67,13 @@
                         <input type="number" name="offer_count" x-model.number="propositions" min="0" max="10" class="{{ $champ }}">
                     </label>
                 </div>
+
+                {{-- Demande Cyril (22/11) : les derniers billets de blog, en option. --}}
+                <label class="block text-sm">
+                    <span class="mb-1 block font-medium text-gray-700 dark:text-gray-200">Billets de blog</span>
+                    <input type="number" name="blog_count" x-model.number="billets" min="0" max="10" class="{{ $champ }}" data-admin-newsletter-blog-count>
+                    <span class="mt-1 block text-xs text-gray-500">Les plus récents de l'organisation du membre ; 0 : aucun billet, ni titre de section.</span>
+                </label>
             </div>
 
             <fieldset class="{{ $carte }} space-y-3">
@@ -89,13 +97,21 @@
                 <p class="text-sm text-gray-700 dark:text-gray-200" data-admin-newsletter-recipients>
                     <template x-if="rendu"><span><strong x-text="rendu.recipients"></strong> membre(s) abonné(s) recevront la newsletter.</span></template>
                 </p>
-                <p class="text-xs text-gray-500">Les membres désinscrits, bloqués, et ceux d'une organisation sans demande ni proposition ne reçoivent rien.</p>
+                <p class="text-xs text-gray-500">Les membres désinscrits, bloqués, et ceux d'une organisation sans rien à montrer (ni demande, ni proposition, ni billet demandé) ne reçoivent rien.</p>
             </fieldset>
 
             @if($dernier)
                 <label class="flex items-start gap-2 rounded-xl bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-admin-newsletter-repeat>
                     <input type="checkbox" name="confirm_repeat" value="1" class="mt-0.5 rounded text-amber-600">
-                    <span>Une newsletter est déjà partie le {{ $dernier->created_at->timezone('Europe/Paris')->format('d/m/Y à H:i') }} ({{ $dernier->total_recipients }} destinataires). Je confirme vouloir en envoyer une autre.</span>
+                    <span>
+                        Une newsletter est déjà partie le {{ $dernier->created_at->timezone('Europe/Paris')->format('d/m/Y à H:i') }}
+                        vers {{ $dernier->organizations->isEmpty() ? 'toutes les organisations' : $dernier->organizations->pluck('name')->join(', ') }}
+                        @if($dernier->subject) — « {{ $dernier->subject }} » @endif
+                        — {{ $dernier->demand_count }} demande(s), {{ $dernier->offer_count }} proposition(s), {{ (int) $dernier->blog_count }} billet(s) ;
+                        {{ $dernier->sent_count }} envoyé(s) sur {{ $dernier->total_recipients }}@if($dernier->failed_count), {{ $dernier->failed_count }} échec(s)@endif.
+                        <a href="{{ route('admin.newsletter.show', $dernier) }}" class="font-semibold underline" data-admin-newsletter-repeat-link>Voir cet envoi</a>
+                        <span class="mt-1 block">Je confirme vouloir en envoyer une autre.</span>
+                    </span>
                 </label>
             @endif
 

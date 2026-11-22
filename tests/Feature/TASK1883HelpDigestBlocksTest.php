@@ -113,4 +113,45 @@ class TASK1883HelpDigestBlocksTest extends TestCase
         $this->assertTrue(app(HelpDigestBlocks::class)->aDuContenu($this->org, 3, 3));
         $this->assertFalse(app(HelpDigestBlocks::class)->aDuContenu($this->org, 3, 0));
     }
+
+    private function billet(Organization $org, string $titre, array $attributs = []): void
+    {
+        $auteur = User::factory()->create(['organization_id' => $org->id, 'first_name' => 'Rose']);
+        $billet = new \App\Models\BlogPost;
+        $billet->forceFill($attributs + [
+            'user_id' => $auteur->id, 'organization_id' => $org->id, 'title' => $titre, 'summary' => 'Resume de '.$titre,
+            'content' => '<p>x</p>', 'status' => 'published', 'published_at' => now()->subHour(), 'listed_in_blog' => true,
+        ])->save();
+    }
+
+    /** Demande Cyril (22/11) : les derniers billets de blog, en option ; 0 = rien. */
+    public function test_les_billets_de_blog_les_plus_recents_et_rien_a_zero(): void
+    {
+        $blocs = app(HelpDigestBlocks::class);
+
+        $this->assertSame('<p>A</p><p>B</p>', $blocs->developper('<p>A</p>{billets_blog;3}<p>B</p>', $this->org, 'fr'), 'Sans billet : rien, pas meme le titre.');
+
+        $this->billet($this->org, 'Ancien', ['published_at' => now()->subDays(3)]);
+        $this->billet($this->org, 'Recent', ['published_at' => now()->subMinutes(5)]);
+        $this->billet($this->org, 'Milieu', ['published_at' => now()->subDay()]);
+        $this->billet($this->org, 'Brouillon', ['status' => 'draft']);
+        $this->billet($this->org, 'Hors blog', ['listed_in_blog' => false]);
+        $this->billet($this->autre, 'Billet d une autre organisation');
+
+        $html = app(HelpDigestBlocks::class)->developper('{billets_blog;3}', $this->org, 'fr', null, null, 2);
+
+        $this->assertStringContainsString('À lire sur le blog', $html);
+        $this->assertSame(2, substr_count($html, '<li'));
+        $this->assertLessThan(strpos($html, 'Milieu'), strpos($html, 'Recent'));
+        foreach (['Ancien', 'Brouillon', 'Hors blog', 'autre organisation'] as $absent) {
+            $this->assertStringNotContainsString($absent, $html);
+        }
+        $this->assertStringContainsString('Resume de Recent', $html);
+        $this->assertStringContainsString('Rose', $html);
+
+        $this->assertSame('', app(HelpDigestBlocks::class)->developper('{billets_blog;3}', $this->org, 'fr', null, null, 0));
+        $this->assertStringContainsString('On the blog', app(HelpDigestBlocks::class)->developper('{billets_blog;3}', $this->org, 'en'));
+        $this->assertTrue(app(HelpDigestBlocks::class)->aDuContenu($this->org, 0, 0, 1));
+        $this->assertFalse(app(HelpDigestBlocks::class)->aDuContenu($this->org, 0, 0, 0));
+    }
 }

@@ -26,6 +26,7 @@ class TASK1883WeeklyHelpDigestTemplateTest extends TestCase
             $this->assertSame($catalogue['content_html'], $ligne->content_html);
             $this->assertStringContainsString('{demande_aide;3}', $ligne->content_html);
             $this->assertStringContainsString('{proposition_aide;3}', $ligne->content_html);
+            $this->assertStringContainsString('{billets_blog;3}', $ligne->content_html);
             $this->assertStringContainsString('{{ unsubscribe_url }}', $ligne->content_html);
         }
     }

@@ -516,7 +516,7 @@ class BulkEmailSendService
      * (`$organizationIds` vide = toutes), comptes actifs abonnes, et seulement
      * dans les organisations qui ont quelque chose a montrer.
      *
-     * @param  array{organization_ids: list<string>, subject: ?string, demand_count: int, offer_count: int}  $data
+     * @param  array{organization_ids: list<string>, subject: ?string, demand_count: int, offer_count: int, blog_count?: int}  $data
      */
     public function createNewsletterSend(array $data, User $admin): BulkEmailSend
     {
@@ -531,6 +531,7 @@ class BulkEmailSendService
                 'subject' => filled($data['subject'] ?? null) ? $data['subject'] : null,
                 'demand_count' => $data['demand_count'],
                 'offer_count' => $data['offer_count'],
+                'blog_count' => (int) ($data['blog_count'] ?? 0),
                 'status' => BulkEmailSend::STATUS_DRAFT,
                 'total_recipients' => 0,
                 'sent_count' => 0,
@@ -540,7 +541,7 @@ class BulkEmailSendService
 
             $send->organizations()->sync($ids);
 
-            $userIds = $this->newsletterRecipients($ids, (int) $data['demand_count'], (int) $data['offer_count'])->pluck('id');
+            $userIds = $this->newsletterRecipients($ids, (int) $data['demand_count'], (int) $data['offer_count'], (int) ($data['blog_count'] ?? 0))->pluck('id');
 
             $now = now();
             foreach ($userIds->chunk(500) as $lot) {
@@ -569,13 +570,13 @@ class BulkEmailSendService
      *
      * @param  list<string>  $organizationIds  vide = toutes
      */
-    public function newsletterRecipients(array $organizationIds, int $demandCount, int $offerCount): Builder
+    public function newsletterRecipients(array $organizationIds, int $demandCount, int $offerCount, int $blogCount = 0): Builder
     {
         $blocs = new HelpDigestBlocks;
         $avecContenu = Organization::query()
             ->when($organizationIds !== [], fn ($q) => $q->whereIn('id', $organizationIds))
             ->get()
-            ->filter(fn (Organization $org) => $blocs->aDuContenu($org, $demandCount, $offerCount))
+            ->filter(fn (Organization $org) => $blocs->aDuContenu($org, $demandCount, $offerCount, $blogCount))
             ->pluck('id')
             ->all();
 
@@ -591,6 +592,7 @@ class BulkEmailSendService
     /**
      * Le courriel de newsletter de CE destinataire, ou null s'il ne faut rien
      * envoyer (desabonne, organisation sans contenu, gabarit absent).
+     * `$apercu` : rendu meme sans contenu, lien de desinscription inerte.
      *
      * Gabarit GLOBAL seulement : une organisation ne surcharge pas le texte
      * envoye a toutes. Langue du membre ; blocs developpes AVANT
@@ -598,19 +600,20 @@ class BulkEmailSendService
      *
      * @return array{subject: string, body: string, unsubscribe_url: string}|null
      */
-    public function newsletterPour(User $user, BulkEmailSend $send, bool $memeSansContenu = false): ?array
+    public function newsletterPour(User $user, BulkEmailSend $send, bool $apercu = false): ?array
     {
         $org = $user->organization;
 
-        if ($org === null || ($user->newsletter_unsubscribed_at !== null && ! $memeSansContenu)) {
+        if ($org === null || ($user->newsletter_unsubscribed_at !== null && ! $apercu)) {
             return null;
         }
 
         $demandes = (int) ($send->demand_count ?? 3);
         $propositions = (int) ($send->offer_count ?? 3);
+        $billets = (int) ($send->blog_count ?? 0);
         $this->blocs ??= new HelpDigestBlocks;
 
-        if (! $memeSansContenu && ! $this->blocs->aDuContenu($org, $demandes, $propositions)) {
+        if (! $apercu && ! $this->blocs->aDuContenu($org, $demandes, $propositions, $billets)) {
             return null;
         }
 
@@ -623,7 +626,8 @@ class BulkEmailSendService
             return null;
         }
 
-        $desinscription = NewsletterSubscriptionController::urlDesinscription($user);
+        // Apercu : membre FICTIF, son lien signe menerait a un 404 ; lien inerte.
+        $desinscription = $apercu ? '#desinscription-apercu' : NewsletterSubscriptionController::urlDesinscription($user);
         $vars = $this->emailer->availableVariables($user) + [
             'recipient_name' => $user->publicDisplayName(),
             'organization_name' => (string) $org->name,
@@ -633,7 +637,7 @@ class BulkEmailSendService
         ];
         $cles = ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name'];
 
-        $html = $this->blocs->developper((string) $gabarit->content_html, $org, $langue, $demandes, $propositions);
+        $html = $this->blocs->developper((string) $gabarit->content_html, $org, $langue, $demandes, $propositions, $billets);
         $html = $this->emailer->interpolate($html, $vars, $cles);
 
         return [
@@ -730,6 +734,7 @@ class BulkEmailSendService
                     'template_slug' => $send->system_template_slug,
                     'demand_count' => $send->demand_count,
                     'offer_count' => $send->offer_count,
+                    'blog_count' => $send->blog_count,
                 ] : [
                     'source' => 'bulk-email',
                     'sender_id' => $sender?->id,

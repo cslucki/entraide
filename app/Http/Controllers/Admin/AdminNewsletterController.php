@@ -41,7 +41,7 @@ class AdminNewsletterController extends Controller
                 ->latest()
                 ->limit(10)
                 ->get(),
-            'dernier' => $this->dernierEnvoiRecent(),
+            'dernier' => $this->dernierEnvoiRecent()?->load('organizations:id,name'),
         ]);
     }
 
@@ -70,15 +70,16 @@ class AdminNewsletterController extends Controller
             'subject' => $data['subject'] ?? null,
             'demand_count' => $data['demand_count'],
             'offer_count' => $data['offer_count'],
+            'blog_count' => $data['blog_count'],
         ]);
 
-        $rendu = $this->envois->newsletterPour($exemple, $envoi, memeSansContenu: true);
+        $rendu = $this->envois->newsletterPour($exemple, $envoi, apercu: true);
 
         return response()->json([
             'organization' => $org->name,
             'subject' => $rendu['subject'] ?? null,
             'html' => $rendu['body'] ?? null,
-            'recipients' => $this->envois->newsletterRecipients($ids, $data['demand_count'], $data['offer_count'])->count(),
+            'recipients' => $this->envois->newsletterRecipients($ids, $data['demand_count'], $data['offer_count'], $data['blog_count'])->count(),
         ]);
     }
 
@@ -95,6 +96,7 @@ class AdminNewsletterController extends Controller
             'subject' => $data['subject'] ?? null,
             'demand_count' => $data['demand_count'],
             'offer_count' => $data['offer_count'],
+            'blog_count' => $data['blog_count'],
         ], $request->user());
 
         return redirect()->route('admin.newsletter.show', $send);
@@ -164,6 +166,8 @@ class AdminNewsletterController extends Controller
             'subject' => ['nullable', 'string', 'max:255'],
             'demand_count' => ['required', 'integer', 'min:0', 'max:'.HelpDigestBlocks::MAX],
             'offer_count' => ['required', 'integer', 'min:0', 'max:'.HelpDigestBlocks::MAX],
+            // Demande Cyril (22/11) : derniers billets de blog, 0 = aucun.
+            'blog_count' => ['nullable', 'integer', 'min:0', 'max:'.HelpDigestBlocks::MAX],
             'locale' => [$apercu ? 'required' : 'nullable', 'in:fr,en'],
             'preview_organization_id' => ['nullable', 'uuid'],
         ]);
@@ -181,6 +185,7 @@ class AdminNewsletterController extends Controller
 
         $data['demand_count'] = (int) $data['demand_count'];
         $data['offer_count'] = (int) $data['offer_count'];
+        $data['blog_count'] = (int) ($data['blog_count'] ?? 0);
 
         return $data;
     }

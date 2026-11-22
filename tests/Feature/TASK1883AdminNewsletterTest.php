@@ -39,7 +39,7 @@ class TASK1883AdminNewsletterTest extends TestCase
 
     private function formulaire(array $plus = []): array
     {
-        return $plus + ['scope' => 'selection', 'organization_ids' => [$this->org->id], 'subject' => '', 'demand_count' => 3, 'offer_count' => 2];
+        return $plus + ['scope' => 'selection', 'organization_ids' => [$this->org->id], 'subject' => '', 'demand_count' => 3, 'offer_count' => 2, 'blog_count' => 1];
     }
 
     public function test_page_reservee_au_superadmin_et_dans_le_menu(): void
@@ -52,7 +52,8 @@ class TASK1883AdminNewsletterTest extends TestCase
             ->assertOk()
             ->assertSee(route('admin.newsletter'), false)
             ->assertSee('data-admin-newsletter-form', false)
-            ->assertSee('data-admin-newsletter-tab-code', false);
+            ->assertSee('data-admin-newsletter-tab-code', false)
+            ->assertSee('data-admin-newsletter-blog-count', false);
     }
 
     public function test_l_apercu_rend_les_vraies_demandes_dans_la_langue_choisie_et_compte_les_destinataires(): void
@@ -64,6 +65,8 @@ class TASK1883AdminNewsletterTest extends TestCase
         $this->assertStringContainsString('Besoin d un coup de main', $fr['html']);
         $this->assertStringContainsString('Ils ont besoin d’aide', $fr['html']);
         $this->assertSame(3, $fr['recipients'], 'superadmin + 2 membres ; l auteur desabonne est exclu.');
+        $this->assertStringContainsString('#desinscription-apercu', $fr['html'], 'Lien inerte : le membre de l apercu est fictif.');
+        $this->assertStringNotContainsString('/newsletter/desinscription/', $fr['html']);
 
         // Le champ est pre-rempli avec l'objet FR du modele, et modifiable.
         $this->actingAs($this->superadmin)->get(route('admin.newsletter'))
@@ -87,6 +90,7 @@ class TASK1883AdminNewsletterTest extends TestCase
         $this->assertSame(3, $send->total_recipients);
         $this->assertSame(3, $send->demand_count);
         $this->assertSame(2, $send->offer_count);
+        $this->assertSame(1, $send->blog_count);
 
         $this->actingAs($this->superadmin)->get(route('admin.newsletter.show', $send))->assertOk()->assertSee('data-admin-newsletter-progress', false);
 
@@ -96,6 +100,13 @@ class TASK1883AdminNewsletterTest extends TestCase
         $this->assertSame(3, EmailLog::where('data->source', 'newsletter')->count());
 
         $this->actingAs($this->superadmin)->get(route('admin.email-logs', ['source' => 'newsletter']))->assertOk()->assertSee('Newsletter hebdomadaire');
+
+        // L'avertissement de doublon decrit l'envoi precedent et y mene.
+        $this->actingAs($this->superadmin)->get(route('admin.newsletter'))
+            ->assertSee('data-admin-newsletter-repeat', false)
+            ->assertSee(route('admin.newsletter.show', $send), false)
+            ->assertSee('vers Entraide Test', false)
+            ->assertSee('3 envoyé(s) sur 3', false);
 
         // Moins de 6 jours apres : refuse sans la confirmation, accepte avec.
         $this->actingAs($this->superadmin)->from(route('admin.newsletter'))->post(route('admin.newsletter.store'), $this->formulaire())
