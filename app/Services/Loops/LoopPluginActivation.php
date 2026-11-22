@@ -126,6 +126,8 @@ class LoopPluginActivation
                 'description' => $this->plugins->description($key),
                 'status' => $this->plugins->status($key),
                 'experimental' => $this->plugins->isExperimental($key),
+                // TASK-1879 — seul un plugin a assistants a un ecran « Configurer ».
+                'has_assistants' => $this->plugins->hasAssistants($key),
                 'enabled' => (bool) $decision?->enabled,
                 'decision' => $decision,
             ];

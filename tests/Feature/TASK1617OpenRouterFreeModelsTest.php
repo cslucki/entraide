@@ -193,7 +193,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
         $this->fakeCatalogue([$this->model('vendor/a', ['prompt' => '0', 'completion' => '0'])]);
 
         $this->actingAs($this->superAdmin)
-            ->get(route('admin.loop-plugins'))
+            ->get(route('admin.loop-plugins.show', 'pour-contre'))
             ->assertOk()
             ->assertSee('data-section="plugin-models"', false)
             ->assertSee('data-assistant-model="aperio"', false)
@@ -585,7 +585,7 @@ class TASK1617OpenRouterFreeModelsTest extends TestCase
         Config::set('ai.openrouter.api_key', 'sk-or-SECRET-NE-DOIT-PAS-FUIR');
         $this->fakeCatalogue([$this->model('vendor/a', ['prompt' => '0', 'completion' => '0'])]);
 
-        $reponse = $this->actingAs($this->superAdmin)->get(route('admin.loop-plugins'));
+        $reponse = $this->actingAs($this->superAdmin)->get(route('admin.loop-plugins.show', 'pour-contre'));
 
         $reponse->assertOk();
         $reponse->assertDontSee('sk-or-SECRET-NE-DOIT-PAS-FUIR');

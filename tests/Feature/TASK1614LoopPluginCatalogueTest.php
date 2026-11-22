@@ -131,8 +131,9 @@ class TASK1614LoopPluginCatalogueTest extends TestCase
 
     public function test_la_surface_affiche_le_plugin_son_statut_et_les_organizations(): void
     {
+        // TASK-1879 — la liste des Organizations vit sur l'ecran DU plugin.
         $this->actingAs($this->superAdmin)
-            ->get(route('admin.loop-plugins'))
+            ->get(route('admin.loop-plugins.show', 'pour-contre'))
             ->assertOk()
             ->assertSee(__('loops.plugins.multi_ai_assistants.label'))
             ->assertSee(self::PLUGIN)
@@ -153,7 +154,7 @@ class TASK1614LoopPluginCatalogueTest extends TestCase
                 'organization_id' => $this->organisationA->id,
                 'available' => 1,
             ])
-            ->assertRedirect(route('admin.loop-plugins'));
+            ->assertRedirect(route('admin.loop-plugins.show', 'pour-contre'));
 
         $this->assertDatabaseHas('organization_loop_plugins', [
             'organization_id' => $this->organisationA->id,
@@ -173,7 +174,7 @@ class TASK1614LoopPluginCatalogueTest extends TestCase
                 'organization_id' => $this->organisationA->id,
                 'available' => 0,
             ])
-            ->assertRedirect(route('admin.loop-plugins'));
+            ->assertRedirect(route('admin.loop-plugins.show', 'pour-contre'));
 
         $this->assertFalse($service->isAvailable(self::PLUGIN, $this->organisationA->fresh()));
 
@@ -202,7 +203,7 @@ class TASK1614LoopPluginCatalogueTest extends TestCase
         $this->assertTrue(app(LoopPluginAvailabilityService::class)->isAvailable(self::PLUGIN, $relue));
 
         $this->actingAs($this->superAdmin)
-            ->get(route('admin.loop-plugins'))
+            ->get(route('admin.loop-plugins.show', 'pour-contre'))
             ->assertOk()
             ->assertSee(__('loops.plugins_admin_available'));
     }
@@ -283,8 +284,10 @@ class TASK1614LoopPluginCatalogueTest extends TestCase
         $service = app(LoopPluginAvailabilityService::class);
         $service->setAvailability(self::PLUGIN, $this->organisationB, true, $this->superAdmin);
 
-        $this->assertSame([self::PLUGIN => false], $service->mapFor($this->organisationA));
-        $this->assertSame([self::PLUGIN => true], $service->mapFor($this->organisationB));
+        // TASK-1879 — le catalogue a deux plugins ; la Veille, jamais
+        // autorisee ici, reste fermee des deux cotes.
+        $this->assertSame([self::PLUGIN => false, 'veille' => false], $service->mapFor($this->organisationA));
+        $this->assertSame([self::PLUGIN => true, 'veille' => false], $service->mapFor($this->organisationB));
     }
 
     // ── Entrees forgees ─────────────────────────────────────────────────────

@@ -65,6 +65,15 @@ return [
             'status' => 'experimental',
 
             /*
+             * TASK-1879 — l'adresse de l'ecran SuperAdmin, et ce qui distingue
+             * ce plugin de la Veille : il porte des ASSISTANTS IA. Les routes
+             * de reglage des postures et des modeles n'existent que pour un
+             * plugin qui le declare ici ; ailleurs, elles repondent 404.
+             */
+            'admin_slug' => 'pour-contre',
+            'has_assistants' => true,
+
+            /*
              * TASK-1616 — les trois assistants, et ils sont FIXES en V0.
              *
              * Les cles ne sont pas renommables : elles portent les lignes de
@@ -123,6 +132,24 @@ return [
                     'dormant' => true,
                 ],
             ],
+        ],
+
+        /*
+         * TASK-1879 — la Veille collaborative.
+         *
+         * Un membre publie une information datee, son impact, sa source. Rien
+         * d'IA, aucun assistant : `has_assistants` est absent, donc faux, et
+         * les routes de configuration IA lui repondent 404. Ce que le plugin
+         * ouvre, c'est la Card `plugin.veille` (config/loop_cards.php), qui
+         * n'existe dans une Boucle que tant que le plugin y est ACTIF.
+         */
+        'veille' => [
+            'label_key' => 'loops.plugins.veille.label',
+            'description_key' => 'loops.plugins.veille.description',
+            'status' => 'experimental',
+            'admin_slug' => 'veille',
+            // La Card que le plugin rend disponible dans la Boucle.
+            'card' => 'plugin.veille',
         ],
 
     ],

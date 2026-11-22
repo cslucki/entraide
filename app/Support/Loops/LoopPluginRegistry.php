@@ -115,4 +115,60 @@ class LoopPluginRegistry
     {
         return $this->status($key) === self::STATUS_EXPERIMENTAL;
     }
+
+    /**
+     * TASK-1879 — le plugin porte-t-il des ASSISTANTS IA ?
+     *
+     * Une declaration EXPLICITE (`has_assistants => true`), jamais deduite de
+     * la presence d'une cle `assistants` : un plugin qui ne le dit pas n'en a
+     * pas. C'est cette reponse qui ferme en 404 les routes de reglage des
+     * postures et des modeles pour la Veille — et pour tout plugin futur qui
+     * n'a rien a regler de ce cote.
+     */
+    public function hasAssistants(?string $key): bool
+    {
+        if (! $this->exists($key)) {
+            return false;
+        }
+
+        return ($this->definition($key)['has_assistants'] ?? false) === true;
+    }
+
+    /** L'adresse de l'ecran SuperAdmin du plugin. Repli sur la cle. */
+    public function adminSlug(string $key): string
+    {
+        $slug = $this->definition($key)['admin_slug'] ?? null;
+
+        return is_string($slug) && $slug !== '' ? $slug : $key;
+    }
+
+    /**
+     * Le slug d'URL -> la cle technique, ou null.
+     *
+     * Le slug arrive d'une URL : il n'est JAMAIS utilise tel quel comme cle.
+     * Il est compare au catalogue, et seule une correspondance exacte rend une
+     * cle — un slug inconnu rend null, et l'appelant repond 404.
+     */
+    public function keyForAdminSlug(?string $slug): ?string
+    {
+        if (! is_string($slug) || $slug === '') {
+            return null;
+        }
+
+        foreach ($this->keys() as $key) {
+            if ($this->adminSlug($key) === $slug) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /** La Card que ce plugin rend disponible dans une Boucle, ou null. */
+    public function cardFor(string $key): ?string
+    {
+        $card = $this->definition($key)['card'] ?? null;
+
+        return is_string($card) && $card !== '' ? $card : null;
+    }
 }

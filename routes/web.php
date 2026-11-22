@@ -1117,6 +1117,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // `is_admin`, le groupe admin ne suffit pas. Elle ne sert aucune donnee
     // metier d'une Organization — seulement son nom et son identifiant.
     Route::get('/loop-plugins', [AdminLoopPluginController::class, 'index'])->name('loop-plugins');
+    // TASK-1879 — l'ecran d'UN plugin, par son slug d'administration
+    // (`pour-contre`, `veille`). Le slug est confronte au catalogue par le
+    // controleur : un slug inconnu rend 404. Les routes d'ecriture gardent la
+    // CLE technique, inchangees.
+    Route::get('/loop-plugins/{slug}', [AdminLoopPluginController::class, 'show'])
+        ->where('slug', '[a-z0-9-]+')->name('loop-plugins.show');
     Route::put('/loop-plugins/{plugin}', [AdminLoopPluginController::class, 'update'])->name('loop-plugins.update');
     // TASK-1617 — la configuration IA PLATEFORME du plugin : quel modele
     // OpenRouter sert quel assistant. `refresh` est le SEUL chemin de cette

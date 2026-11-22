@@ -1496,7 +1496,15 @@ return [
     'plugins_admin_last_decision_anonymous' => 'Modifié le :date',
     'plugins_admin_experimental_notice' => "Capacité expérimentale : elle peut être retirée à tout moment, et l'est par défaut partout où personne ne l'a autorisée.",
 
+    // TASK-1879
+    'plugins_admin_open' => 'Ouvrir',
+
     'plugins' => [
+        // TASK-1879 — la Veille collaborative.
+        'veille' => [
+            'label' => 'Veille',
+            'description' => "Les membres de la Boucle partagent une information de veille datée, son impact et sa source. Chaque nouvelle veille est annoncée dans ChatLoop, sans notification Push ni e-mail.",
+        ],
         'multi_ai_assistants' => [
             // TASK-1621 — le module s'appelle « Pour / Contre » partout ou
             // un humain le lit. Les cles techniques (`multi_ai_assistants`,

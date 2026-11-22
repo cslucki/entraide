@@ -47,66 +47,116 @@ class AdminLoopPluginController extends Controller
         private OpenRouterModelCatalog $catalogue,
     ) {}
 
+    /**
+     * TASK-1879 — le CATALOGUE des plugins, et rien d'autre.
+     *
+     * Une ligne par plugin : ce qu'il est, son etat, combien d'Organizations
+     * l'ont, et un lien vers son ecran. La configuration (disponibilite par
+     * Organization, modeles IA) vit sur la page DETAIL de chaque plugin
+     * (`/admin/loop-plugins/{slug}`). Cet index n'appelle donc jamais le
+     * catalogue OpenRouter.
+     */
     public function index(Request $request): View
     {
         abort_unless($request->user()?->is_admin, 403);
 
-        // Peu d'Organizations, et l'ecran est SuperAdmin : la liste entiere est
-        // legitime ici. Trois colonnes, pas la ligne entiere — un ecran qui
-        // n'affiche qu'un nom n'a pas besoin de charger le reste.
         $organizations = Organization::query()
             ->orderBy('name')
             ->get(['id', 'name', 'slug']);
 
         $rows = [];
 
-        foreach ($this->plugins->all() as $key => $definition) {
-            // Une requete par plugin, pas une par Organization : l'ecran doit
-            // rester plat quand le parc grandit.
-            $etats = $this->availability->mapForPlugin($key, $organizations);
-            $decisions = $this->availability->decisionsForPlugin($key);
-
-            $rows[$key] = [
-                'key' => $key,
-                'label' => $this->plugins->label($key),
-                'description' => $this->plugins->description($key),
-                'status' => $this->plugins->status($key),
-                'experimental' => $this->plugins->isExperimental($key),
-                'availability' => $etats,
-                'decisions' => $decisions,
-                // Ce que le SuperAdmin veut lire d'un coup d'oeil : combien
-                // d'Organizations l'ont, sur combien.
-                'enabled_count' => count(array_filter($etats)),
-            ];
+        foreach ($this->plugins->keys() as $key) {
+            $rows[$key] = $this->describePlugin($key, $organizations);
         }
-
-        // TASK-1617 — la configuration IA PLATEFORME. Le catalogue est lu
-        // depuis le cache : ouvrir cet ecran ne doit pas appeler OpenRouter a
-        // chaque affichage. Le geste explicite « Actualiser » existe pour ca.
-        $releve = $this->catalogue->catalogue();
 
         return view('admin.loop-plugins.index', [
             'plugins' => $rows,
             'organizations' => $organizations,
-            'assistantModels' => $this->models->describe(),
-            'freeModels' => $this->catalogue->verifiedFreeModels(),
-            // TASK-1622 — la shortlist payante, avec le tarif statique de
-            // chaque slug. Un slug de shortlist SANS tarif est projete avec
-            // `rate = null` : l'ecran le montre desactive plutot que de le
-            // cacher — un SuperAdmin doit voir qu'une entree attend son
-            // releve, pas croire que la shortlist a retreci.
-            'paidModels' => collect($this->models->paidShortlist())
-                ->map(fn (string $label, string $slug): array => [
-                    'slug' => $slug,
-                    'label' => $label,
-                    'rate' => $this->models->paidRateFor($slug),
-                ])->all(),
-            'catalogState' => [
-                'ok' => $releve['ok'],
-                'fetched_at' => $releve['fetched_at'],
-                'error' => $releve['error'],
-            ],
         ]);
+    }
+
+    /**
+     * TASK-1879 — l'ecran d'UN plugin : `/admin/loop-plugins/{slug}`.
+     *
+     * Le slug est confronte au CATALOGUE : un slug inconnu rend 404, jamais une
+     * cle devinee. La configuration IA PLATEFORME (TASK-1617/1622) n'est lue —
+     * et le catalogue OpenRouter n'est consulte, depuis son cache — que pour un
+     * plugin qui declare des assistants : la Veille n'en a pas.
+     */
+    public function show(Request $request, string $slug): View
+    {
+        abort_unless($request->user()?->is_admin, 403);
+
+        $key = $this->plugins->keyForAdminSlug($slug);
+
+        abort_unless($key !== null, 404);
+
+        $organizations = Organization::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug']);
+
+        $donnees = [
+            'plugin' => $this->describePlugin($key, $organizations),
+            'organizations' => $organizations,
+            'hasAssistants' => $this->plugins->hasAssistants($key),
+        ];
+
+        if ($donnees['hasAssistants']) {
+            // TASK-1617 — la configuration IA PLATEFORME. Le catalogue est lu
+            // depuis le cache : ouvrir cet ecran ne doit pas appeler OpenRouter a
+            // chaque affichage. Le geste explicite « Actualiser » existe pour ca.
+            $releve = $this->catalogue->catalogue();
+
+            $donnees += [
+                'assistantModels' => $this->models->describe(),
+                'freeModels' => $this->catalogue->verifiedFreeModels(),
+                // TASK-1622 — la shortlist payante, avec le tarif statique de
+                // chaque slug. Un slug de shortlist SANS tarif est projete avec
+                // `rate = null` : l'ecran le montre desactive plutot que de le
+                // cacher.
+                'paidModels' => collect($this->models->paidShortlist())
+                    ->map(fn (string $label, string $slug): array => [
+                        'slug' => $slug,
+                        'label' => $label,
+                        'rate' => $this->models->paidRateFor($slug),
+                    ])->all(),
+                'catalogState' => [
+                    'ok' => $releve['ok'],
+                    'fetched_at' => $releve['fetched_at'],
+                    'error' => $releve['error'],
+                ],
+            ];
+        }
+
+        return view('admin.loop-plugins.show', $donnees);
+    }
+
+    /**
+     * Ce que l'index et le detail affichent d'un plugin.
+     *
+     * Une requete par plugin, pas une par Organization : l'ecran doit rester
+     * plat quand le parc grandit.
+     *
+     * @param  iterable<Organization>  $organizations
+     * @return array<string, mixed>
+     */
+    private function describePlugin(string $key, iterable $organizations): array
+    {
+        $etats = $this->availability->mapForPlugin($key, $organizations);
+
+        return [
+            'key' => $key,
+            'slug' => $this->plugins->adminSlug($key),
+            'label' => $this->plugins->label($key),
+            'description' => $this->plugins->description($key),
+            'status' => $this->plugins->status($key),
+            'experimental' => $this->plugins->isExperimental($key),
+            'has_assistants' => $this->plugins->hasAssistants($key),
+            'availability' => $etats,
+            'decisions' => $this->availability->decisionsForPlugin($key),
+            'enabled_count' => count(array_filter($etats)),
+        ];
     }
 
     /**
@@ -124,7 +174,9 @@ class AdminLoopPluginController extends Controller
     public function updateModel(Request $request, string $plugin): RedirectResponse
     {
         abort_unless($request->user()?->is_admin, 403);
-        abort_unless($this->plugins->exists($plugin), 404);
+        // TASK-1879 — un plugin SANS assistants (la Veille) n'a aucun modele a
+        // affecter ni a relever : 404 avant toute ecriture et tout appel reseau.
+        abort_unless($this->plugins->hasAssistants($plugin), 404);
 
         $data = $request->validate([
             'assistant_key' => 'required|string',
@@ -161,7 +213,9 @@ class AdminLoopPluginController extends Controller
     public function refreshModels(Request $request, string $plugin): RedirectResponse
     {
         abort_unless($request->user()?->is_admin, 403);
-        abort_unless($this->plugins->exists($plugin), 404);
+        // TASK-1879 — un plugin SANS assistants (la Veille) n'a aucun modele a
+        // affecter ni a relever : 404 avant toute ecriture et tout appel reseau.
+        abort_unless($this->plugins->hasAssistants($plugin), 404);
 
         $releve = $this->catalogue->catalogue(forceRefresh: true);
 
@@ -255,8 +309,9 @@ class AdminLoopPluginController extends Controller
             actor: $request->user(),
         );
 
+        // TASK-1879 — retour sur l'ecran DU plugin, ou le geste a ete fait.
         return redirect()
-            ->route('admin.loop-plugins')
+            ->route('admin.loop-plugins.show', $this->plugins->adminSlug($plugin))
             ->with('success', __($data['available']
                 ? 'loops.plugins_admin_enabled'
                 : 'loops.plugins_admin_disabled', [
