@@ -198,6 +198,7 @@ Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('loca
 // TASK-1883 — desinscription de la newsletter : lien SIGNE, sans connexion.
 Route::get('/newsletter/desinscription/{compte}', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'show'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe');
 Route::post('/newsletter/desinscription/{compte}', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'destroy'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe.confirm');
+Route::post('/newsletter/desinscription/{compte}/annuler', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'resubscribe'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe.undo');
 Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
 Route::view('/about', 'about')->name('about');
 

@@ -27,10 +27,7 @@ class NewsletterSubscriptionController extends Controller
     {
         $compte = $this->compte($compte);
 
-        return view('newsletter.unsubscribe', [
-            'compte' => $compte,
-            'fait' => $compte->newsletter_unsubscribed_at !== null,
-        ]);
+        return $this->ecran($compte, $compte->newsletter_unsubscribed_at !== null ? 'desinscrit' : 'question');
     }
 
     public function destroy(string $compte): View
@@ -41,7 +38,43 @@ class NewsletterSubscriptionController extends Controller
             $compte->forceFill(['newsletter_unsubscribed_at' => now()])->save();
         }
 
-        return view('newsletter.unsubscribe', ['compte' => $compte, 'fait' => true]);
+        return $this->ecran($compte, 'desinscrit');
+    }
+
+    /** Annuler un clic malheureux, depuis la meme page, sans connexion. */
+    public function resubscribe(string $compte): View
+    {
+        $compte = $this->compte($compte);
+        $compte->forceFill(['newsletter_unsubscribed_at' => null])->save();
+
+        return $this->ecran($compte, 'reinscrit');
+    }
+
+    /**
+     * La page porte l'Organization du membre (nom, logo, couleurs de son theme)
+     * et parle sa langue : c'est SA newsletter qu'il quitte.
+     */
+    private function ecran(User $compte, string $etat): View
+    {
+        if (in_array($compte->preferred_locale, ['fr', 'en'], true)) {
+            app()->setLocale($compte->preferred_locale);
+        }
+
+        $org = $compte->organization()->withoutGlobalScopes()->first();
+        $themes = bp_themes();
+        $tokens = $themes['themes'][$org ? bp_organization_theme_key($org) : $themes['default']]['tokens']
+            ?? $themes['themes'][$themes['default']]['tokens'];
+
+        return view('newsletter.unsubscribe', [
+            'compte' => $compte,
+            'etat' => $etat,
+            'fait' => $etat === 'desinscrit',
+            'organisation' => $org,
+            'tokens' => $tokens,
+            'accueil' => $org && ! $org->is_default ? route('organization.home', ['organization' => $org->slug]) : url('/'),
+            'urlConfirmer' => URL::signedRoute('newsletter.unsubscribe.confirm', ['compte' => $compte->id]),
+            'urlAnnuler' => URL::signedRoute('newsletter.unsubscribe.undo', ['compte' => $compte->id]),
+        ]);
     }
 
     /** Case de la page des preferences (membre connecte). */
