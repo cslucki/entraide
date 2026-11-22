@@ -347,6 +347,10 @@ class LoopWatchService
             return;
         }
 
+        // Au moins UNE categorie active doit rester : sans elle, plus personne
+        // ne pourrait publier de veille (categorie obligatoire).
+        $this->assert($this->categoriesFor($loop)->count() > 1, 'veille.error_last_category');
+
         DB::transaction(fn () => $categorie->update(['archived_at' => now()]));
     }
 
@@ -388,11 +392,15 @@ class LoopWatchService
         // Categorie.
         $categoryId = $data['category_id'] ?? null;
         $categoryId = is_string($categoryId) && trim($categoryId) !== '' ? trim($categoryId) : null;
-        $actives = $this->categoriesFor($loop);
-
         if ($categoryId === null) {
-            // Obligatoire des qu'une categorie active existe.
-            $this->assert($actives->isEmpty(), 'veille.error_category_required');
+            // Demande Cyril (22/11) : une veille sans categorie est IMPOSSIBLE.
+            // Sans categorie active dans la Boucle, on ne publie pas : le
+            // proprietaire ou l'animateur doit d'abord en creer une. Seule une
+            // veille ANCIENNE deja sans categorie peut etre modifiee telle quelle.
+            $legacy = $existing !== null && $existing->category_id === null;
+            $this->assert($legacy, $this->categoriesFor($loop)->isEmpty()
+                ? 'veille.error_no_category_yet'
+                : 'veille.error_category_required');
         } else {
             $categorie = $this->findCategory($loop, $categoryId);
             $this->assert($categorie !== null, 'veille.error_category_not_found');

@@ -334,7 +334,7 @@ class TASK1879VeillePluginTest extends TestCase
         $this->assertSame($this->loop->id, $item->loop_id);
         $this->assertSame($this->orgA->id, $item->organization_id);
         $this->assertSame($this->membre->id, $item->created_by);
-        $this->assertNull($item->category_id);
+        $this->assertSame($this->categorieParDefaut()->id, $item->category_id);
     }
 
     public function test_un_membre_non_actif_est_refuse(): void
@@ -417,7 +417,8 @@ class TASK1879VeillePluginTest extends TestCase
         $this->activer();
         app(LoopPluginActivation::class)->setEnabled(self::PLUGIN, $this->autreBoucle, true, $this->owner);
 
-        $ailleurs = app(LoopWatchService::class)->create($this->owner, $this->autreBoucle, $this->donnees());
+        $categorieAilleurs = app(LoopWatchService::class)->createCategory($this->owner, $this->autreBoucle, 'Ailleurs');
+        $ailleurs = app(LoopWatchService::class)->create($this->owner, $this->autreBoucle, $this->donnees(['category_id' => $categorieAilleurs->id]));
 
         $this->expectException(WatchException::class);
         app(LoopWatchService::class)->update($this->owner, $this->loop, $ailleurs->id, $this->donnees(['information' => 'Forge']));
@@ -559,24 +560,71 @@ class TASK1879VeillePluginTest extends TestCase
         $this->assertSame(2, LoopWatchCategory::count());
     }
 
-    public function test_la_categorie_devient_obligatoire_des_qu_une_active_existe(): void
+    public function test_une_veille_sans_categorie_est_impossible(): void
     {
         $this->activer();
         $service = app(LoopWatchService::class);
 
-        $this->publier($this->membre); // sans categorie : permis
+        // Aucune categorie dans la Boucle : publication refusee.
+        try {
+            $this->publier($this->membre, ['category_id' => null]);
+            $this->fail('Une veille sans categorie a ete acceptee.');
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_no_category_yet'), $e->getMessage());
+        }
 
         $categorie = $service->createCategory($this->owner, $this->loop, 'Technique');
 
+        // Une categorie existe : la choisir reste obligatoire.
         try {
-            $this->publier($this->membre);
+            $this->publier($this->membre, ['category_id' => '']);
             $this->fail('La categorie aurait du etre obligatoire.');
         } catch (WatchException $e) {
             $this->assertSame(__('veille.error_category_required'), $e->getMessage());
         }
 
+        $this->assertDatabaseCount('loop_watch_items', 0);
+
         $item = $this->publier($this->membre, ['category_id' => $categorie->id]);
         $this->assertSame($categorie->id, $item->category_id);
+    }
+
+    public function test_la_derniere_categorie_active_ne_s_archive_pas(): void
+    {
+        $this->activer();
+        $service = app(LoopWatchService::class);
+        $seule = $service->createCategory($this->owner, $this->loop, 'Seule');
+
+        try {
+            $service->archiveCategory($this->owner, $this->loop, $seule->id);
+            $this->fail('La derniere categorie active a ete archivee.');
+        } catch (WatchException $e) {
+            $this->assertSame(__('veille.error_last_category'), $e->getMessage());
+        }
+        $this->assertNull($seule->fresh()->archived_at);
+
+        $service->createCategory($this->owner, $this->loop, 'Autre');
+        $service->archiveCategory($this->owner, $this->loop, $seule->id);
+        $this->assertNotNull($seule->fresh()->archived_at);
+    }
+
+    public function test_sans_categorie_la_card_guide_vers_la_creation(): void
+    {
+        $this->activer();
+
+        Livewire::actingAs($this->owner)
+            ->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertSee(__('veille.needs_category_manager'))
+            ->assertDontSee('data-action="add-watch"', false)
+            ->call('openCreateForm')
+            ->assertSet('showForm', false)
+            ->assertSet('showCategories', true)
+            ->assertSet('errorMessage', __('veille.error_no_category_yet'));
+
+        Livewire::actingAs($this->membre)
+            ->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->assertSee(__('veille.needs_category_member'))
+            ->assertDontSee('data-action="add-watch"', false);
     }
 
     public function test_une_categorie_d_une_autre_boucle_est_refusee(): void
@@ -601,6 +649,7 @@ class TASK1879VeillePluginTest extends TestCase
         $this->activer();
         $service = app(LoopWatchService::class);
         $categorie = $service->createCategory($this->owner, $this->loop, 'Ancienne');
+        $service->createCategory($this->owner, $this->loop, 'Restante');
         $item = $this->publier($this->membre, ['category_id' => $categorie->id]);
 
         $service->archiveCategory($this->owner, $this->loop, $categorie->id);
@@ -892,9 +941,12 @@ class TASK1879VeillePluginTest extends TestCase
 
     private function donnees(array $surcharges = []): array
     {
+        if (! array_key_exists('category_id', $surcharges)) {
+            $surcharges['category_id'] = $this->categorieParDefaut()->id;
+        }
+
         return array_merge([
             'observed_on' => '2026-11-20',
-            'category_id' => null,
             'information' => 'Une information reperee',
             'impact' => 'Ce que cela change',
             'source_url' => 'https://exemple.org/article',
@@ -903,7 +955,21 @@ class TASK1879VeillePluginTest extends TestCase
 
     private function publier(User $auteur, array $surcharges = []): LoopWatchItem
     {
+        // Categorie obligatoire (demande Cyril, 22/11) : sans precision, la
+        // veille est rangee dans une categorie de test de la Boucle.
+        if (! array_key_exists('category_id', $surcharges)) {
+            $surcharges['category_id'] = $this->categorieParDefaut()->id;
+        }
+
         return app(LoopWatchService::class)->create($auteur, $this->loop, $this->donnees($surcharges));
+    }
+
+    private function categorieParDefaut(): LoopWatchCategory
+    {
+        return LoopWatchCategory::query()->firstOrCreate(
+            ['loop_id' => $this->loop->id, 'name' => 'Generale'],
+            ['organization_id' => $this->orgA->id, 'position' => 0, 'created_by' => $this->owner->id],
+        );
     }
 
     private function chat(User $lecteur)

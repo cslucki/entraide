@@ -82,6 +82,13 @@ class LoopWatchCard extends Component
             return;
         }
 
+        if ($this->service()->categoriesFor($this->loop)->isEmpty()) {
+            $this->errorMessage = __('veille.error_no_category_yet');
+            $this->showCategories = $this->service()->canManageCategories($this->user(), $this->loop);
+
+            return;
+        }
+
         $this->resetForm();
         $this->observedOn = now()->format('Y-m-d');
         $this->showForm = true;
@@ -277,6 +284,7 @@ class LoopWatchCard extends Component
                 'allCategories' => collect(),
                 'canCreate' => false,
                 'canManageCategories' => false,
+                'needsCategory' => false,
                 'readOnly' => true,
             ]);
         }
@@ -290,10 +298,14 @@ class LoopWatchCard extends Component
                 'can_manage' => $service->canManageItem($user, $item, $this->loop),
             ]);
 
+        $categories = $service->categoriesFor($this->loop);
+
         return view('livewire.loop-watch-card', [
             'allowed' => true,
             'items' => $items,
-            'categories' => $service->categoriesFor($this->loop),
+            'categories' => $categories,
+            // Categorie obligatoire : sans categorie active, pas de publication.
+            'needsCategory' => $categories->isEmpty(),
             'allCategories' => $canManageCategories ? $service->categoriesFor($this->loop, true) : collect(),
             'canCreate' => $canCreate,
             'canManageCategories' => $canManageCategories,

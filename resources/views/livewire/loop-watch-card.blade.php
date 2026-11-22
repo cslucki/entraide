@@ -35,10 +35,17 @@
             </p>
         @endif
 
+        {{-- ── Aucune categorie : publication impossible (categorie obligatoire) ── --}}
+        @if($needsCategory && ($canCreate || $canManageCategories))
+            <p class="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800 dark:border-sky-800/60 dark:bg-sky-900/20 dark:text-sky-200" data-watch-needs-category>
+                {{ $canManageCategories ? __('veille.needs_category_manager') : __('veille.needs_category_member') }}
+            </p>
+        @endif
+
         {{-- ── Actions principales ───────────────────────────────────────── --}}
         @if(! $showForm && ($canCreate || $canManageCategories))
             <div class="flex flex-wrap gap-2">
-                @if($canCreate)
+                @if($canCreate && ! $needsCategory)
                     <button type="button" wire:click="openCreateForm" data-action="add-watch"
                             class="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white transition hover:bg-sky-700">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
@@ -141,13 +148,9 @@
                                 ? \App\Models\LoopWatchCategory::query()->whereKey($categoryId)->where('loop_id', $loop->id)->first()
                                 : null;
                         @endphp
-                        <select id="watch-category" wire:model="categoryId" @required($categories->isNotEmpty())
+                        <select id="watch-category" wire:model="categoryId" required
                                 class="mt-1 block min-h-[44px] w-full rounded-xl border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                            @if($categories->isEmpty())
-                                <option value="">{{ __('veille.category_none') }}</option>
-                            @else
-                                <option value="">{{ __('veille.category_choose') }}</option>
-                            @endif
+                            <option value="">{{ __('veille.category_choose') }}</option>
                             @foreach($categories as $categorie)
                                 <option value="{{ $categorie->id }}">{{ $categorie->name }}</option>
                             @endforeach
