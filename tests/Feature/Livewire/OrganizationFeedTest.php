@@ -189,6 +189,64 @@ class OrganizationFeedTest extends TestCase
         }
     }
 
+    /**
+     * TASK-1879 (signale par Cyril, 22/11) — on ne diffuse que dans SES Boucles :
+     * le formulaire ne propose qu'elles, et une Boucle d'autrui forcee depuis le
+     * client est ignoree.
+     */
+    public function test_member_only_sees_and_targets_own_loops(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $sienne = $this->loopForOrganization($this->organization, $this->member);
+        $autre = $this->loopForOrganization($this->organization, $this->admin);
+        $sienne->update(['name' => 'Boucle du membre']);
+        $autre->update(['name' => 'Boucle sans le membre']);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertSee('Boucle du membre')
+            ->assertDontSee('Boucle sans le membre')
+            ->set('content', 'Diffusion membre')
+            ->set('selectedLoops', [$sienne->id, $autre->id])
+            ->call('submit');
+
+        $post = FeedPost::where('content', 'Diffusion membre')->firstOrFail();
+        $this->assertSame([$sienne->id], $post->loops()->pluck('loops.id')->all());
+        $this->assertDatabaseMissing('loop_messages', ['loop_id' => $autre->id]);
+    }
+
+    /**
+     * TASK-1879 (signale par Cyril, 22/11) — une panne de la diffusion temps
+     * reel (Reverb injoignable) ne fait plus d'erreur 500 : l'annonce ET son
+     * message dans la Boucle sont enregistres.
+     */
+    public function test_realtime_broadcast_failure_does_not_break_publication(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+        $loop = $this->loopForOrganization($this->organization, $this->member);
+        config([
+            'queue.default' => 'sync',
+            'broadcasting.default' => 'reverb',
+            'broadcasting.connections.reverb.key' => 'k',
+            'broadcasting.connections.reverb.secret' => 's',
+            'broadcasting.connections.reverb.app_id' => 'a',
+            'broadcasting.connections.reverb.options.host' => '127.0.0.1',
+            'broadcasting.connections.reverb.options.port' => 1,
+            'broadcasting.connections.reverb.options.scheme' => 'http',
+        ]);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->set('content', 'Diffusion malgre la panne')
+            ->set('selectedLoops', [$loop->id])
+            ->call('submit')
+            ->assertHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('feed_posts', ['content' => 'Diffusion malgre la panne']);
+        $this->assertTrue(LoopMessage::where('loop_id', $loop->id)->where('sender_id', $this->member->id)->exists());
+    }
+
     public function test_cross_tenant_loop_broadcast_is_ignored(): void
     {
         $otherLoop = $this->loopForOrganization($this->otherOrganization, $this->otherMember);

@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\FeedPost;
 use App\Models\Loop;
+use App\Models\User;
 use App\Models\Organization;
 use App\Services\LoopMessageService;
 use App\Services\UrlPreviewService;
@@ -153,7 +154,11 @@ class CreateFeedPost extends Component
             abort(403);
         }
 
-        DB::transaction(function () use ($org, $user, $loopMessageService, $scheduledAtUtc) {
+        // TASK-1879 (signale par Cyril, 22/11) — la diffusion vers les Boucles se fait
+        // APRES le commit : dans la transaction, l'echec de la diffusion temps reel
+        // (Reverb injoignable) surgissait au commit, hors de tout try -> erreur 500,
+        // alors que la garde de `sendUserMessage()` (TASK-1839) le gere tres bien seule.
+        $post = DB::transaction(function () use ($org, $user, $scheduledAtUtc) {
             $imagePath = $this->image ? $this->storeImage($org->id) : null;
             $url = UrlPreviewService::extractFirstUrl($this->content);
             $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
@@ -182,11 +187,14 @@ class CreateFeedPost extends Component
 
             $targetLoops = collect();
 
+            // TASK-1879 (signale par Cyril, 22/11) — seulement les Boucles dont
+            // l'auteur est membre actif : la diffusion poste EN SON NOM dans le
+            // ChatLoop, ce qu'il ne peut pas faire ailleurs.
             if ($this->allLoops) {
-                $targetLoops = Loop::where('organization_id', $org->id)->get();
+                $targetLoops = $this->bouclesDiffusables($org->id, $user)->get();
             } elseif (! empty($this->selectedLoops)) {
-                $targetLoops = Loop::whereIn('id', $this->selectedLoops)
-                    ->where('organization_id', $org->id)
+                $targetLoops = $this->bouclesDiffusables($org->id, $user)
+                    ->whereIn('id', $this->selectedLoops)
                     ->get();
             }
 
@@ -194,10 +202,12 @@ class CreateFeedPost extends Component
                 $post->loops()->syncWithoutDetaching([$loop->id]);
             }
 
-            if ($this->mode === 'publish') {
-                $post->broadcastToAssociatedLoops($loopMessageService, $user);
-            }
+            return $post;
         });
+
+        if ($this->mode === 'publish') {
+            $post->broadcastToAssociatedLoops($loopMessageService, $user);
+        }
 
         $this->image = null;
         $this->dispatch('announcement-created');
@@ -233,11 +243,27 @@ class CreateFeedPost extends Component
         return $relativePath;
     }
 
+    /**
+     * TASK-1879 (signale par Cyril, 22/11) — les Boucles ou l'on peut diffuser :
+     * celles de l'Organization dont l'auteur est membre ACTIF (meme regle que
+     * `LoopMessageService::assertCanSend()`).
+     */
+    private function bouclesDiffusables(string $organizationId, User $user): \Illuminate\Database\Eloquent\Builder
+    {
+        return Loop::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('id', \App\Models\LoopMember::query()
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->select('loop_id'));
+    }
+
     public function render()
     {
         $org = $this->org();
-        $loops = $org
-            ? Loop::where('organization_id', $org->id)->orderBy('name')->get(['id', 'name', 'slug', 'description'])->map(fn (Loop $loop) => [
+        $user = auth()->user();
+        $loops = $org && $user
+            ? $this->bouclesDiffusables($org->id, $user)->orderBy('name')->get(['id', 'name', 'slug', 'description'])->map(fn (Loop $loop) => [
                 'id' => $loop->id,
                 'name' => $loop->name,
                 'slug' => $loop->slug,
