@@ -8,6 +8,7 @@ use App\Models\LoopEvent;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
+use App\Models\LoopRoadmapItem;
 use App\Models\LoopWatchItem;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -87,6 +88,15 @@ final class FeedEventCatalogue
     public const ARTICLE_PUBLIE = 'event.loop_article_published';
 
     public const FICHIERS_DEPOSES = 'event.loop_dossier_files_uploaded';
+
+    /** TASK-1879 (demande Cyril, 22/11) — Roadmap : action ajoutee (objet = l'action). */
+    public const ROADMAP_ACTION_AJOUTEE = 'event.loop_roadmap_item_created';
+
+    /**
+     * Action passee « En cours » ou « Fait ». Objet = l'annonce ChatLoop du
+     * deplacement : une action peut avancer plusieurs fois, chaque etape a sa ligne.
+     */
+    public const ROADMAP_ACTION_AVANCEE = 'event.loop_roadmap_item_moved';
 
     /**
      * TASK-1757 §9.5, puis TASK-1809 §2 — une entraide terminee.
@@ -178,6 +188,16 @@ final class FeedEventCatalogue
                 'object' => LoopMessage::class,
                 'visibilite' => self::VISIBILITE_BOUCLE,
                 'libelle' => 'feed.events.loop_dossier_files_uploaded',
+            ],
+            self::ROADMAP_ACTION_AJOUTEE => [
+                'object' => LoopRoadmapItem::class,
+                'visibilite' => self::VISIBILITE_BOUCLE,
+                'libelle' => 'feed.events.loop_roadmap_item_created',
+            ],
+            self::ROADMAP_ACTION_AVANCEE => [
+                'object' => LoopMessage::class,
+                'visibilite' => self::VISIBILITE_BOUCLE,
+                'libelle' => 'feed.events.loop_roadmap_item_moved',
             ],
             self::ENTRAIDE_TERMINEE => [
                 'object' => Transaction::class,

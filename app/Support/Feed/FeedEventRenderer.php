@@ -9,6 +9,7 @@ use App\Models\LoopEvent;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\LoopPoll;
+use App\Models\LoopRoadmapItem;
 use App\Models\LoopWatchItem;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -199,7 +200,7 @@ final class FeedEventRenderer
             ]),
             // TASK-1879 — Sondage et depot de fichiers menent a LEUR Boucle ;
             // l'Article a sa page (route org, comme la carte ChatLoop).
-            $objet instanceof LoopPoll, $objet instanceof LoopMessage => self::lienDeBoucle($objet->loop_id, $organizationSlug),
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem => self::lienDeBoucle($objet->loop_id, $organizationSlug),
             $objet instanceof BlogPost => self::route('organization.blog.show', [
                 'organization' => $organizationSlug,
                 'post' => $objet->slug,
@@ -270,6 +271,9 @@ final class FeedEventRenderer
      *
      * @return array{url: ?string, image: ?string, ronde: bool, titre: ?string, texte: ?string}|null
      */
+    /** L'icone « Kanban » de la Card Roadmap (demande Cyril, 22/11). */
+    private const ICONE_ROADMAP = 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v12a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18V6ZM13.5 6A2.25 2.25 0 0 1 15.75 3.75H18A2.25 2.25 0 0 1 20.25 6v6A2.25 2.25 0 0 1 18 14.25h-2.25A2.25 2.25 0 0 1 13.5 12V6Z';
+
     /** Le trace « Mon profil public » du menu avatar (app-side-nav). */
     private const ICONE_PROFIL = 'M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z M4.5 20.25a8.25 8.25 0 1116.5 0';
 
@@ -407,6 +411,34 @@ final class FeedEventRenderer
             ];
         }
 
+        // TASK-1879 (demande Cyril, 22/11) — Roadmap : l'icone « Kanban » de la
+        // Card Roadmap, en teal comme son annonce ChatLoop.
+        if ($objet instanceof LoopRoadmapItem
+            || ($objet instanceof LoopMessage && $objet->type === 'roadmap_action')) {
+            $action = $objet instanceof LoopRoadmapItem
+                ? $objet
+                : LoopRoadmapItem::withoutGlobalScopes()->find($objet->metadata['roadmap_item_id'] ?? null);
+
+            if ($action === null || $action->trashed() || Loop::withoutGlobalScopes()->find($action->loop_id) === null) {
+                return null;
+            }
+
+            $statut = fn (?string $s) => $s !== null && LoopRoadmapItem::isValidStatus($s) ? __('loops.roadmap_status_'.$s) : null;
+            $texte = $objet instanceof LoopMessage
+                ? trim(($statut($objet->metadata['from'] ?? null) ?? '').' → '.($statut($objet->metadata['to'] ?? null) ?? ''), ' →')
+                : $statut($action->status);
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => self::ICONE_ROADMAP,
+                'teinte' => 'teal',
+                'ronde' => false,
+                'titre' => (string) $action->title,
+                'texte' => $texte !== '' ? $texte : null,
+            ];
+        }
+
         if ($objet instanceof LoopMessage) {
             $noms = array_values(array_filter((array) ($objet->metadata['files'] ?? []), 'is_string'));
             $nombre = (int) ($objet->metadata['count'] ?? count($noms));
@@ -518,7 +550,7 @@ final class FeedEventRenderer
             $objet instanceof LoopWatchItem => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
             // TASK-1879 — « dans la Boucle :object » : la Boucle du fait. Un
             // Article n'a pas de Boucle propre : c'est celle de la LIGNE.
-            $objet instanceof LoopPoll, $objet instanceof LoopMessage => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
             $objet instanceof BlogPost => (string) (Loop::withoutGlobalScopes()->find($post->loop_id)?->name ?? __('feed.events.object_gone')),
             $objet instanceof User => $objet->publicDisplayName(),
             // TASK-1809 (correctif Cyril, 12/11) — l'objet d'une entraide est

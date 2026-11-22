@@ -11,6 +11,10 @@ use App\Models\LoopEvent;
 use App\Models\LoopMember;
 use App\Models\LoopNotificationPreference;
 use App\Models\LoopPoll;
+use App\Models\LoopRoadmapItem;
+use App\Models\LoopMessage;
+use App\Livewire\LoopRoadmapCard;
+use Livewire\Livewire;
 use App\Models\MemberNotification;
 use App\Models\Organization;
 use App\Models\Service;
@@ -239,6 +243,47 @@ class TASK1879NotificationsCollectivesBoucleTest extends TestCase
         $this->assertSame('M12 20V4m0 0-6 6m6-6 6 6', $apercu($demande)['icone']);
         $this->assertSame('M12 4v16m0 0-6-6m6 6 6-6', $apercu($offre)['icone']);
         $this->assertSame(['01', '10:00', false], [$apercu($evenement)['date']['quantieme'], $apercu($evenement)['date']['heure'], $apercu($evenement)['date']['annule']]);
+    }
+
+    /**
+     * Demande Cyril (22/11) — Roadmap : une action ajoutee, puis passee « En
+     * cours » et « Fait » : carte ChatLoop, notification in-app + Web Push et
+     * ligne du Flux a chaque etape. Un retour vers « A faire » ne dit rien.
+     */
+    public function test_la_roadmap_annonce_l_ajout_et_l_avancee_d_une_action(): void
+    {
+        Livewire::actingAs($this->auteur)
+            ->test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->set('newTitle', 'Preparer la fete')
+            ->call('createAction');
+
+        $action = LoopRoadmapItem::where('title', 'Preparer la fete')->sole();
+        $this->assertDestinataires(NotificationCatalogue::LOOP_ROADMAP_ITEM_CREATED);
+        $ajout = FeedPost::where('type', FeedEventCatalogue::ROADMAP_ACTION_AJOUTEE)->sole();
+        $this->assertStringStartsWith('M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25', FeedEventRenderer::apercu($ajout, (string) $this->organization->slug)['icone'], 'icone Kanban de la Card Roadmap');
+        $this->assertSame((string) $action->id, (string) $ajout->object_id);
+        $this->assertSame(FeedEventCatalogue::VISIBILITE_BOUCLE, $ajout->visibility);
+        $this->assertSame(['teal', 'Preparer la fete', __('loops.roadmap_status_todo')], array_values(array_intersect_key(
+            FeedEventRenderer::apercu($ajout, (string) $this->organization->slug), array_flip(['teinte', 'titre', 'texte']))));
+
+        Livewire::actingAs($this->auteur)
+            ->test(LoopRoadmapCard::class, ['loop' => $this->loop])
+            ->call('setStatus', $action->id, LoopRoadmapItem::STATUS_IN_PROGRESS)
+            ->call('setStatus', $action->id, LoopRoadmapItem::STATUS_DONE)
+            ->call('setStatus', $action->id, LoopRoadmapItem::STATUS_TODO);
+
+        $deplacements = LoopMessage::where('loop_id', $this->loop->id)->where('type', 'roadmap_action')->where('metadata->event', 'moved')->orderBy('created_at')->get();
+        $this->assertEqualsCanonicalizing([LoopRoadmapItem::STATUS_IN_PROGRESS, LoopRoadmapItem::STATUS_DONE], $deplacements->pluck('metadata.to')->all(), 'le retour a « A faire » n\'est pas annonce');
+        $this->assertSame(2, $this->notifications(NotificationCatalogue::LOOP_ROADMAP_ITEM_MOVED)->count());
+        $this->assertSame([$this->membre->id], $this->notifications(NotificationCatalogue::LOOP_ROADMAP_ITEM_MOVED)->pluck('recipient_id')->unique()->values()->all());
+
+        $lignes = FeedPost::where('type', FeedEventCatalogue::ROADMAP_ACTION_AVANCEE)->get();
+        $this->assertCount(2, $lignes);
+        $textes = $lignes->map(fn ($l) => FeedEventRenderer::apercu($l, (string) $this->organization->slug)['texte'])->sort()->values()->all();
+        $this->assertContains(__('loops.roadmap_status_todo').' → '.__('loops.roadmap_status_in_progress'), $textes);
+        $this->assertContains(__('loops.roadmap_status_in_progress').' → '.__('loops.roadmap_status_done'), $textes);
+        $this->assertSame(0, FeedPost::query()->visibleTo($this->parti)->whereIn('type', [FeedEventCatalogue::ROADMAP_ACTION_AJOUTEE, FeedEventCatalogue::ROADMAP_ACTION_AVANCEE])->count());
+        Mail::assertNothingSent();
     }
 
     // ── Outils ──────────────────────────────────────────────────────────────

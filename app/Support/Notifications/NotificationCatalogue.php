@@ -304,6 +304,16 @@ final class NotificationCatalogue
 
     public const LOOP_DOSSIER_FILE_UPLOADED = 'loop.dossier_file.uploaded';
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — Roadmap : une action ajoutee, une
+     * action passee « En cours » ou « Fait ». Memes regles que ci-dessus :
+     * fait collectif (sourdine par Boucle), in-app + Web Push, jamais d'e-mail.
+     * Un retour vers « A faire » ne notifie pas.
+     */
+    public const LOOP_ROADMAP_ITEM_CREATED = 'loop.roadmap_item.created';
+
+    public const LOOP_ROADMAP_ITEM_MOVED = 'loop.roadmap_item.moved';
+
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
 
     /**
@@ -904,6 +914,28 @@ final class NotificationCatalogue
             ],
         ],
 
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_ROADMAP_ITEM_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_ROADMAP_ITEM_MOVED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
         self::LOOP_WATCH_ITEM_CREATED => [
             'category' => 'loop',
             'intention' => self::INTENTION_CHANGEMENTS,
@@ -1173,7 +1205,7 @@ final class NotificationCatalogue
         // meme fait collectif, meme `object_type` (OBJECT_LOOP), donc le meme
         // `object_id` EST deja l'identifiant de la Boucle.
         // TASK-1879 — LOOP_WATCH_ITEM_CREATED aussi : meme fait collectif.
-        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED, self::LOOP_WATCH_ITEM_CREATED, self::LOOP_POLL_CREATED, self::LOOP_ARTICLE_PUBLISHED, self::LOOP_DOSSIER_FILE_UPLOADED], true)) {
+        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED, self::LOOP_WATCH_ITEM_CREATED, self::LOOP_POLL_CREATED, self::LOOP_ARTICLE_PUBLISHED, self::LOOP_DOSSIER_FILE_UPLOADED, self::LOOP_ROADMAP_ITEM_CREATED, self::LOOP_ROADMAP_ITEM_MOVED], true)) {
             return null;
         }
 

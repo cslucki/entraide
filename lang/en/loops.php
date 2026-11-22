@@ -51,6 +51,7 @@ return [
     'chat_article_unavailable' => 'This article is no longer available.',
     // TASK-1826 — premium Roadmap Action card.
     'chat_roadmap_action_created' => ':name created an action: « :title »',
+    'chat_roadmap_action_moved' => ':name moved the action « :title » to « :status »',
     'chat_roadmap_open' => 'View action',
     'chat_roadmap_unavailable' => 'This action is no longer available.',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.

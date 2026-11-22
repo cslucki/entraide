@@ -382,12 +382,20 @@
                             $rmItem = $projectedRoadmapItems->get($rmMeta['roadmap_item_id'] ?? null);
                         @endphp
                         <div class="flex flex-wrap items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/70 px-3 py-2 dark:border-teal-800/50 dark:bg-teal-900/20">
-                            <svg class="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            {{-- TASK-1879 (demande Cyril) — l'icone « Kanban » de la Card Roadmap. --}}
+                            <svg class="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" data-roadmap-kanban-icon><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v12a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18V6ZM13.5 6A2.25 2.25 0 0 1 15.75 3.75H18A2.25 2.25 0 0 1 20.25 6v6A2.25 2.25 0 0 1 18 14.25h-2.25A2.25 2.25 0 0 1 13.5 12V6Z"/></svg>
                             @if($rmItem)
                                 <span class="min-w-0 flex-1 text-xs leading-5 text-teal-900 dark:text-teal-100">
                                     {{ $msg->body }}
                                     <span class="block text-[11px] text-teal-700/80 dark:text-teal-300/80">
-                                        <span class="font-semibold">{{ __('loops.roadmap_status_'.$rmItem->status) }}</span>
+                                        {{-- TASK-1879 — une carte de DEPLACEMENT montre son etape
+                                             (A faire -> En cours), pas le statut du moment :
+                                             sinon « passee En cours » s'afficherait « Fait ». --}}
+                                        @if(($rmMeta['event'] ?? null) === 'moved' && \App\Models\LoopRoadmapItem::isValidStatus($rmMeta['from'] ?? '') && \App\Models\LoopRoadmapItem::isValidStatus($rmMeta['to'] ?? ''))
+                                            <span class="font-semibold" data-roadmap-move>{{ __('loops.roadmap_status_'.$rmMeta['from']) }} → {{ __('loops.roadmap_status_'.$rmMeta['to']) }}</span>
+                                        @else
+                                            <span class="font-semibold">{{ __('loops.roadmap_status_'.$rmItem->status) }}</span>
+                                        @endif
                                         @if($rmItem->assignees->isNotEmpty())
                                             · {{ $rmItem->assignees->pluck('name')->join(', ') }}
                                         @endif

@@ -111,6 +111,8 @@ return [
         'loop_poll_created' => 'Ouvrez BouclePro pour voter.',
         'loop_article_published' => 'Ouvrez BouclePro pour lire l\'article.',
         'loop_dossier_file_uploaded' => 'Ouvrez BouclePro pour voir les fichiers.',
+        'loop_roadmap_item_created' => 'Ouvrez BouclePro pour voir la Roadmap.',
+        'loop_roadmap_item_moved' => 'Ouvrez BouclePro pour voir la Roadmap.',
         // TASK-1879
         'loop_watch_item_created' => 'Ouvrez BouclePro pour lire la veille.',
         'loop_mention_created' => 'Ouvrez BouclePro pour lire le message.',
@@ -149,6 +151,8 @@ return [
         'loop_poll_created' => 'Un nouveau sondage dans votre Boucle',
         'loop_article_published' => 'Un nouvel article dans votre Boucle',
         'loop_dossier_file_uploaded' => 'Nouveaux fichiers dans votre Boucle',
+        'loop_roadmap_item_created' => 'Une nouvelle action dans la Roadmap',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap avance',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille dans votre Boucle',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
@@ -192,6 +196,8 @@ return [
         'loop_poll_created' => 'Un nouveau sondage a été posé',
         'loop_article_published' => 'Un nouvel article a été publié',
         'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés',
+        'loop_roadmap_item_created' => 'Une action a été ajoutée à la Roadmap',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap a avancé',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille a été partagée',
         'loop_mention_created' => 'On vous a mentionné dans une Boucle',
@@ -257,6 +263,8 @@ return [
         'loop_poll_created' => 'Un nouveau sondage a été posé dans la Boucle « :loop »',
         'loop_article_published' => 'Un nouvel article a été publié dans la Boucle « :loop »',
         'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés dans la Boucle « :loop »',
+        'loop_roadmap_item_created' => 'Une action a été ajoutée à la Roadmap de la Boucle « :loop »',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap a avancé dans la Boucle « :loop »',
         // TASK-1879
         'loop_watch_item_created' => 'Une nouvelle veille a été partagée dans la Boucle « :loop »',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere

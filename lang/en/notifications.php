@@ -100,6 +100,8 @@ return [
         'loop_poll_created' => 'Open BouclePro to vote.',
         'loop_article_published' => 'Open BouclePro to read the article.',
         'loop_dossier_file_uploaded' => 'Open BouclePro to see the files.',
+        'loop_roadmap_item_created' => 'Open BouclePro to see the Roadmap.',
+        'loop_roadmap_item_moved' => 'Open BouclePro to see the Roadmap.',
         // TASK-1879
         'loop_watch_item_created' => 'Open BouclePro to read the watch item.',
         'loop_mention_created' => 'Open BouclePro to read the message.',
@@ -134,6 +136,8 @@ return [
         'loop_poll_created' => 'A new poll in your Loop',
         'loop_article_published' => 'A new article in your Loop',
         'loop_dossier_file_uploaded' => 'New files in your Loop',
+        'loop_roadmap_item_created' => 'A new action in the Roadmap',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward',
         // TASK-1879
         'loop_watch_item_created' => 'A new watch item in your Loop',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
@@ -175,6 +179,8 @@ return [
         'loop_poll_created' => 'A new poll was posted',
         'loop_article_published' => 'A new article was published',
         'loop_dossier_file_uploaded' => 'Files were uploaded',
+        'loop_roadmap_item_created' => 'An action was added to the Roadmap',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward',
         // TASK-1879
         'loop_watch_item_created' => 'A new watch item was shared',
         'loop_mention_created' => 'You were mentioned in a Loop',
@@ -227,6 +233,8 @@ return [
         'loop_poll_created' => 'A new poll was posted in the Loop “:loop”',
         'loop_article_published' => 'A new article was published in the Loop “:loop”',
         'loop_dossier_file_uploaded' => 'Files were uploaded in the Loop “:loop”',
+        'loop_roadmap_item_created' => 'An action was added to the Roadmap of the Loop “:loop”',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward in the Loop “:loop”',
         // TASK-1879
         'loop_watch_item_created' => 'A new watch item was shared in the Loop “:loop”',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere

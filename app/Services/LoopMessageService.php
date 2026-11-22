@@ -844,6 +844,61 @@ class LoopMessageService
                 'organization_id' => $loop->organization_id,
             ]);
 
+            // TASK-1879 (demande Cyril, 22/11) — in-app + Web Push, et une ligne du Flux.
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_ROADMAP_ITEM_CREATED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::ROADMAP_ACTION_AJOUTEE, $item, $sender, $loop);
+
+            event(new LoopMessageCreated($message));
+
+            $loop->touch();
+
+            return $message;
+        });
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — une action de Roadmap AVANCE : passee
+     * « En cours » ou « Fait ». Carte ChatLoop (meme type `roadmap_action`,
+     * `event = moved`), notification in-app + Web Push et ligne du Flux.
+     *
+     * Un retour vers « A faire » n'est PAS annonce (rien n'avance ; principe :
+     * pas de bruit). Chaque deplacement utile a sa carte : une action passee
+     * « En cours » puis « Fait » produit deux annonces.
+     */
+    public function sendRoadmapStatusMessage(Loop $loop, User $sender, LoopRoadmapItem $item, string $from, string $to): ?LoopMessage
+    {
+        if ($from === $to || ! in_array($to, [LoopRoadmapItem::STATUS_IN_PROGRESS, LoopRoadmapItem::STATUS_DONE], true)) {
+            return null;
+        }
+
+        if ($item->loop_id !== $loop->id || $item->organization_id !== $loop->organization_id) {
+            throw new \RuntimeException('Roadmap item not found.');
+        }
+
+        $body = __('loops.chat_roadmap_action_moved', [
+            'name' => $sender->publicDisplayName(),
+            'title' => $item->title,
+            'status' => __('loops.roadmap_status_'.$to),
+        ]);
+
+        return DB::transaction(function () use ($loop, $sender, $item, $from, $to, $body) {
+            $message = LoopMessage::create([
+                'loop_id' => $loop->id,
+                'sender_id' => $sender->id,
+                'body' => $body,
+                'type' => 'roadmap_action',
+                'metadata' => [
+                    'event' => 'moved',
+                    'roadmap_item_id' => $item->id,
+                    'from' => $from,
+                    'to' => $to,
+                ],
+                'organization_id' => $loop->organization_id,
+            ]);
+
+            $this->notifierLaBoucle(NotificationCatalogue::LOOP_ROADMAP_ITEM_MOVED, $loop, $sender, $message);
+            $this->publierDansLeFlux(FeedEventCatalogue::ROADMAP_ACTION_AVANCEE, $message, $sender, $loop);
+
             event(new LoopMessageCreated($message));
 
             $loop->touch();
