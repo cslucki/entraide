@@ -36,7 +36,10 @@ class BulkEmailSend extends Model
     public const CONTENT_SOURCE_TEMPLATE = 'template';
 
     /** @var list<string> */
-    public const CONTENT_SOURCES = [self::CONTENT_SOURCE_CUSTOM, self::CONTENT_SOURCE_TEMPLATE];
+    /** TASK-1883 — newsletter : gabarit systeme rendu par destinataire, jamais via le formulaire generique. */
+    public const CONTENT_SOURCE_NEWSLETTER = 'newsletter';
+
+    public const CONTENT_SOURCES = [self::CONTENT_SOURCE_CUSTOM, self::CONTENT_SOURCE_TEMPLATE, self::CONTENT_SOURCE_NEWSLETTER];
 
     public const CONTENT_FORMAT_PLAIN = 'plain';
 
@@ -93,6 +96,9 @@ class BulkEmailSend extends Model
         'sent_count',
         'failed_count',
         'created_by',
+        'system_template_slug',
+        'demand_count',
+        'offer_count',
     ];
 
     // TASK-1803 — sans ce cast, le pilote de base de donnees peut rendre ces
@@ -102,6 +108,8 @@ class BulkEmailSend extends Model
         'total_recipients' => 'integer',
         'sent_count' => 'integer',
         'failed_count' => 'integer',
+        'demand_count' => 'integer',
+        'offer_count' => 'integer',
     ];
 
     public function recipients(): HasMany
@@ -112,6 +120,17 @@ class BulkEmailSend extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    /** TASK-1883 — organisations ciblees ; vide = toutes. */
+    public function organizations(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'bulk_email_send_organizations');
+    }
+
+    public function estNewsletter(): bool
+    {
+        return $this->content_source === self::CONTENT_SOURCE_NEWSLETTER;
     }
 
     public function template(): BelongsTo

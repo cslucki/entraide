@@ -227,6 +227,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'show_phone' => 'boolean',
             'banned_at' => 'datetime',
             'login_blocked_at' => 'datetime',
+            'newsletter_unsubscribed_at' => 'datetime',
             // TASK-1716 — deliberement HORS `$fillable`, comme `approved_at`
             // (T1714) et `must_set_password` (T1659). Ce sont des drapeaux de
             // cycle de vie : seul `ProfileController::close()` les pose, et
