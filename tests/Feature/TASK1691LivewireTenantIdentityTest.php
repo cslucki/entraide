@@ -175,7 +175,8 @@ class TASK1691LivewireTenantIdentityTest extends TestCase
         $avant = FeedPost::query()->where('organization_id', $this->a->id)->count();
 
         $this->update($this->attaquant, $snapshot,
-            ['content' => 'ANNONCE-LEGITIME-1691', 'mode' => 'publish'],
+            // TASK-1879 — un membre publie dans ses Boucles (ici : la sienne).
+            ['content' => 'ANNONCE-LEGITIME-1691', 'mode' => 'publish', 'allLoops' => true],
             [['path' => '', 'method' => 'submit', 'params' => []]],
         );
 

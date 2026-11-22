@@ -345,11 +345,14 @@ class OrganizationFeedTest extends TestCase
     public function test_member_can_publish_when_organization_allows_members(): void
     {
         $this->organization->update(['feed_post_publish_mode' => 'members']);
+        // TASK-1879 (decision Cyril, 22/11) — un membre publie DANS ses Boucles.
+        $loop = $this->loopForOrganization($this->organization, $this->member);
 
         Livewire::actingAs($this->member)
             ->test(CreateFeedPost::class)
             ->set('title', 'Annonce membre')
             ->set('content', 'Publication ouverte aux membres')
+            ->set('selectedLoops', [$loop->id])
             ->call('submit')
             ->assertRedirect(route('organization.flux', ['organization' => $this->organization->slug]));
 
@@ -357,7 +360,49 @@ class OrganizationFeedTest extends TestCase
             'organization_id' => $this->organization->id,
             'user_id' => $this->member->id,
             'title' => 'Annonce membre',
+            'visibility' => FeedPost::VISIBILITE_BOUCLES,
         ]);
+    }
+
+    /**
+     * TASK-1879 (decision Cyril, 22/11) — publier a toute l'Organization est
+     * reserve a son administrateur ; l'annonce d'un membre n'est visible que
+     * des membres de ses Boucles.
+     */
+    public function test_member_announcement_needs_a_loop_and_stays_inside_it(): void
+    {
+        $this->organization->update(['feed_post_publish_mode' => 'members']);
+
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->assertSeeHtml('data-feed-members-only-hint')
+            ->set('content', 'Annonce a tous')
+            ->call('submit')
+            ->assertHasErrors('selectedLoops')
+            ->assertNoRedirect();
+        $this->assertDatabaseMissing('feed_posts', ['content' => 'Annonce a tous']);
+
+        $loop = $this->loopForOrganization($this->organization, $this->member);
+        Livewire::actingAs($this->member)
+            ->test(CreateFeedPost::class)
+            ->set('content', 'Annonce de Boucle')
+            ->set('selectedLoops', [$loop->id])
+            ->call('submit');
+
+        $voisin = User::factory()->create(['organization_id' => $this->organization->id]);
+        $annonce = FeedPost::where('content', 'Annonce de Boucle')->firstOrFail();
+        $this->assertTrue(FeedPost::query()->visibleTo($this->member)->whereKey($annonce->id)->exists());
+        $this->assertFalse(FeedPost::query()->visibleTo($voisin)->whereKey($annonce->id)->exists(), 'hors de la Boucle : invisible');
+        $this->assertFalse($voisin->can('view', $annonce), 'ni par son URL directe');
+
+        // L'administrateur, lui, publie a tous.
+        Livewire::actingAs($this->admin)
+            ->test(CreateFeedPost::class)
+            ->assertDontSeeHtml('data-feed-members-only-hint')
+            ->set('content', 'Annonce admin a tous')
+            ->call('submit')
+            ->assertHasNoErrors();
+        $this->assertDatabaseHas('feed_posts', ['content' => 'Annonce admin a tous', 'visibility' => 'organization']);
     }
 
     public function test_organization_flux_route_works(): void

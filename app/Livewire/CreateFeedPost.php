@@ -154,11 +154,24 @@ class CreateFeedPost extends Component
             abort(403);
         }
 
+        // TASK-1879 (decision Cyril, 22/11) — hors administrateur, l'annonce vise
+        // au moins une Boucle de l'auteur, et n'est visible que de leurs membres.
+        $aTous = $this->peutPublierATous();
+        $ciblesAutorisees = $this->bouclesDiffusables($org->id, $user)
+            ->when(! $this->allLoops, fn ($q) => $q->whereIn('id', $this->selectedLoops ?: []))
+            ->exists();
+
+        if (! $aTous && ! $ciblesAutorisees) {
+            $this->addError('selectedLoops', __('feed-post.loops_required'));
+
+            return;
+        }
+
         // TASK-1879 (signale par Cyril, 22/11) — la diffusion vers les Boucles se fait
         // APRES le commit : dans la transaction, l'echec de la diffusion temps reel
         // (Reverb injoignable) surgissait au commit, hors de tout try -> erreur 500,
         // alors que la garde de `sendUserMessage()` (TASK-1839) le gere tres bien seule.
-        $post = DB::transaction(function () use ($org, $user, $scheduledAtUtc) {
+        $post = DB::transaction(function () use ($org, $user, $scheduledAtUtc, $aTous) {
             $imagePath = $this->image ? $this->storeImage($org->id) : null;
             $url = UrlPreviewService::extractFirstUrl($this->content);
             $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
@@ -183,6 +196,9 @@ class CreateFeedPost extends Component
                 'loop_message' => $this->loopMessage ?: null,
                 'pinned_at' => $this->pin ? now() : null,
                 'pinned_by_id' => $this->pin ? $user->id : null,
+                // TASK-1879 — `loops` : visible des seuls membres de ses Boucles
+                // (pivot `feed_post_loop`), cf. `FeedPost::scopeVisibleTo()`.
+                'visibility' => $aTous ? 'organization' : FeedPost::VISIBILITE_BOUCLES,
             ]);
 
             $targetLoops = collect();
@@ -244,6 +260,19 @@ class CreateFeedPost extends Component
     }
 
     /**
+     * TASK-1879 (decision Cyril, 22/11) — publier a TOUTE l'Organization est
+     * reserve a son administrateur (et au superadmin). Les autres membres
+     * publient dans leurs Boucles seulement.
+     */
+    public function peutPublierATous(): bool
+    {
+        $org = $this->org();
+        $user = auth()->user();
+
+        return $org !== null && $user !== null && ($org->admin_id === $user->id || $user->is_admin);
+    }
+
+    /**
      * TASK-1879 (signale par Cyril, 22/11) — les Boucles ou l'on peut diffuser :
      * celles de l'Organization dont l'auteur est membre ACTIF (meme regle que
      * `LoopMessageService::assertCanSend()`).
@@ -271,6 +300,8 @@ class CreateFeedPost extends Component
             ])
             : collect();
 
-        return view('livewire.create-feed-post', compact('loops'));
+        $peutPublierATous = $this->peutPublierATous();
+
+        return view('livewire.create-feed-post', compact('loops', 'peutPublierATous'));
     }
 }

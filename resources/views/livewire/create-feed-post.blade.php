@@ -105,6 +105,9 @@
             <div>
                 <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.loop_distribution') }}</h2>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('feed-post.loop_distribution_hint') }}</p>
+                @unless($peutPublierATous)
+                    <p class="mt-1 text-xs font-medium text-indigo-700 dark:text-indigo-300" data-feed-members-only-hint>{{ __('feed-post.members_only_hint') }}</p>
+                @endunless
             </div>
 
             <label class="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200">
@@ -131,9 +134,10 @@
                 @endforelse
             </div>
             @error('selectedLoops.*') <p class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            @error('selectedLoops') <p class="text-sm text-red-600 dark:text-red-400" data-feed-loops-required>{{ $message }}</p> @enderror
 
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {{ __('feed-post.scope_label') }}: @if($allLoops) {{ __('feed-post.scope_all') }} @elseif(count($selectedLoops) > 0) {{ __('feed-post.scope_selected', ['count' => count($selectedLoops)]) }} @else {{ __('feed-post.scope_org_only') }} @endif
+                {{ __('feed-post.scope_label') }}: @if($allLoops) {{ __('feed-post.scope_all') }} @elseif(count($selectedLoops) > 0) {{ __('feed-post.scope_selected', ['count' => count($selectedLoops)]) }} @elseif($peutPublierATous) {{ __('feed-post.scope_org_only') }} @else {{ __('feed-post.scope_none') }} @endif
             </p>
         </div>
 

@@ -16,6 +16,13 @@ use Illuminate\Support\Facades\Storage;
 
 class FeedPost extends Model
 {
+    /**
+     * TASK-1879 (decision Cyril, 22/11) — une annonce de membre : visible des
+     * seuls membres actifs de SES Boucles (pivot `feed_post_loop`). `loop`
+     * (une seule Boucle, `loop_id`) reste celle des evenements automatiques.
+     */
+    public const VISIBILITE_BOUCLES = 'loops';
+
     use HasFactory, HasOrganizationId, HasUuids, SoftDeletes;
 
     protected static function booted(): void
@@ -178,6 +185,10 @@ class FeedPost extends Model
                 ->orWhere(function ($interne) use ($boucles) {
                     $interne->where('visibility', 'loop')
                         ->whereIn('loop_id', $boucles);
+                })
+                ->orWhere(function ($annonce) use ($boucles) {
+                    $annonce->where('visibility', self::VISIBILITE_BOUCLES)
+                        ->whereHas('loops', fn ($l) => $l->whereIn('loops.id', $boucles));
                 });
         });
     }
