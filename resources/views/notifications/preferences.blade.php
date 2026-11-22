@@ -32,6 +32,23 @@
             </a>
         </div>
 
+        {{-- TASK-1883 — newsletter hebdomadaire (activee par defaut). --}}
+        <form method="POST" action="{{ route(($routeParams ? 'organization.' : '').'notifications.preferences.newsletter.update', $routeParams) }}"
+              class="mb-6 rounded-xl border border-[var(--bp-border)] bg-[var(--bp-panel)] px-4 py-3" data-newsletter-preference>
+            @csrf
+            <h2 class="text-sm font-semibold text-[var(--bp-text)]">{{ __('newsletter.preference_title') }}</h2>
+            <p class="mt-0.5 text-xs text-[var(--bp-muted)]">{{ __('newsletter.preference_hint') }}</p>
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <label class="inline-flex min-h-11 items-center gap-2 text-sm text-[var(--bp-text)]">
+                    <input type="hidden" name="newsletter" value="0">
+                    <input type="checkbox" name="newsletter" value="1" @checked(auth()->user()->newsletter_unsubscribed_at === null)
+                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    {{ __('newsletter.preference_label') }}
+                </label>
+                <button type="submit" class="inline-flex min-h-11 items-center rounded-xl border border-[var(--bp-border)] px-4 text-sm font-semibold text-[var(--bp-text)]">{{ __('newsletter.save') }}</button>
+            </div>
+        </form>
+
         {{-- TASK-1775 (CDC B1) — « Mes Boucles », EN PREMIER sur cet écran.
 
              Avant les réglages par événement et avant le panneau « cet
