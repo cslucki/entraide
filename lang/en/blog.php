@@ -236,6 +236,10 @@ return [
     'validation_image_size' => 'Cover image must not exceed 5 MB.',
     'organization_none' => 'No organization',
 
+    // TASK-1884 #6 — ligne de resume de l'editeur.
+    'summary_private_loop' => 'Private Loop',
+    'summary_last_task' => 'Last task',
+    'summary_authors' => 'Author|Authors',
     'sidebar_boucle' => 'Loop',
     'sidebar_snapshot' => 'Snapshot',
     'sidebar_co_ecriture' => 'Co-writing',

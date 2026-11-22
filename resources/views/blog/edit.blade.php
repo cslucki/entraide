@@ -100,9 +100,13 @@
                          Le nom du Dossier et l'appartenance a la serie ont ete
                          essayes en badge texte puis en pastille : le premier
                          allongeait la barre, le second n'apprenait pas
-                         grand-chose. L'etat vit dans les pop-ups, ou on a la
-                         place de le lire. --}}
-                    <div class="mb-6 flex flex-wrap items-center gap-2">
+                         grand-chose.
+
+                         TASK-1884 #6 (demande Cyril, 22/11) : l'etat revient,
+                         mais SOUS la barre, en UNE ligne de texte discrete
+                         (Boucle, Dossier, derniere tache, auteurs) — la barre
+                         garde sa longueur, le detail reste dans les pop-ups. --}}
+                    <div class="mb-3 flex flex-wrap items-center gap-2">
                         <button type="button" @click="$store.editorPanels.toggle('boucle')"
                                 :class="$store.editorPanels.isOpen('boucle') ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300' : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-200'"
                                 class="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -132,6 +136,42 @@
                             {{ __('blog.sidebar_co_ecriture') }}
                         </button>
                     </div>
+
+                    {{-- TASK-1884 #6 — ligne de resume. Confidentialite : les Boucles
+                         suivent la regle T1827 (`LoopArticleLinks`, lecteur de la meme
+                         Organization) ; une Boucle PRIVEE n'est nommee qu'a ses membres
+                         actifs, sinon « Boucle privee ». Le Dossier n'est nomme qu'a qui
+                         peut le voir. Une partie vide n'est pas affichee. --}}
+                    @php
+                        $_lecteur = auth()->user();
+                        $_org = currentOrganization();
+                        $_boucles = ($_org && $_org->loops_enabled && $_lecteur && $_lecteur->organization_id === $_org->id)
+                            ? app(\App\Support\Blog\LoopArticleLinks::class)->forPost($post, $_org)
+                                ->map(fn ($l) => ! $l->isPrivate() || $_lecteur->can('viewWorkspace', $l) ? $l->name : __('blog.summary_private_loop'))
+                                ->unique()->values()
+                            : collect();
+                        $_dossierResume = $post->dossierEntry?->dossier;
+                        $_dossierResume = $_dossierResume && $_lecteur?->can('view', $_dossierResume) ? $_dossierResume : null;
+                        $_derniereTache = $post->todos()->reorder()->latest('created_at')->latest('id')->first();
+                        $_auteursResume = collect([$post->user])->merge($post->coAuthors)
+                            ->filter(fn ($u) => $u && $u->isDisplayableIn($_org))
+                            ->unique('id')->map(fn ($u) => $u->publicDisplayName())->values();
+                        $_statutsTache = ['todo' => __('blog.todo_status_todo'), 'in_progress' => __('blog.todo_status_in_progress'), 'done' => __('blog.todo_status_done')];
+                    @endphp
+                    <p class="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400" data-editor-summary>
+                        @if($_boucles->isNotEmpty())
+                            <span data-editor-summary-loop><span class="font-semibold text-gray-600 dark:text-gray-300">{{ __('blog.sidebar_boucle') }} :</span> {{ $_boucles->implode(', ') }}</span>
+                        @endif
+                        @if($_dossierResume)
+                            <span data-editor-summary-dossier><span class="font-semibold text-gray-600 dark:text-gray-300">{{ __('blog.sidebar_dossier') }} :</span> {{ $_dossierResume->name }}</span>
+                        @endif
+                        @if($_derniereTache)
+                            <span data-editor-summary-task><span class="font-semibold text-gray-600 dark:text-gray-300">{{ __('blog.summary_last_task') }} :</span> {{ \Illuminate\Support\Str::limit($_derniereTache->title, 60) }} ({{ $_statutsTache[$_derniereTache->status] ?? $_derniereTache->status }})</span>
+                        @endif
+                        @if($_auteursResume->isNotEmpty())
+                            <span data-editor-summary-authors><span class="font-semibold text-gray-600 dark:text-gray-300">{{ trans_choice('blog.summary_authors', $_auteursResume->count()) }} :</span> {{ $_auteursResume->implode(', ') }}</span>
+                        @endif
+                    </p>
 
             <form action="{{ $_blogRoute('update', ['post' => $post]) }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf @method('PUT')
@@ -1998,7 +2038,11 @@
                      ajoute, un clic sur un nom l'ajoute, et chaque etat parle : recherche en
                      cours, aucun resultat, deja co-auteur, auteur. --}}
                 @php
-                    $_bouclesCoEcriture = $post->linkedLoops()->pluck('name');
+                    // TASK-1884 #6 — meme masquage que la ligne de resume : une Boucle
+                    // privee n'est nommee qu'a ses membres actifs.
+                    $_bouclesCoEcriture = $post->linkedLoops()
+                        ->map(fn ($l) => ! $l->isPrivate() || auth()->user()?->can('viewWorkspace', $l) ? $l->name : __('blog.summary_private_loop'))
+                        ->unique()->values();
                 @endphp
                 <div x-show="canManage()" class="border-t border-gray-100 dark:border-gray-700 pt-3" data-coauthor-add>
                     <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('blog.co_author_add_title') }}</p>
