@@ -248,6 +248,17 @@ class NotificationCenterController extends Controller
             }
 
             if ($echange->isDirectConversation()) {
+                // TASK-1885 C5 — une discussion privee n'a ni titre ni temps,
+                // mais elle a un INTERLOCUTEUR : l'autre partie que le lecteur.
+                if ($notification->notification_key === NotificationCatalogue::CONVERSATION_PRIVATE_RECEIVED) {
+                    $interlocuteur = $echange->buyer_id === $lecteur->id ? $echange->seller : $echange->buyer;
+                    $prenom = $interlocuteur?->first_name ?: ($interlocuteur?->name ?: null);
+
+                    if ($prenom !== null && $prenom !== '') {
+                        $sujets[(string) $notification->id] = ['prenom' => $prenom];
+                    }
+                }
+
                 continue;
             }
 
