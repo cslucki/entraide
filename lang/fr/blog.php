@@ -298,6 +298,7 @@ return [
     'co_author_removed' => 'Co-auteur retiré.',
     'co_author_cross_org' => 'Cet utilisateur appartient à une organisation différente.',
     'co_author_is_owner' => 'Le propriétaire ne peut pas être ajouté comme co-auteur.',
+    'co_author_not_loop_member' => 'Cet article appartient à une Boucle : seuls ses membres peuvent être co-auteurs.',
     'co_author_already' => 'Cet utilisateur est déjà co-auteur.',
     'co_author_load_error' => 'Échec du chargement des co-auteurs.',
     'co_author_add_error' => 'Échec de l\'ajout du co-auteur.',

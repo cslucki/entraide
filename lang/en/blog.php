@@ -298,6 +298,7 @@ return [
     'co_author_removed' => 'Co-author removed.',
     'co_author_cross_org' => 'This user belongs to a different organization.',
     'co_author_is_owner' => 'The owner cannot be added as a co-author.',
+    'co_author_not_loop_member' => 'This article belongs to a Loop: only its members can be co-authors.',
     'co_author_already' => 'This user is already a co-author.',
     'co_author_load_error' => 'Failed to load co-authors.',
     'co_author_add_error' => 'Failed to add co-author.',

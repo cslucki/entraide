@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\BlogPost;
+use App\Models\LoopMember;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use App\Support\Notifications\NotificationCatalogue;
 use App\Support\Notifications\NotificationEmissionConflict;
 use App\Support\Notifications\NotificationEmitter;
@@ -64,6 +66,12 @@ class BlogCoAuthorController extends Controller
 
         if ($user->id === $post->user_id) {
             return response()->json(['message' => __('blog.co_author_is_owner')], 422);
+        }
+
+        // TASK-1884 #5 — article de Boucle : seuls ses membres actifs. Controle
+        // SERVEUR, sinon un appel direct contournerait la recherche filtree.
+        if (($membres = $this->membresDesBoucles($post)) !== null && ! (clone $membres)->where('user_id', $user->id)->exists()) {
+            return response()->json(['message' => __('blog.co_author_not_loop_member')], 422);
         }
 
         $exists = $post->coAuthors()->where('user_id', $user->id)->exists();
@@ -166,8 +174,11 @@ class BlogCoAuthorController extends Controller
 
         $query = $request->input('q', '');
 
+        $membres = $this->membresDesBoucles($post);
+
         $users = User::assignable()
             ->where('organization_id', $post->organization_id)
+            ->when($membres !== null, fn ($q) => $q->whereIn('id', $membres->select('user_id')))
             ->where(function ($q) use ($query) {
                 $q->where('name', 'like', "%{$query}%")
                     ->orWhere('first_name', 'like', "%{$query}%")
@@ -182,6 +193,27 @@ class BlogCoAuthorController extends Controller
             ]);
 
         return response()->json(['users' => $users]);
+    }
+
+    /**
+     * TASK-1884 #5 (arbitrage Cyril) — article lie a une ou plusieurs Boucles
+     * (pivot ou Dossier racine, `linkedLoops()`) : les membres ACTIFS d'au
+     * moins une d'entre elles, encore dans l'Organization de la Boucle. Null =
+     * article hors Boucle, toute l'Organization reste proposee.
+     * Un co-auteur deja nomme qui quitte la Boucle n'est PAS retire (arbitrage).
+     */
+    private function membresDesBoucles(BlogPost $post): ?Builder
+    {
+        $boucles = $post->linkedLoops()->pluck('id');
+
+        if ($boucles->isEmpty()) {
+            return null;
+        }
+
+        return LoopMember::query()
+            ->whereIn('loop_id', $boucles)
+            ->where('status', 'active')
+            ->currentlyInLoopOrganization();
     }
 
     public function orgIndex(string $org, BlogPost $post): JsonResponse
