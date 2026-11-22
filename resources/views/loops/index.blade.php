@@ -99,6 +99,9 @@
                  toujours visible : sa page montre ou non quelque chose selon
                  le role (voir `loops/latest-messages.blade.php`), pas la
                  capacite a creer. --}}
+            @if($loops->isNotEmpty())
+                @include('loops.partials.view-switch')
+            @endif
             <a href="{{ $latestMessagesHref }}"
                data-loops-latest-messages-trigger
                class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:border-indigo-400 hover:text-indigo-600 rounded-lg transition whitespace-nowrap dark:text-gray-200 dark:bg-gray-800 dark:border-gray-600 dark:hover:text-indigo-400">
@@ -146,19 +149,22 @@
         {{-- TASK-1801 correctif 05 — « Derniers messages » rejoint « Nouvelle »
              ici, a sa GAUCHE : le bloc ne depend donc plus de `$canCreate`
              seul, il reste rendu pour qui ne peut que lire. --}}
-        <div class="md:hidden flex items-center justify-end gap-3 mb-6">
+        <div class="md:hidden flex items-center justify-end gap-2 mb-6">
+            @if($loops->isNotEmpty())
+                @include('loops.partials.view-switch', ['compact' => true, 'class' => 'mr-auto'])
+            @endif
             <a href="{{ $latestMessagesHref }}"
                data-loops-latest-messages-trigger-mobile
-               class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:border-indigo-400 hover:text-indigo-600 rounded-lg transition whitespace-nowrap dark:text-gray-200 dark:bg-gray-800 dark:border-gray-600 dark:hover:text-indigo-400">
+               class="min-w-0 inline-flex items-center gap-1.5 px-2.5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:border-indigo-400 hover:text-indigo-600 rounded-lg transition whitespace-nowrap dark:text-gray-200 dark:bg-gray-800 dark:border-gray-600 dark:hover:text-indigo-400">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/>
                 </svg>
-                <span>{{ __('loops.latest_messages_button') }}</span>
+                <span class="truncate">{{ __('loops.latest_messages_button_short') }}</span>
             </a>
             @if($canCreate)
                 <a href="{{ $loopsCreateHref }}"
                    data-loops-new-mobile
-                   class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
+                   class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition whitespace-nowrap">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
@@ -259,9 +265,9 @@
             @php
                 $catalogDomains = $filterDomains ?? collect();
             @endphp
-            {{-- TASK-1864 — la rangee existe des qu'il y a des Boucles : la
-                 bascule Grille/Liste y vit meme quand recherche et domaines
-                 n'ont pas lieu d'etre (6 Boucles ou moins, aucun domaine). --}}
+            {{-- TASK-1880 — la bascule a quitte cette rangee : elle n'existe plus que
+                 pour la recherche ou le filtre de domaine. --}}
+            @if($loops->count() > 6 || $catalogDomains->isNotEmpty())
             <div class="mb-6 flex flex-wrap items-center gap-3">
                     @if($loops->count() > 6)
                         <div class="relative w-full max-w-sm">
@@ -285,38 +291,8 @@
                             @endforeach
                         </select>
                     @endif
-
-                    {{-- TASK-1864 — meme patron que l'annuaire (`members/index`) :
-                         de vrais liens qui posent `?view=`, pas un etat Alpine —
-                         l'adresse se partage et le retour arriere la conserve.
-                         `grid` est la valeur par defaut : son lien RETIRE le
-                         parametre plutot que d'ecrire `view=grid`. --}}
-                    <div class="ml-auto inline-flex overflow-hidden rounded-xl border border-gray-300 bg-white text-sm dark:border-gray-600 dark:bg-gray-800"
-                         role="group" aria-label="{{ __('loops.view_switch_label') }}" data-loops-view-switch>
-                        <a href="{{ request()->fullUrlWithQuery(['view' => null]) }}"
-                           data-loops-view-switch-option="grid"
-                           @if(! $isListView) aria-current="true" @endif
-                           @class([
-                               'inline-flex items-center gap-1.5 px-3 py-2 font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500',
-                               'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' => ! $isListView,
-                               'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200' => $isListView,
-                           ])>
-                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.25"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.25"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.25"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.25"/></svg>
-                            {{ __('loops.view_grid') }}
-                        </a>
-                        <a href="{{ request()->fullUrlWithQuery(['view' => 'list']) }}"
-                           data-loops-view-switch-option="list"
-                           @if($isListView) aria-current="true" @endif
-                           @class([
-                               'inline-flex items-center gap-1.5 border-l border-gray-300 px-3 py-2 font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 dark:border-gray-600',
-                               'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' => $isListView,
-                               'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200' => ! $isListView,
-                           ])>
-                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="2.5" rx="1"/><rect x="1.5" y="6.75" width="13" height="2.5" rx="1"/><rect x="1.5" y="11.5" width="13" height="2.5" rx="1"/></svg>
-                            {{ __('loops.view_list') }}
-                        </a>
-                    </div>
                 </div>
+            @endif
 
             {{-- TASK-1867 — liste G : a partir de 1024 px, la liste a gauche et le
                  volet de detail a droite. Les sections ci-dessous sont

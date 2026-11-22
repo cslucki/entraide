@@ -131,6 +131,7 @@ return [
         // TASK-1810 — neither the person nor the item's context: a Push
         // shows on a LOCKED screen, same doctrine as its neighbours.
         'feed_post_comment_created' => 'Open the Feed to read the comment.',
+        'feed_post_mention_created' => 'Open the Feed to read the announcement.',
     ],
 
     'push_title' => [
@@ -175,6 +176,7 @@ return [
         // TASK-1810 — same doctrine: neither the person nor the item's
         // context, on a locked screen.
         'feed_post_comment_created' => 'New comment on the Feed',
+        'feed_post_mention_created' => 'You were tagged on the Feed',
     ],
 
     'keys' => [
@@ -216,6 +218,7 @@ return [
 
         // TASK-1810 (demande Cyril, 12/11) — comments or reactions on my Feed items.
         'feed_post_comment_created' => 'Comments on my Feed items',
+        'feed_post_mention_created' => 'Mentions in Feed announcements',
         'feed_post_reaction_created' => 'Reactions on my Feed items',
     ],
 
@@ -351,6 +354,11 @@ return [
         'feed_post_comment_created' => [
             'subject' => 'Comment on the Feed',
             'body' => '<p>Hello,</p><p><strong>:prenom</strong> just commented on the Feed about something that concerns you: <strong>:contexte</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">View in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: you don’t need to sign in to read it.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
+        // TASK-1880 — fallback for the `feed_post_mention_created` template.
+        'feed_post_mention_created' => [
+            'subject' => ':prenom tagged you on the Feed',
+            'body' => '<p>Hello,</p><p><strong>:prenom</strong> tagged you in a Feed announcement:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:message</blockquote><p><a href=":url">View the announcement in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
         ],
         'loop_mention_created' => [
             'subject' => 'You were mentioned in a Loop',

@@ -111,12 +111,12 @@ class TASK1788Correctif10bisFluxBarreMobileTest extends TestCase
         $this->assertLessThan($positionDossiers, $positionFlux,
             'Le Flux ne precede plus « Dossiers » dans la barre du bas.');
 
-        // Et il vient APRES l'annuaire : c'est la place demandee, pas « quelque
-        // part avant Dossiers ».
-        $positionAnnuaire = strpos($html, 'data-bp-nav-item="members"');
-        $this->assertNotFalse($positionAnnuaire, 'Temoin absent : l\'annuaire n\'est pas dans la barre.');
-        $this->assertGreaterThan($positionAnnuaire, $positionFlux,
-            'Le Flux a remonte au-dela de la place demandee.');
+        // TASK-1880 (demande Cyril, 22/11) — TROISIEME position : apres
+        // « Echanges », avant la Messagerie.
+        preg_match_all('/data-bp-nav-item="([a-z_]+)"/', $html, $m);
+        $ordre = array_values(array_unique($m[1]));
+        $this->assertSame(['loops', 'exchanges', 'flux', 'messages'], array_slice($ordre, 0, 4),
+            'Le Flux n\'est plus en troisieme position dans la barre du bas.');
     }
 
     /**

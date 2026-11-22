@@ -79,5 +79,7 @@ class MyFeedPosts extends Component
         if ($post->loops()->exists()) {
             $post->broadcastToAssociatedLoops($loopMessageService, auth()->user());
         }
+
+        $post->notifierLesMentions();
     }
 }

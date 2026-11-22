@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\FeedPost;
 use App\Services\UrlPreviewService;
+use App\Support\Feed\FeedMentions;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -107,6 +108,24 @@ class EditFeedPost extends Component
             abort(404);
         }
 
+        // TASK-1880 — memes regles de mention qu'a la creation, sur les
+        // Boucles et la visibilite DEJA enregistrees de l'annonce.
+        $auteur = $this->post->user ?? auth()->user();
+        $analyse = app(FeedMentions::class)->analyser(
+            $this->content,
+            $org,
+            $auteur,
+            $this->post->loops()->pluck('loops.id')->map(fn ($id) => (string) $id)->all(),
+            $this->post->visibility !== FeedPost::VISIBILITE_BOUCLES,
+            $org->admin_id === $auteur->id || (bool) $auteur->is_admin,
+        );
+
+        if ($analyse['erreur'] !== null) {
+            $this->addError('content', $analyse['erreur']);
+
+            return;
+        }
+
         [$status, $publishedAt, $scheduledAtDb] = match ($this->mode) {
             'draft' => [FeedPost::STATUS_DRAFT, null, null],
             'schedule' => [FeedPost::STATUS_SCHEDULED, null, $scheduledAtUtc],
@@ -132,6 +151,10 @@ class EditFeedPost extends Component
             'scheduled_at' => $scheduledAtDb,
             'loop_message' => $this->loopMessage ?: null,
         ]);
+
+        // TASK-1880 — n'avertit que les personnes NOUVELLEMENT mentionnees
+        // (identifiant d'evenement unique par annonce, cf. le job).
+        $this->post->notifierLesMentions();
 
         session()->flash('status', match ($this->mode) {
             'draft' => 'Brouillon mis à jour.',
@@ -170,6 +193,23 @@ class EditFeedPost extends Component
 
     public function render()
     {
-        return view('livewire.edit-feed-post');
+        // TASK-1880 — le menu `@`, sur les Boucles deja enregistrees.
+        $org = currentOrganization();
+        $auteur = $this->post->user;
+        $mentions = null;
+
+        if ($org !== null && $auteur !== null) {
+            $boucles = $this->post->loops()->pluck('loops.id')->map(fn ($id) => (string) $id)->all();
+            $mentions = app(FeedMentions::class)->configurationDuMenu(
+                $org,
+                $auteur,
+                $boucles,
+                $this->post->visibility !== FeedPost::VISIBILITE_BOUCLES,
+                $org->admin_id === $auteur->id || (bool) $auteur->is_admin,
+                $boucles,
+            );
+        }
+
+        return view('livewire.edit-feed-post', compact('mentions'));
     }
 }

@@ -1628,6 +1628,8 @@ return [
 
     // TASK-1801 correctif 05 — the "Latest messages" button on the inventory.
     'latest_messages_button' => 'Latest messages',
+    // TASK-1880 (demande Cyril, 22/11) — libelle court du bouton, sur smartphone.
+    'latest_messages_button_short' => 'History',
     'latest_messages_title' => 'Latest messages',
     'latest_messages_empty_before' => 'You are not a member of any Loop yet, you can join one by clicking',
     'latest_messages_empty_link' => 'here',

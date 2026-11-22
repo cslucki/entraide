@@ -5,6 +5,7 @@ namespace App\Support\Notifications;
 use App\Models\BlogComment;
 use App\Models\EmailLog;
 use App\Models\EntraideComment;
+use App\Models\FeedPost;
 use App\Models\FeedPostComment;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
@@ -17,6 +18,7 @@ use App\Models\User;
 use App\Services\Blog\BlogCommentMailer;
 use App\Services\Entraide\EntraideCommentMailer;
 use App\Services\Feed\FeedCommentMailer;
+use App\Services\Feed\FeedMentionMailer;
 use App\Services\Loops\LoopEventMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
@@ -742,6 +744,35 @@ final class NotificationEmailDeliverer
             // la phrase ecrite par un membre, et `email_logs` n'a pas a
             // l'archiver (cf. `FeedCommentMailer::EXTRAIT_EXPURGE`).
             $expurge = $feedMailer->compose($commentaire, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
+        // TASK-1880 — la mention dans une annonce du Flux. `FeedPost` ne porte
+        // aucune portee d'Organization : la frontiere de tenant est posee a la
+        // main. Sans cette branche, l'email partirait par le repli de langue.
+        if ($cle === NotificationCatalogue::FEED_POST_MENTION_CREATED) {
+            $post = FeedPost::query()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($post === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $post->user_id);
+
+            $mentionMailer = app(FeedMentionMailer::class);
+            $reel = $mentionMailer->compose($post, $destinataire, $acteur, $cible, $locale);
+            // Copie archivee : le message de l'annonce est expurge.
+            $expurge = $mentionMailer->compose($post, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
 
             return [
                 'subject' => $reel['subject'],

@@ -146,6 +146,7 @@ return [
         // TASK-1810 — ni la personne, ni le contexte de l'item : un Push
         // s'affiche sur un ecran VERROUILLE, meme doctrine que ses voisines.
         'feed_post_comment_created' => 'Ouvrez le Flux pour lire le commentaire.',
+        'feed_post_mention_created' => 'Ouvrez le Flux pour lire l’annonce.',
     ],
 
     'push_title' => [
@@ -192,6 +193,7 @@ return [
         // TASK-1810 — meme doctrine : ni la personne, ni le contexte de
         // l'item, sur un ecran verrouille.
         'feed_post_comment_created' => 'Nouveau commentaire sur le Flux',
+        'feed_post_mention_created' => 'On vous a identifié sur le Flux',
     ],
 
     'keys' => [
@@ -238,6 +240,7 @@ return [
 
         // TASK-1810 (demande Cyril, 12/11) — on a commente ou réagi à un item du Flux.
         'feed_post_comment_created' => 'Commentaires sur mes items du Flux',
+        'feed_post_mention_created' => 'Mentions dans les annonces du Flux',
         'feed_post_reaction_created' => 'Réactions sur mes items du Flux',
     ],
 
@@ -390,6 +393,12 @@ return [
         'feed_post_comment_created' => [
             'subject' => 'Commentaire sur le flux',
             'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vient de commenter le flux à propos d’un sujet qui vous concerne : <strong>:contexte</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Voir dans le Flux</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Rien ne presse : vous n’avez pas besoin de vous connecter pour en prendre connaissance.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
+        // TASK-1880 — repli du gabarit `feed_post_mention_created` : `:prenom`,
+        // `:message`, `:url` et `:reglages` restent des JETONS.
+        'feed_post_mention_created' => [
+            'subject' => ':prenom vous a identifié sur le Flux',
+            'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vous a identifié dans une annonce du Flux :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:message</blockquote><p><a href=":url">Voir l’annonce dans le Flux</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
         ],
         'loop_mention_created' => [
             'subject' => 'On vous a mentionné dans une Boucle',

@@ -2,12 +2,14 @@
 
 namespace App\Livewire;
 
+use App\Http\Middleware\EnsureProfileComplete;
 use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\User;
 use App\Models\Organization;
 use App\Services\LoopMessageService;
 use App\Services\UrlPreviewService;
+use App\Support\Feed\FeedMentions;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -139,6 +141,14 @@ class CreateFeedPost extends Component
 
     public function submit(LoopMessageService $loopMessageService): void
     {
+        // TASK-1880 (demande Cyril, 22/11) — pas d'annonce sans presentation :
+        // une requete Livewire ne passe pas par la garde de route.
+        if (auth()->user() !== null && EnsureProfileComplete::estIncomplet(auth()->user())) {
+            $this->redirect($this->urlCreer());
+
+            return;
+        }
+
         $scheduledAtUtc = null;
 
         if ($this->mode === 'schedule' && $this->scheduledAt) {
@@ -202,6 +212,20 @@ class CreateFeedPost extends Component
             return;
         }
 
+        // TASK-1880 — un seul mode de mention par message : 1 a 5 personnes,
+        // OU `@tous` (Boucles choisies dont on est proprietaire/animateur), OU
+        // `@membres` (administrateur de l'Organization).
+        $boucleIds = $this->bouclesDiffusables($org->id, $user)
+            ->when(! $this->allLoops, fn ($q) => $q->whereIn('id', $this->selectedLoops ?: []))
+            ->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $analyse = app(FeedMentions::class)->analyser($this->content, $org, $user, $boucleIds, $aTous, $aTous);
+
+        if ($analyse['erreur'] !== null) {
+            $this->addError('content', $analyse['erreur']);
+
+            return;
+        }
+
         // TASK-1879 (signale par Cyril, 22/11) — la diffusion vers les Boucles se fait
         // APRES le commit : dans la transaction, l'echec de la diffusion temps reel
         // (Reverb injoignable) surgissait au commit, hors de tout try -> erreur 500,
@@ -258,6 +282,7 @@ class CreateFeedPost extends Component
 
         if ($this->mode === 'publish') {
             $post->broadcastToAssociatedLoops($loopMessageService, $user);
+            $post->notifierLesMentions();
         }
 
         $this->image = null;
@@ -273,6 +298,16 @@ class CreateFeedPost extends Component
         $parameters = $route === 'organization.flux' ? ['organization' => $org->slug] : [];
 
         $this->redirectRoute($route, $parameters);
+    }
+
+    /** TASK-1880 — /flux/creer, prefixee comme la page d'origine. */
+    private function urlCreer(): string
+    {
+        $org = $this->org();
+
+        return $org !== null && (! $org->is_default || $this->urlPrefixee)
+            ? route('organization.flux.create', ['organization' => $org->slug])
+            : route('flux.create');
     }
 
     public function removeImage(): void
@@ -337,6 +372,22 @@ class CreateFeedPost extends Component
 
         $peutPublierATous = $this->peutPublierATous();
 
-        return view('livewire.create-feed-post', compact('loops', 'peutPublierATous'));
+        // TASK-1880 — le menu `@` : personnes des Boucles proposees (toute
+        // l'Organization pour l'administrateur), `@tous`, `@membres`.
+        $mentions = $org && $user
+            ? app(FeedMentions::class)->configurationDuMenu(
+                $org,
+                $user,
+                $loops->pluck('id')->map(fn ($id) => (string) $id)->all(),
+                $peutPublierATous,
+                $peutPublierATous,
+            )
+            : null;
+
+        // TASK-1880 — presentation non faite : l'invite du Flux mene a la garde.
+        $presentationAFaire = $user !== null && EnsureProfileComplete::estIncomplet($user);
+        $urlCreer = $this->urlCreer();
+
+        return view('livewire.create-feed-post', compact('loops', 'peutPublierATous', 'mentions', 'presentationAFaire', 'urlCreer'));
     }
 }

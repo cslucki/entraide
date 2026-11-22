@@ -23,7 +23,22 @@
     $moi = auth()->user();
     $prenom = $moi?->first_name ?: \Illuminate\Support\Str::before((string) $moi?->name, ' ');
 @endphp
-@if($integre)
+@if($integre && $presentationAFaire)
+{{-- TASK-1880 (demande Cyril, 22/11) — presentation non faite : l'invite mene
+     a /flux/creer, dont la garde `profile.complete` renvoie au formulaire de
+     profil (meme mecanisme que demandes et propositions d'aide). Les raccourcis
+     #ecrire (FAB, « Cooperer ») suivent le meme chemin. --}}
+<div class="mb-6" data-feed-composer data-feed-composer-inline data-feed-presentation-required
+     x-data
+     x-init="if (location.hash === '#ecrire') { location.replace(@js($urlCreer)); }">
+    <a href="{{ $urlCreer }}" data-feed-composer-trigger
+       class="flex w-full items-center gap-3 rounded-3xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-gray-300 active:scale-[0.99] sm:p-4 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600">
+        <x-user-avatar :user="$moi" size="md" variant="solid" class="shrink-0" />
+        <span class="min-w-0 flex-1 truncate rounded-full bg-gray-100 px-4 py-2.5 text-sm text-gray-500 transition sm:text-base dark:bg-gray-800 dark:text-gray-400">{{ __('feed-post.composer_placeholder', ['name' => $prenom]) }}</span>
+        <svg class="h-6 w-6 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg>
+    </a>
+</div>
+@elseif($integre)
 {{-- TASK-1879 (demande Cyril, 22/11) — sur le Flux. Bureau/tablette : le
      composeur est pose en tete du fil. Smartphone : une invite « Quoi de neuf ? »
      ouvre le composeur en feuille montante (Alpine), fond floute, Echap ou
@@ -111,7 +126,7 @@
         <div data-champ wire:key="champ-message-formulaire" class="scroll-mt-24">
             <label for="content" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.message') }}</label>
             <div class="mt-2">
-                <x-markdown-wysiwyg-editor name="content" format="html" wire-model="content" :value="$content" required rows="7" :invalid="$errors->has('content')" />
+                <x-markdown-wysiwyg-editor name="content" format="html" wire-model="content" :value="$content" required rows="7" :invalid="$errors->has('content')" :mentions="$mentions" />
             </div>
             {{-- Emplacement de l'alerte AVANT soumission (`x-form-live-validation`), sous l'editeur. --}}
             <ul id="content-error" hidden class="mt-1 space-y-1 text-sm text-red-600 dark:text-red-400"></ul>

@@ -83,4 +83,13 @@ return [
     'delete_action' => 'Supprimer',
     'delete_confirm' => 'Supprimer cette annonce ?',
     'view' => 'Voir',
+
+    // TASK-1880 — mentions dans une annonce.
+    'mentions_one_mode' => 'Un message ne peut porter qu’un seul type de mention : des personnes nommées, @tous ou @membres.',
+    'mentions_members_forbidden' => '@membres est réservé à l’administrateur de l’organisation.',
+    'mentions_all_forbidden' => '@tous est réservé au propriétaire ou à l’animateur d’une des Boucles choisies.',
+    'mentions_too_many' => 'Vous pouvez mentionner :max personnes au plus.',
+    'mention_all_option' => 'Tous les membres des Boucles choisies',
+    'mention_members_option' => 'Tous les membres de l’organisation',
+    'mentions_list_label' => 'Personnes à mentionner',
 ];

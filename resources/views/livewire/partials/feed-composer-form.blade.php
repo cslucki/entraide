@@ -63,7 +63,7 @@
         <div data-champ wire:key="champ-message-composeur" class="scroll-mt-24">
             <x-markdown-wysiwyg-editor name="content" format="html" wire-model="content" composer
                 :placeholder="__('feed-post.composer_placeholder', ['name' => $prenom])"
-                :value="$content" required rows="4" :invalid="$errors->has('content')" />
+                :value="$content" required rows="4" :invalid="$errors->has('content')" :mentions="$mentions" />
             <ul id="content-error" hidden class="mt-1 space-y-1 text-sm text-red-600 dark:text-red-400"></ul>
             @error('content') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
