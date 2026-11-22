@@ -226,6 +226,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'show_email' => 'boolean',
             'show_phone' => 'boolean',
             'banned_at' => 'datetime',
+            'login_blocked_at' => 'datetime',
             // TASK-1716 — deliberement HORS `$fillable`, comme `approved_at`
             // (T1714) et `must_set_password` (T1659). Ce sont des drapeaux de
             // cycle de vie : seul `ProfileController::close()` les pose, et
@@ -741,6 +742,21 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return $this->organization?->requires_account_approval === true;
+    }
+
+    /**
+     * TASK-1881 (demande Cyril, 22/11) — « Membres autorises a se connecter ».
+     *
+     * Bloque si le superadmin a decoche ce compte, SAUF l'administrateur de
+     * son Organization et le superadmin, toujours autorises (arbitrage).
+     */
+    public function estBloqueALaConnexion(): bool
+    {
+        if ($this->login_blocked_at === null || $this->is_admin) {
+            return false;
+        }
+
+        return $this->organization?->admin_id !== $this->id;
     }
 
     /**

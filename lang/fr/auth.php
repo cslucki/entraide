@@ -178,4 +178,6 @@ return [
     'registration_closed_title' => 'Les inscriptions sont fermées',
     'registration_closed_elsewhere' => 'Vous pouvez en revanche créer un compte sur :',
     'registration_closed_everywhere' => 'Aucune organisation n\'accepte de nouvelle inscription pour le moment.',
+    // TASK-1881 — membre non autorise a se connecter a cette Organization.
+    'organization_closed' => ':organization est fermé, merci de choisir une autre organisation.',
 ];

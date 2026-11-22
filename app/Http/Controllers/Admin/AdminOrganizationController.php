@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\Organization;
 use App\Models\OrganizationAiSetting;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\User;
 use App\Jobs\ProcessImageVariants;
 use App\Support\Images\ImageVariantService;
@@ -83,6 +84,57 @@ class AdminOrganizationController extends Controller
         Organization::create($data);
 
         return redirect()->route('admin.organizations')->with('success', "Organisation « {$data['name']} » créée.");
+    }
+
+    /**
+     * TASK-1881 (demande Cyril, 22/11) — « Membres autorises a se connecter ».
+     *
+     * Outil temporaire (migration des comptes) : on coche ceux qui peuvent se
+     * connecter. L'administrateur de l'Organization et le superadmin restent
+     * toujours autorises (case desactivee).
+     */
+    public function authorizedMembers(Organization $organization): View
+    {
+        $membres = $this->membresDe($organization)->get();
+
+        return view('admin.organizations.authorized-members', compact('organization', 'membres'));
+    }
+
+    public function updateAuthorizedMembers(Request $request, Organization $organization): RedirectResponse
+    {
+        $data = $request->validate([
+            'authorized' => ['array'],
+            'authorized.*' => ['string'],
+        ]);
+
+        $autorises = array_values(array_unique($data['authorized'] ?? []));
+        $toujours = collect([$organization->admin_id])->filter()->map(fn ($id) => (string) $id)->all();
+
+        // Le superadmin n'est jamais bloque, quoi qu'on envoie.
+        $bloquables = $this->membresDe($organization)
+            ->where('is_admin', false)
+            ->whereNotIn('id', $toujours);
+
+        DB::transaction(function () use ($bloquables, $autorises) {
+            (clone $bloquables)->whereIn('id', $autorises)->update(['login_blocked_at' => null]);
+            (clone $bloquables)->whereNotIn('id', $autorises)->whereNull('login_blocked_at')->update(['login_blocked_at' => now()]);
+        });
+
+        $bloques = $this->membresDe($organization)->whereNotNull('login_blocked_at')->count();
+
+        return redirect()
+            ->route('admin.organizations.authorized-members', $organization)
+            ->with('success', "Autorisations enregistrées : {$bloques} membre(s) bloqué(s).");
+    }
+
+    /** Les comptes de CETTE Organization, hors portee de tenant (contexte superadmin). */
+    private function membresDe(Organization $organization): \Illuminate\Database\Eloquent\Builder
+    {
+        return User::query()
+            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+            ->where('organization_id', $organization->id)
+            ->orderBy('first_name')
+            ->orderBy('name');
     }
 
     public function edit(Organization $organization): View

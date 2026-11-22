@@ -51,9 +51,8 @@
                                    class="block truncate font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                     {{ $c->name }} ↗
                                 </a>
-                                @if($c->hero_title)
-                                <p class="text-xs text-gray-500 truncate">{{ $c->hero_title }}</p>
-                                @endif
+                                {{-- TASK-1881 (demande Cyril, 22/11) — plus de description
+                                     (`hero_title`) sous le nom : elle prenait de la place. --}}
                                 {{-- TASK-1683 BUG-04 — le lien « Membres (n) » vivait
                                      ici depuis BUG-01 ; il fait doublon avec le
                                      compteur cliquable de la colonne MEMBRES
