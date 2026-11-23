@@ -17,6 +17,7 @@
             demandes: @js((int) old('demand_count', 3)),
             propositions: @js((int) old('offer_count', 3)),
             billets: @js((int) old('blog_count', 3)),
+            evenements: @js((int) old('event_count', 3)),
             locale: 'fr',
             onglet: 'apercu',
             rendu: null, chargement: false, erreur: null, minuteur: null,
@@ -28,14 +29,14 @@
                     const r = await fetch(@js(route('admin.newsletter.preview')), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': @js(csrf_token()) },
-                        body: JSON.stringify({ scope: this.scope, organization_ids: this.ids, subject: this.subject, demand_count: this.demandes, offer_count: this.propositions, blog_count: this.billets, locale: this.locale }),
+                        body: JSON.stringify({ scope: this.scope, organization_ids: this.ids, subject: this.subject, demand_count: this.demandes, offer_count: this.propositions, blog_count: this.billets, event_count: this.evenements, locale: this.locale }),
                     });
                     if (!r.ok) { this.erreur = 'Aperçu impossible (' + r.status + ').'; return; }
                     this.rendu = await r.json();
                 } catch (e) { this.erreur = 'Aperçu impossible.'; } finally { this.chargement = false; }
             },
          }"
-         x-init="apercu(); $watch('scope', () => planifier()); $watch('ids', () => planifier()); $watch('subject', () => planifier()); $watch('demandes', () => planifier()); $watch('propositions', () => planifier()); $watch('billets', () => planifier()); $watch('locale', () => apercu())">
+         x-init="apercu(); $watch('scope', () => planifier()); $watch('ids', () => planifier()); $watch('subject', () => planifier()); $watch('demandes', () => planifier()); $watch('propositions', () => planifier()); $watch('billets', () => planifier()); $watch('evenements', () => planifier()); $watch('locale', () => apercu())">
 
         <form method="POST" action="{{ route('admin.newsletter.store') }}" class="space-y-5" data-admin-newsletter-form>
             @csrf
@@ -54,7 +55,15 @@
                 <label class="block text-sm">
                     <span class="mb-1 block font-medium text-gray-700 dark:text-gray-200">Titre (objet de l'email)</span>
                     <input type="text" name="subject" x-model="subject" maxlength="255" class="{{ $champ }}" data-admin-newsletter-subject>
-                    <span class="mt-1 block text-xs text-gray-500">Laissé tel quel, chaque membre reçoit l'objet du modèle dans sa langue ; modifié, votre titre est envoyé à tous. <code>@{{ organization_name }}</code> est remplacé par le nom de l'organisation du membre.</span>
+                    <span class="mt-1 block text-xs text-gray-500">Laissé tel quel, chaque membre reçoit l'objet du modèle dans sa langue ; modifié, votre titre est envoyé à tous. <code>@{{ organization_name }}</code> est remplacé par le nom de l'organisation du membre, <code>@{{ newsletter_date }}</code> par la date du jour de l'envoi.</span>
+                </label>
+
+                {{-- TASK-1891 (demande Cyril, 23/11) : les prochains evenements de
+                     l'agenda, EN TETE de la newsletter. --}}
+                <label class="block text-sm">
+                    <span class="mb-1 block font-medium text-gray-700 dark:text-gray-200">Événements de l'agenda</span>
+                    <input type="number" name="event_count" x-model.number="evenements" min="0" max="10" class="{{ $champ }}" data-admin-newsletter-event-count>
+                    <span class="mt-1 block text-xs text-gray-500">Les prochains des Boucles publiques et ceux ouverts à toute l'organisation du membre (jamais ceux d'une Boucle privée) ; 0 : aucun événement, ni titre de section. Code du modèle : <code>{evenements;3}</code>.</span>
                 </label>
 
                 <div class="grid grid-cols-2 gap-3">
@@ -97,7 +106,7 @@
                 <p class="text-sm text-gray-700 dark:text-gray-200" data-admin-newsletter-recipients>
                     <template x-if="rendu"><span><strong x-text="rendu.recipients"></strong> membre(s) abonné(s) recevront la newsletter.</span></template>
                 </p>
-                <p class="text-xs text-gray-500">Les membres désinscrits, bloqués, et ceux d'une organisation sans rien à montrer (ni demande, ni proposition, ni billet demandé) ne reçoivent rien.</p>
+                <p class="text-xs text-gray-500">Les membres désinscrits, bloqués, et ceux d'une organisation sans rien à montrer (ni événement, ni demande, ni proposition, ni billet demandé) ne reçoivent rien.</p>
             </fieldset>
 
             @if($dernier)
@@ -106,8 +115,8 @@
                     <span>
                         Une newsletter est déjà partie le {{ $dernier->created_at->timezone('Europe/Paris')->format('d/m/Y à H:i') }}
                         vers {{ $dernier->organizations->isEmpty() ? 'toutes les organisations' : $dernier->organizations->pluck('name')->join(', ') }}
-                        @if($dernier->subject) — « {{ $dernier->subject }} » @endif
-                        — {{ $dernier->demand_count }} demande(s), {{ $dernier->offer_count }} proposition(s), {{ (int) $dernier->blog_count }} billet(s) ;
+                        @if($dernier->subject) — « {{ $dernier->objetLisible() }} » @endif
+                        — {{ (int) $dernier->event_count }} événement(s), {{ $dernier->demand_count }} demande(s), {{ $dernier->offer_count }} proposition(s), {{ (int) $dernier->blog_count }} billet(s) ;
                         {{ $dernier->sent_count }} envoyé(s) sur {{ $dernier->total_recipients }}@if($dernier->failed_count), {{ $dernier->failed_count }} échec(s)@endif.
                         <a href="{{ route('admin.newsletter.show', $dernier) }}" class="font-semibold underline" data-admin-newsletter-repeat-link>Voir cet envoi</a>
                         <span class="mt-1 block">Je confirme vouloir en envoyer une autre.</span>

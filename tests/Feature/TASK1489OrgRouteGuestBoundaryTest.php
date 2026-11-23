@@ -238,6 +238,10 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         'organization.pwa.install' => 'Ecran d\'installation de l\'application. Gabarit STRICTEMENT identique a la route globale `/installer` : aucune lecture de tenant, pas meme son nom. Frontiere portee par le controleur — Organization inactive -> 404, non publique + anonyme -> login borne, comme `organization.about`.',
 
         'organization.open-source' => 'Instantane du depot public. Contrat TASK-1613 rendu : MEME vue et MEME contenu que la route globale `/open-source`, elle-meme publique. Aucune lecture de tenant.',
+
+        'organization.newsletter.unsubscribe' => 'Desinscription de la newsletter (TASK-1891, decision Cyril 23/11 : lien scope a l\'organisation, sans connexion ni saisie d\'email). Frontiere = signature d\'URL (`signed`, 403 sinon) + compte appartenant a CETTE organisation (404 sinon) + throttle 30/min ; GET n\'ecrit rien, le POST confirme.',
+        'organization.newsletter.unsubscribe.confirm' => 'Confirmation de la desinscription (POST signe, meme frontiere que `organization.newsletter.unsubscribe`).',
+        'organization.newsletter.unsubscribe.undo' => 'Annulation d\'un clic malheureux (POST signe, meme frontiere que `organization.newsletter.unsubscribe`).',
     ];
 
     /**

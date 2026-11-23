@@ -65,20 +65,22 @@ class TASK1883AdminNewsletterTest extends TestCase
         $this->assertStringContainsString('Besoin d un coup de main', $fr['html']);
         $this->assertStringContainsString('Ils ont besoin d’aide', $fr['html']);
         $this->assertSame(3, $fr['recipients'], 'superadmin + 2 membres ; l auteur desabonne est exclu.');
-        $this->assertStringContainsString('#desinscription-apercu', $fr['html'], 'Lien inerte : le membre de l apercu est fictif.');
-        $this->assertStringNotContainsString('/newsletter/desinscription/', $fr['html']);
+        // TASK-1891 — l'apercu porte le MEME lien que l'envoi : scope et signe.
+        $this->assertStringContainsString('/org/'.$this->org->slug.'/newsletter/desinscription/', $fr['html']);
+        $this->assertStringContainsString('signature=', $fr['html']);
+        $this->assertStringNotContainsString('#desinscription-apercu', $fr['html']);
 
         // Le champ est pre-rempli avec l'objet FR du modele, et modifiable.
         $this->actingAs($this->superadmin)->get(route('admin.newsletter'))
-            ->assertSee('Les dernières demandes et propositions d’aide — {{ organization_name }}', false)
+            ->assertSee('[{{ organization_name }}] - newsletter du {{ newsletter_date }}', false)
             ->assertSee('data-admin-newsletter-subject', false);
 
         // Laisse tel quel : un membre anglophone garde l'objet EN.
         $en = $this->actingAs($this->superadmin)->postJson(route('admin.newsletter.preview'), $this->formulaire([
-            'locale' => 'en', 'subject' => 'Les dernières demandes et propositions d’aide — {{ organization_name }}',
+            'locale' => 'en', 'subject' => '[{{ organization_name }}] - newsletter du {{ newsletter_date }}',
         ]))->json();
         $this->assertStringContainsString('They need help', $en['html']);
-        $this->assertSame('Latest help requests and offers — Entraide Test', $en['subject']);
+        $this->assertSame('[Entraide Test] - newsletter of '.now('Europe/Paris')->format('m/d/y'), $en['subject']);
     }
 
     public function test_envoyer_puis_suivre_la_progression_et_le_doublon_demande_confirmation(): void

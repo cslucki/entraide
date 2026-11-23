@@ -1,0 +1,294 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Loop;
+use App\Models\LoopEvent;
+use App\Models\Organization;
+use App\Models\SystemEmailTemplate;
+use App\Models\User;
+use App\Services\BulkEmailSendService;
+use App\Support\Email\HelpDigestBlocks;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * TASK-1891 (demande Cyril, 23/11) — les prochains evenements de l'agenda,
+ * EN TETE de la newsletter : `{evenements;N}`, nombre choisi a l'envoi.
+ */
+class TASK1891NewsletterEvenementsTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Organization $org;
+
+    private Organization $autre;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->org = Organization::factory()->create(['is_active' => true, 'name' => 'Entraide Test']);
+        $this->autre = Organization::factory()->create(['is_active' => true]);
+        // Aucun tenant lie : la situation d'un job de la Managed Queue.
+        app()->forgetInstance('current_organization');
+    }
+
+    private function evenement(Organization $org, string $titre, array $attributs = []): LoopEvent
+    {
+        $createur = User::factory()->create(['organization_id' => $org->id]);
+        $boucle = $attributs['_boucle'] ?? 'private';
+        unset($attributs['_boucle']);
+        $loop = Loop::factory()->create(['organization_id' => $org->id, 'created_by' => $createur->id, 'visibility' => $boucle, 'name' => 'Boucle '.$titre]);
+
+        $event = new LoopEvent;
+        $event->forceFill($attributs + [
+            'organization_id' => $org->id,
+            'loop_id' => $loop->id,
+            'created_by' => $createur->id,
+            'title' => $titre,
+            'format' => LoopEvent::FORMAT_IN_PERSON,
+            'location' => 'Salle A',
+            'starts_at' => now()->addDays(2),
+            'timezone' => 'Europe/Paris',
+            'visibility' => LoopEvent::VISIBILITY_ORGANIZATION,
+            'status' => LoopEvent::STATUS_SCHEDULED,
+        ])->save();
+
+        return $event;
+    }
+
+    /** Demande Cyril : les evenements des Boucles, sauf des Boucles privees (sur invitation). */
+    public function test_les_prochains_evenements_des_boucles_publiques_et_de_l_organisation(): void
+    {
+        $blocs = new HelpDigestBlocks;
+        $this->assertSame('<p>A</p><p>B</p>', $blocs->developper('<p>A</p>{evenements;3}<p>B</p>', $this->org, 'fr'), 'Sans evenement : rien, pas meme le titre.');
+
+        $publique = $this->evenement($this->org, 'Atelier public', ['_boucle' => 'public', 'visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->addHours(3)]);
+        $this->evenement($this->org, 'Assemblee', ['starts_at' => now()->addDays(4), 'format' => LoopEvent::FORMAT_ONLINE, 'location' => null,
+            'meeting_url' => 'https://visio.example.org/ag', 'description' => "Ordre du **jour** : budget\n\net bureau."]);
+        $this->evenement($this->org, 'En cours', ['_boucle' => 'public', 'visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->subHour(), 'ends_at' => now()->addHour()]);
+        $this->evenement($this->org, 'Plus tard', ['_boucle' => 'public', 'starts_at' => now()->addDays(9)]);
+        $this->evenement($this->org, 'Boucle privee', ['visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->addHours(2)]);
+        $this->evenement($this->org, 'Passe', ['_boucle' => 'public', 'starts_at' => now()->subDays(2)]);
+        $this->evenement($this->org, 'Annule', ['_boucle' => 'public', 'status' => LoopEvent::STATUS_CANCELLED, 'cancelled_at' => now()]);
+        $this->evenement($this->autre, 'Ailleurs', ['_boucle' => 'public']);
+
+        $html = (new HelpDigestBlocks)->developper('{evenements;1}', $this->org, 'fr', null, null, null, 3);
+
+        $this->assertStringContainsString('>Agenda</h2>', $html);
+        $this->assertSame(3, substr_count($html, '<li'), 'Le nombre de l ecran remplace celui du gabarit.');
+        $this->assertLessThan(strpos($html, 'Atelier public'), strpos($html, 'En cours'));
+        $this->assertLessThan(strpos($html, 'Assemblee'), strpos($html, 'Atelier public'));
+        // Titre, description (Markdown rendu en texte), lien de connexion ou lieu.
+        $this->assertStringContainsString('Ordre du jour : budget et bureau.', $html);
+        $this->assertStringContainsString('Lien de connexion : <a href="https://visio.example.org/ag">https://visio.example.org/ag</a>', $html);
+        $this->assertStringContainsString('Lieu : Salle A', $html);
+        $this->assertStringNotContainsString('visio.example.org/ag</a></span><br><span style="color:#374151">Lieu', $html, 'En ligne : pas de lieu.');
+        $this->assertStringContainsString('— Boucle Atelier public', $html);
+        // Boucle publique : lien vers la Boucle ; remonte a l'organisation : l'agenda.
+        $this->assertStringContainsString(route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $publique->loop->slug]), $html);
+        $this->assertStringContainsString(route('organization.events.agenda', ['organization' => $this->org->slug]), $html);
+        foreach (['Plus tard', 'Boucle privee', 'Passe', 'Annule', 'Ailleurs'] as $absent) {
+            $this->assertStringNotContainsString($absent, $html);
+        }
+
+        $this->assertSame('', (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'fr', null, null, null, 0));
+        $en = (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'en');
+        $this->assertStringContainsString('>Agenda</h2>', $en);
+        $this->assertStringContainsString('Join link: ', $en);
+        $this->assertStringContainsString('Location: Salle A', $en);
+        $this->assertTrue((new HelpDigestBlocks)->aDuContenu($this->org, 0, 0, 0, 1));
+        $this->assertFalse((new HelpDigestBlocks)->aDuContenu($this->autre, 0, 0, 0, 0));
+    }
+
+    public function test_une_organisation_qui_n_a_que_des_evenements_de_boucles_privees_ne_montre_rien(): void
+    {
+        $this->evenement($this->org, 'Entre nous', ['visibility' => LoopEvent::VISIBILITY_LOOP]);
+
+        $this->assertSame('', (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'fr'));
+        $this->assertFalse((new HelpDigestBlocks)->aDuContenu($this->org, 0, 0, 0, 3));
+    }
+
+    public function test_un_lien_de_connexion_non_web_n_est_jamais_cliquable(): void
+    {
+        $this->evenement($this->org, 'Visio douteuse', ['format' => LoopEvent::FORMAT_HYBRID, 'meeting_url' => 'javascript:alert(1)', 'location' => 'Mairie']);
+
+        $html = (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'fr');
+
+        $this->assertStringNotContainsString('javascript:', $html);
+        $this->assertStringContainsString('En ligne', $html);
+        $this->assertStringContainsString('Lieu : Mairie', $html, 'Hybride : le lieu aussi.');
+    }
+
+    public function test_le_titre_de_l_evenement_est_echappe(): void
+    {
+        $this->evenement($this->org, '<script>x</script> Atelier');
+
+        $html = (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'fr');
+
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+    }
+
+    public function test_le_gabarit_met_les_evenements_en_premier(): void
+    {
+        foreach (['fr', 'en'] as $locale) {
+            $html = SystemEmailTemplate::query()->whereNull('organization_id')
+                ->where('slug', 'weekly_help_digest')->where('locale', $locale)->firstOrFail()->content_html;
+
+            $this->assertSame(1, substr_count($html, '{evenements;3}'));
+            $this->assertLessThan(strpos($html, '<h2'), strpos($html, '{evenements;3}'));
+            $this->assertLessThan(strpos($html, '{demande_aide;3}'), strpos($html, '{evenements;3}'));
+        }
+    }
+
+    public function test_la_migration_insere_sans_reecrire_un_gabarit_modifie_et_une_seule_fois(): void
+    {
+        $ligne = SystemEmailTemplate::query()->whereNull('organization_id')
+            ->where('slug', 'weekly_help_digest')->where('locale', 'fr')->firstOrFail();
+        $ligne->forceFill(['content_html' => '<p>Salut</p><p>Texte maison</p>{proposition_aide;2}'])->save();
+
+        $migration = require database_path('migrations/2026_11_24_090100_add_events_block_to_weekly_help_digest_template.php');
+        $migration->up();
+        $migration->up();
+
+        $this->assertSame('<p>Salut</p><p>Texte maison</p>{evenements;3}{proposition_aide;2}', $ligne->fresh()->content_html);
+
+        $migration->down();
+        $this->assertSame('<p>Salut</p><p>Texte maison</p>{proposition_aide;2}', $ligne->fresh()->content_html);
+    }
+
+    public function test_une_organisation_avec_seulement_des_evenements_recoit_la_newsletter(): void
+    {
+        $this->evenement($this->org, 'Assemblee');
+        $membre = User::factory()->create(['organization_id' => $this->org->id]);
+
+        $sans = app(BulkEmailSendService::class)->newsletterRecipients([$this->org->id], 0, 0, 0, 0)->pluck('id');
+        $avec = app(BulkEmailSendService::class)->newsletterRecipients([$this->org->id], 0, 0, 0, 2)->pluck('id');
+
+        $this->assertNotContains($membre->id, $sans);
+        $this->assertContains($membre->id, $avec);
+    }
+
+    public function test_l_ecran_admin_propose_le_nombre_et_l_apercu_place_l_agenda_en_tete(): void
+    {
+        $this->evenement($this->org, 'Assemblee generale');
+        $superadmin = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => true]);
+
+        $this->actingAs($superadmin)->get(route('admin.newsletter'))
+            ->assertOk()
+            ->assertSee('data-admin-newsletter-event-count', false);
+
+        $rendu = $this->actingAs($superadmin)->postJson(route('admin.newsletter.preview'), [
+            'scope' => 'selection', 'organization_ids' => [$this->org->id], 'subject' => '',
+            'demand_count' => 3, 'offer_count' => 3, 'blog_count' => 0, 'event_count' => 2, 'locale' => 'fr',
+        ])->assertOk()->json();
+
+        $this->assertStringContainsString('Assemblee generale', $rendu['html']);
+        $this->assertLessThan(strpos($rendu['html'], 'Ils ont besoin d’aide'), strpos($rendu['html'], '>Agenda</h2>'));
+        $this->assertGreaterThanOrEqual(1, $rendu['recipients']);
+    }
+
+    /** Correctif 2 — la newsletter parle au nom de l'organisation, en tete et en pied. */
+    public function test_l_en_tete_et_le_pied_portent_le_nom_de_l_organisation(): void
+    {
+        config(['app.name' => 'BouclePro']);
+        $this->evenement($this->org, 'Assemblee');
+        $membre = User::factory()->create(['organization_id' => $this->org->id, 'preferred_locale' => 'fr']);
+        $envoi = new \App\Models\BulkEmailSend(['system_template_slug' => BulkEmailSendService::NEWSLETTER_SLUG, 'demand_count' => 3, 'offer_count' => 3, 'blog_count' => 0, 'event_count' => 3]);
+
+        $html = app(BulkEmailSendService::class)->newsletterPour($membre->load('organization'), $envoi)['body'];
+
+        $entete = $this->entete($html);
+        $this->assertStringContainsString('Entraide Test', $entete);
+        $this->assertStringNotContainsString('BouclePro', $entete);
+        $this->assertStringContainsString('© '.date('Y').' Entraide Test', $html);
+        // Seul le `<title>` technique du `<head>` (jamais affiche) garde la marque.
+        $this->assertStringNotContainsString('BouclePro', substr($html, strpos($html, '<body')));
+
+        // Les autres courriels systeme gardent l'habillage de la plateforme.
+        $autre = (string) app(\Illuminate\Mail\Markdown::class)->render('emails.system-email', ['html' => '<p>x</p>']);
+        $this->assertStringContainsString('BouclePro', $this->entete($autre));
+    }
+
+    /** Correctif 3 — le rappel du dernier envoi montre l'objet avec le VRAI nom. */
+    public function test_le_rappel_du_dernier_envoi_montre_le_vrai_nom_de_l_organisation(): void
+    {
+        $this->evenement($this->org, 'Assemblee');
+        User::factory()->create(['organization_id' => $this->org->id]);
+        $superadmin = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => true]);
+
+        $envoi = app(BulkEmailSendService::class)->createNewsletterSend([
+            'organization_ids' => [$this->org->id], 'subject' => 'Recette — {{ organization_name }} cette semaine',
+            'demand_count' => 3, 'offer_count' => 3, 'blog_count' => 0, 'event_count' => 3,
+        ], $superadmin);
+
+        $page = $this->actingAs($superadmin)->get(route('admin.newsletter'))->assertOk()->getContent();
+        $debut = strpos($page, 'data-admin-newsletter-repeat');
+        $rappel = substr($page, $debut, strpos($page, '</label>', $debut) - $debut);
+
+        $this->assertStringContainsString('« Recette — Entraide Test cette semaine »', html_entity_decode($rappel));
+        $this->assertStringNotContainsString('organization_name', $rappel);
+
+        $this->actingAs($superadmin)->get(route('admin.newsletter.show', $envoi))
+            ->assertOk()
+            ->assertSee('Recette — Entraide Test cette semaine');
+
+        $toutes = new \App\Models\BulkEmailSend(['subject' => '{{organization_name}} cette semaine']);
+        $this->assertSame('nom de chaque organisation cette semaine', $toutes->setRelation('organizations', collect())->objetLisible());
+    }
+
+    /** Correctif 4 — objet par defaut « [organisation] - newsletter du [date du jour] ». */
+    public function test_l_objet_par_defaut_porte_l_organisation_et_la_date_du_jour(): void
+    {
+        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-24 23:30', 'UTC'));
+        $this->evenement($this->org, 'Assemblee');
+        $envoi = new \App\Models\BulkEmailSend(['system_template_slug' => BulkEmailSendService::NEWSLETTER_SLUG, 'demand_count' => 3, 'offer_count' => 3, 'blog_count' => 0, 'event_count' => 3]);
+
+        $fr = User::factory()->create(['organization_id' => $this->org->id, 'preferred_locale' => 'fr']);
+        $en = User::factory()->create(['organization_id' => $this->org->id, 'preferred_locale' => 'en']);
+
+        // 23 h 30 UTC = 0 h 30 a Paris : la date est celle de Paris.
+        $this->assertSame('[Entraide Test] - newsletter du 25/11/26', app(BulkEmailSendService::class)->newsletterPour($fr->load('organization'), $envoi)['subject']);
+        $this->assertSame('[Entraide Test] - newsletter of 11/25/26', app(BulkEmailSendService::class)->newsletterPour($en->load('organization'), $envoi)['subject']);
+
+        $variables = SystemEmailTemplate::query()->whereNull('organization_id')->where('slug', 'weekly_help_digest')->where('locale', 'fr')->firstOrFail()->variables;
+        $this->assertContains('newsletter_date', is_array($variables) ? $variables : json_decode((string) $variables, true));
+    }
+
+        /** Correctif 5 — lien de desinscription scope a l'organisation, signe, identique apercu/envoi. */
+    public function test_le_lien_de_desinscription_est_scope_et_identifie_le_membre(): void
+    {
+        $membre = User::factory()->create(['organization_id' => $this->org->id]);
+        $url = \App\Http\Controllers\NewsletterSubscriptionController::urlDesinscription($membre);
+
+        $this->assertStringStartsWith(url('/org/'.$this->org->slug.'/newsletter/desinscription/'.$membre->id), $url);
+        $this->assertStringContainsString('signature=', $url);
+
+        // Sans connexion, sans saisir d'email : la page demande confirmation, puis desinscrit.
+        $page = $this->get($url)->assertOk()->assertSee('data-newsletter-unsubscribe-confirm', false)->getContent();
+        $this->assertStringContainsString('/org/'.$this->org->slug.'/newsletter/desinscription/'.$membre->id, html_entity_decode($page));
+        $this->post($url)->assertOk()->assertSee('data-newsletter-unsubscribed', false);
+        $this->assertNotNull($membre->fresh()->newsletter_unsubscribed_at);
+        $this->assertGuest();
+
+        // Le compte doit etre celui de l'organisation du lien, meme signe.
+        $intrus = \Illuminate\Support\Facades\URL::signedRoute('organization.newsletter.unsubscribe', ['organization' => $this->autre->slug, 'compte' => $membre->id]);
+        $this->get($intrus)->assertNotFound();
+
+        // Les liens des lettres deja parties (sans /org/) restent servis.
+        $ancien = \Illuminate\Support\Facades\URL::signedRoute('newsletter.unsubscribe', ['compte' => $membre->id]);
+        $this->get($ancien)->assertOk();
+
+        // Un lien scope non signe est refuse.
+        $this->get(url('/org/'.$this->org->slug.'/newsletter/desinscription/'.$membre->id))->assertForbidden();
+    }
+
+        private function entete(string $html): string
+    {
+        $debut = strpos($html, 'class="header"');
+
+        return substr($html, $debut, strpos($html, '</td>', $debut) - $debut);
+    }
+}
