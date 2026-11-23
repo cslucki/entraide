@@ -55,7 +55,7 @@
                 <label class="block text-sm">
                     <span class="mb-1 block font-medium text-gray-700 dark:text-gray-200">Titre (objet de l'email)</span>
                     <input type="text" name="subject" x-model="subject" maxlength="255" class="{{ $champ }}" data-admin-newsletter-subject>
-                    <span class="mt-1 block text-xs text-gray-500">Laissé tel quel, chaque membre reçoit l'objet du modèle dans sa langue ; modifié, votre titre est envoyé à tous. <code>@{{ organization_name }}</code> est remplacé par le nom de l'organisation du membre.</span>
+                    <span class="mt-1 block text-xs text-gray-500">Laissé tel quel, chaque membre reçoit l'objet du modèle dans sa langue ; modifié, votre titre est envoyé à tous. <code>@{{ organization_name }}</code> est remplacé par le nom de l'organisation du membre, <code>@{{ newsletter_date }}</code> par la date du jour de l'envoi.</span>
                 </label>
 
                 {{-- TASK-1891 (demande Cyril, 23/11) : les prochains evenements de

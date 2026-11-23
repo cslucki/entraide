@@ -636,8 +636,10 @@ class BulkEmailSendService
             'explorer_url' => $org->is_default ? route('explorer') : route('organization.explorer', ['organization' => $org->slug]),
             'unsubscribe_url' => $desinscription,
             'app_name' => (string) config('app.name'),
+            // TASK-1891 (Cyril, 23/11) — « notre newsletter du [date du jour] ».
+            'newsletter_date' => now('Europe/Paris')->locale($langue)->isoFormat($langue === 'en' ? 'MMMM D, YYYY' : 'D MMMM YYYY'),
         ];
-        $cles = ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name'];
+        $cles = ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name', 'newsletter_date'];
 
         $html = $this->blocs->developper((string) $gabarit->content_html, $org, $langue, $demandes, $propositions, $billets, $evenements);
         $html = $this->emailer->interpolate($html, $vars, $cles);
