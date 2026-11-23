@@ -54,13 +54,16 @@
 
             <div class="flex gap-3">
                 @if($commentaire->user?->isDisplayableIn(currentOrganization()))
-                <img src="{{ $commentaire->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
+                {{-- TASK-1885 C3 — avatar et nom menent au profil public. --}}
+                <x-user-profile-link :user="$commentaire->user" class="flex-shrink-0 rounded-full" tabindex="-1" aria-hidden="true">
+                    <img src="{{ $commentaire->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
+                </x-user-profile-link>
                 @endif
                 <div class="flex-1 min-w-0">
                     <div class="flex flex-wrap items-baseline gap-x-2">
-                        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <x-user-profile-link :user="$commentaire->user" class="text-sm font-semibold text-gray-900 dark:text-gray-100">
                             {{ $commentaire->user?->publicDisplayName() ?? __('profile.deactivated_user') }}
-                        </span>
+                        </x-user-profile-link>
                         <span class="text-xs text-gray-400">· {{ $commentaire->created_at->diffForHumans() }}</span>
                     </div>
                     <p class="mt-0.5 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line break-words">{{ $commentaire->content }}</p>
@@ -116,13 +119,15 @@
                         @foreach($commentaire->replies as $reponse)
                         <li class="flex gap-2" wire:key="reponse-{{ $reponse->id }}" data-comment-reply-item="{{ $reponse->id }}">
                             @if($reponse->user?->isDisplayableIn(currentOrganization()))
-                            <img src="{{ $reponse->user->avatar_url }}" alt="" class="w-7 h-7 rounded-full flex-shrink-0">
+                            <x-user-profile-link :user="$reponse->user" class="flex-shrink-0 rounded-full" tabindex="-1" aria-hidden="true">
+                                <img src="{{ $reponse->user->avatar_url }}" alt="" class="w-7 h-7 rounded-full flex-shrink-0">
+                            </x-user-profile-link>
                             @endif
                             <div class="flex-1 min-w-0">
                                 <div class="flex flex-wrap items-baseline gap-x-2">
-                                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    <x-user-profile-link :user="$reponse->user" class="text-sm font-semibold text-gray-900 dark:text-gray-100">
                                         {{ $reponse->user?->publicDisplayName() ?? __('profile.deactivated_user') }}
-                                    </span>
+                                    </x-user-profile-link>
                                     <span class="text-xs text-gray-400">· {{ $reponse->created_at->diffForHumans() }}</span>
                                 </div>
                                 <p class="mt-0.5 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line break-words">{{ $reponse->content }}</p>

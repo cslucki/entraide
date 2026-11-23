@@ -666,6 +666,8 @@ Route::middleware('auth')->group(function () {
         // TASK-1801 correctif 05 — avant `/loops/{loop}` : un segment litteral
         // ne doit jamais tomber derriere la capture d'un identifiant de Boucle.
         Route::get('/loops/derniers-messages', [LoopController::class, 'latestMessages'])->name('loops.latest-messages');
+        // TASK-1885 C9 — recherche dans mes Boucles ; segment litteral avant `{loop}`.
+        Route::get('/loops/recherche', [LoopController::class, 'search'])->middleware('throttle:60,1')->name('loops.search');
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         // TASK-1827 — meme garde-fou qu'au-dessus : un segment litteral avant
         // le wildcard `{loop}`.
@@ -1947,6 +1949,8 @@ Route::prefix('/org/{organization}')
                 // litteral ne doit jamais tomber derriere la capture d'un
                 // identifiant de Boucle.
                 Route::get('/loops/derniers-messages', [LoopController::class, 'latestMessages'])->name('loops.latest-messages');
+                // TASK-1885 C9 — recherche dans mes Boucles ; segment litteral avant `{loop}`.
+                Route::get('/loops/recherche', [LoopController::class, 'search'])->middleware('throttle:60,1')->name('loops.search');
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 // TASK-1827 — meme garde-fou : un segment litteral avant le
                 // wildcard `{loop}`. Nom final : `organization.loops.articles`.

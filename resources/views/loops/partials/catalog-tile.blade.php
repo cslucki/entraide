@@ -9,9 +9,10 @@
     messages, membres, action d'adhesion — vit dans le tiroir, servi par
     `loops.preview` (T1865) : la page initiale n'en contient rien.
 
-    Le lien est un VRAI lien vers la Boucle : sans JavaScript, ou avec un clic
-    modifie (Ctrl, Cmd, Maj, molette), il fait ce qu'un lien fait. Seul le clic
-    normal est intercepte par `openLoopPreview()` (loops/index.blade.php).
+    Les deux liens sont de VRAIS liens vers la Boucle. Depuis TASK-1885 C2,
+    l'image y mene toujours ; le titre, sans JavaScript ou avec un clic modifie
+    (Ctrl, Cmd, Maj, molette), aussi. Seul le clic normal SUR LE TITRE est
+    intercepte par `openLoopPreview()` (loops/partials/preview-drawer).
 
     Attend : $item, $loopShowHref, $loopEditHref, $loopPreviewHref.
 --}}
@@ -27,13 +28,16 @@
     x-show="{{ \App\Support\Loops\CatalogFilter::xShow($item) }}"
     class="group relative min-w-0"
 >
+    {{-- TASK-1885 C2 (demande Cyril, 22/11) — l'IMAGE ouvre la Boucle
+         directement, le TITRE ouvre le tiroir. Deux liens freres vers la meme
+         adresse : seul le titre est intercepte par `openLoopPreview()`.
+         L'image est retiree de l'ordre de tabulation (meme destination que
+         le bouton « Ouvrir » du tiroir, joignable au clavier par le titre). --}}
     <a href="{{ $loopShowHref($item) }}"
-       data-loops-tile-link
-       data-loop-id="{{ $item->id }}"
-       data-loop-preview-url="{{ $loopPreviewHref($item) }}"
-       data-loop-name="{{ $item->name }}"
-       @click="openLoopPreview($event)"
-       class="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900">
+       data-loops-tile-cover-link
+       tabindex="-1"
+       aria-hidden="true"
+       class="block rounded-2xl">
         <div @class([
                 'overflow-hidden rounded-2xl border transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md motion-reduce:transition-none motion-reduce:group-hover:translate-y-0',
                 'border-gray-200 group-hover:border-indigo-300 dark:border-gray-700 dark:group-hover:border-indigo-600' => ! $isHighlighted,
@@ -41,7 +45,15 @@
             ])>
             <x-loops.cover :loop="$item" ratio="1 / 1" rounded="rounded-none" sizes="(min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw" />
         </div>
-        <h3 class="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-gray-900 transition group-hover:text-indigo-600 dark:text-gray-100 dark:group-hover:text-indigo-400">
+    </a>
+    <a href="{{ $loopShowHref($item) }}"
+       data-loops-tile-link
+       data-loop-id="{{ $item->id }}"
+       data-loop-preview-url="{{ $loopPreviewHref($item) }}"
+       data-loop-name="{{ $item->name }}"
+       @click="openLoopPreview($event)"
+       class="block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900">
+        <h3 class="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-gray-900 transition hover:text-indigo-600 dark:text-gray-100 dark:hover:text-indigo-400">
             {{ $item->name }}
         </h3>
     </a>

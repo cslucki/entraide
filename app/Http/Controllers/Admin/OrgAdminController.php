@@ -509,6 +509,8 @@ class OrgAdminController extends Controller
             // Boucle a son proprietaire. Meme champ, memes trois etats que
             // sur l'ecran SuperAdmin : une seule semantique pour les deux.
             'owner_may_compose' => ['nullable', 'in:0,1'],
+            // TASK-1885 C7 — le Pitch, aussi gere par l'admin d'Organization.
+            'pitch' => Loop::pitchRules(),
         ] + $this->reglesDeCouverture());
 
         if (! $registry->exists($data['type'])) {
@@ -543,6 +545,11 @@ class OrgAdminController extends Controller
 
         if ($couverture !== false) {
             $aEcrire['cover_image_path'] = $couverture;
+        }
+
+        // TASK-1885 C7 — absent = inchange ; vide = efface.
+        if (array_key_exists('pitch', $data)) {
+            $aEcrire['pitch'] = Loop::normaliserPitch($data['pitch']);
         }
 
         $loop->update($aEcrire);

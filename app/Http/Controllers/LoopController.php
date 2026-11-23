@@ -29,6 +29,7 @@ use App\Support\Loops\HelpRequestHandoff;
 use App\Support\Loops\LoopCardRegistry;
 use App\Support\Loops\LoopPermissionResolver;
 use App\Support\Loops\LoopRoleRegistry;
+use App\Support\Loops\LoopSearch;
 use App\Support\Loops\LoopTypeRegistry;
 use App\Support\Loops\VisibleLoops;
 use App\Support\Tenancy\CurrentOrganization;
@@ -443,6 +444,8 @@ class LoopController extends Controller
             'messages' => $messages,
             'members' => $members,
             'memberCount' => $memberCount,
+            // TASK-1885 C4 — vide sans $canRead : aucun membre charge.
+            'joinReasons' => LoopJoinRequest::joinReasonsFor($loop, $members->pluck('user_id')),
         ]);
     }
 
@@ -551,6 +554,35 @@ class LoopController extends Controller
             'organization' => $organization,
             'aAuMoinsUneBoucle' => $loopsMembre->isNotEmpty(),
             'loopsAvecMessages' => $loopsAvecMessages,
+        ]);
+    }
+
+    /**
+     * TASK-1885 C9 (demande Cyril, 22/11) — rechercher dans MES Boucles
+     * (messages, articles, dossiers, evenements). Meme perimetre que
+     * « Derniers messages » : les Boucles ou la personne est membre.
+     */
+    public function search(Request $request): View
+    {
+        $organizationId = $this->resolveOrganizationId();
+        $organization = $this->resolveOrganization();
+        $this->assertUserCanInspectOrganization($organization);
+
+        $terme = trim(Str::limit((string) $request->query('q', ''), LoopSearch::MAX, ''));
+
+        $loopsMembre = $organization->isMonoLoop()
+            ? collect()
+            : $this->getAccessibleLoopsQuery($organizationId, auth()->user())->get()->where('is_member', true)->values();
+
+        $resultats = app(LoopSearch::class)->rechercher($terme, $loopsMembre, (string) $organizationId);
+
+        return view('loops.search', [
+            'organization' => $organization,
+            'terme' => $terme,
+            'tropCourt' => $terme !== '' && mb_strlen($terme) < LoopSearch::MIN,
+            'aAuMoinsUneBoucle' => $loopsMembre->isNotEmpty(),
+            'resultats' => $resultats,
+            'total' => $resultats->sum('total'),
         ]);
     }
 
@@ -696,6 +728,8 @@ class LoopController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'tagline' => 'nullable|string|max:140',
+            // TASK-1885 C7 — le Pitch, sur l'ecran de modification.
+            'pitch' => Loop::pitchRules(),
             'description' => 'nullable|string|max:5000',
             'access_mode' => ['nullable', Rule::in(Loop::ACCESS_MODES)],
             'cover_image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
@@ -714,6 +748,11 @@ class LoopController extends Controller
         // frappe dans la description.
         if (empty($data['slug'])) {
             unset($data['slug']);
+        }
+
+        // Absent du formulaire = INCHANGE ; vide = efface.
+        if (array_key_exists('pitch', $data)) {
+            $data['pitch'] = Loop::normaliserPitch($data['pitch']);
         }
 
         // TASK-1725 — le `false` distingue « n'y touche pas » de « efface ». Les

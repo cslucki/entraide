@@ -31,13 +31,15 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><a href="{{ url }}">Confirmer mon adresse</a></p>
 <p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
 <p>Ce lien est valable <strong>24 heures</strong>. Passé ce délai, vous pourrez en demander un nouveau depuis la page d\'attente.</p>
-<p>Si vous n\'êtes pas à l\'origine de cette inscription, vous pouvez ignorer ce message.</p>',
+<p>Si vous n\'êtes pas à l\'origine de cette inscription, vous pouvez ignorer ce message.</p>
+<p>Pour recevoir nos prochains messages, vérifiez que les emails envoyés par « relai-smtp.net » n\'arrivent pas dans vos indésirables (spam).</p>',
             'content_html_en' => '<h1>Hello {{ name }},</h1>
 <p>One last step: confirm your email address.</p>
 <p><a href="{{ url }}">Confirm my address</a></p>
 <p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
 <p>This link is valid for <strong>24 hours</strong>. After that, you can request a new one from the waiting page.</p>
-<p>If you did not create this account, you can ignore this message.</p>',
+<p>If you did not create this account, you can ignore this message.</p>
+<p>To receive our next messages, make sure emails sent by “relai-smtp.net” do not end up in your junk (spam) folder.</p>',
             'variables' => ['name', 'url'],
         ],
         // TASK-1694 bug H — renomme : l'email annonce l'AFFECTATION DES POINTS.

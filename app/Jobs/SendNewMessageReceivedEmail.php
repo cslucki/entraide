@@ -8,10 +8,14 @@ use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Notifications\NewMessageReceived;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmitter;
+use App\Support\Notifications\NotificationPreferenceResolver;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Ramsey\Uuid\Uuid;
 
 /**
  * TASK-1858 — livrer `NewMessageReceived` hors du thread HTTP/Livewire,
@@ -70,7 +74,12 @@ use Illuminate\Support\Facades\Log;
  * personne de son propre message). Chaque refus est journalise SANS
  * contenu de message ni identifiant de destinataire.
  *
- * ## Preferences et journalisation — PRESERVEES TELLES QUELLES
+ * ## Preferences et journalisation
+ *
+ * TASK-1885 C5 — pour une DISCUSSION PRIVEE seulement, ce job emet aussi la
+ * notification `conversation.private.received` (application + Web Push) et
+ * ne part en email que si le membre n'a pas coupe ce canal. Le paragraphe
+ * ci-dessous reste vrai pour les messages d'un echange d'entraide.
  *
  * `NewMessageReceived` ne porte aujourd'hui AUCUNE preference de
  * destinataire (verifie : `via()` rend toujours `['mail']`, aucune garde
@@ -218,8 +227,63 @@ class SendNewMessageReceivedEmail implements ShouldQueue
                 return;
             }
 
+            // TASK-1885 C5 (demande Cyril, 22/11) — une DISCUSSION PRIVEE
+            // notifie aussi dans l'application et en PWA, et son email obeit
+            // desormais au reglage « Recevoir un message prive ». Les messages
+            // d'un ECHANGE d'entraide gardent leur comportement d'avant (email
+            // `new_message`, sans reglage) : hors du perimetre demande.
+            if ($transaction->isDirectConversation()) {
+                $this->notifierDansLApplication($organization, $transaction, $message, $recipient);
+
+                if (! app(NotificationPreferenceResolver::class)->allows(
+                    $recipient,
+                    NotificationCatalogue::CONVERSATION_PRIVATE_RECEIVED,
+                    NotificationCatalogue::CHANNEL_EMAIL,
+                )) {
+                    return;
+                }
+            }
+
             $recipient->notify(new NewMessageReceived($transaction, $message));
         });
+    }
+
+    /**
+     * TASK-1885 C5 — notification en application + Web Push (le planificateur
+     * du catalogue s'en charge ; l'email, lui, reste a ce job).
+     *
+     * Un identifiant d'evenement PAR MESSAGE (rejeu idempotent) ; la cle de
+     * regroupement PAR CONVERSATION. Un echec ici ne doit jamais empecher
+     * l'email : il est journalise, sans contenu de message.
+     */
+    private function notifierDansLApplication(Organization $organization, Transaction $transaction, Message $message, User $recipient): void
+    {
+        rescue(
+            function () use ($organization, $transaction, $message, $recipient): void {
+                $expediteur = User::query()->whereKey($message->sender_id)->first();
+
+                app(NotificationEmitter::class)->emit(
+                    notificationKey: NotificationCatalogue::CONVERSATION_PRIVATE_RECEIVED,
+                    organization: $organization,
+                    recipient: $recipient,
+                    eventId: (string) Uuid::uuid5(
+                        Uuid::NAMESPACE_URL,
+                        'bouclepro:notification:'.NotificationCatalogue::CONVERSATION_PRIVATE_RECEIVED.':'.$message->id,
+                    ),
+                    objectType: NotificationCatalogue::OBJECT_TRANSACTION,
+                    objectId: (string) $transaction->id,
+                    actor: $expediteur,
+                    collapseKey: 'conversation:'.$transaction->id,
+                );
+            },
+            fn (\Throwable $e) => Log::error('In-app notification failed after successful business action', [
+                'event' => 'private_conversation_notification',
+                'transaction_id' => $transaction->id,
+                'organization_id' => $transaction->organization_id,
+                'exception_class' => $e::class,
+            ]),
+            false,
+        );
     }
 
     /**

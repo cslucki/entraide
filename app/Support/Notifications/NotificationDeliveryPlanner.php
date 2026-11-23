@@ -157,6 +157,9 @@ class NotificationDeliveryPlanner
         return array_values(array_filter(
             self::CANAUX_ASYNCHRONES,
             fn (string $canal) => NotificationCatalogue::allowsChannel((string) $notification->notification_key, $canal)
+                // TASK-1885 C5 — un canal livre par un job metier dedie n'est
+                // jamais planifie ici (pas de double envoi).
+                && NotificationCatalogue::channelIsPlanned((string) $notification->notification_key, $canal)
         ));
     }
 

@@ -164,7 +164,10 @@
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        {{-- TASK-1885 C7 (demande Cyril, 23/11) — 900 pour le Pitch des Boucles,
+             en extra gras. Une graisse declaree n'est telechargee que si un texte
+             l'utilise : les autres pages ne paient rien. --}}
+        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,900&display=swap" rel="stylesheet" />
 
         {{-- TASK-1471 : la MEME source que le composant `theme-tokens` et que
              `layouts/org-admin` — le bloc de chargement etait recopie ici. --}}

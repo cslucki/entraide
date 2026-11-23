@@ -667,6 +667,8 @@ class AdminLoopController extends Controller
             // Boucle. Trois etats, donc `nullable` : « herite »,
             // « autorise », « refuse ». Voir `LoopPresetConfigurator`.
             'owner_may_compose' => ['nullable', 'in:0,1'],
+            // TASK-1885 C7 — le Pitch, aussi gere par le SuperAdmin.
+            'pitch' => Loop::pitchRules(),
             // TASK-1725 (demande Cyril, 29/10) — « on ne peut pas
             // inserer/modifier/supprimer l'image de couverture dans le
             // superadmin ». Les regles viennent du trait, elles ne sont pas
@@ -700,6 +702,11 @@ class AdminLoopController extends Controller
         // pas au service : il ecrirait `cover_image` et `remove_cover_image`
         // dans la table.
         unset($data['cover_image'], $data['remove_cover_image']);
+
+        // TASK-1885 C7 — absent = inchange ; vide = efface.
+        if (array_key_exists('pitch', $data)) {
+            $data['pitch'] = Loop::normaliserPitch($data['pitch']);
+        }
 
         $this->loopService->updateLoop($loop, $data);
 

@@ -124,6 +124,7 @@ return [
 
         // TASK-1751 — names neither the person nor the listing.
         'transaction_proposal_created' => 'Open BouclePro to see the proposal.',
+        'conversation_private_received' => 'Open BouclePro to read the conversation.',
 
         // TASK-1802 — names neither the Boucle nor the event: a Push shows on
         // a locked screen, and the Boucle may be private.
@@ -170,6 +171,7 @@ return [
 
         // TASK-1751 — shown on a LOCKED screen (CDC §6.4/6.5).
         'transaction_proposal_created' => 'Someone replied to your help request',
+        'conversation_private_received' => 'You received a private message',
 
         // TASK-1802 — names neither the Boucle nor the event, same reason as
         // its collective neighbours: a Push shows on a locked screen.
@@ -198,6 +200,7 @@ return [
 
         // TASK-1751 — one key for both directions of the mutual aid.
         'transaction_proposal_created' => 'Someone replied to your help request or offer',
+        'conversation_private_received' => 'Receive a private message',
 
         // TASK-1702
         'blog_co_author_added' => 'You were added as a co-author of an article',
@@ -259,6 +262,7 @@ return [
         'loop_mention_all_created' => '“:prenom” mentioned all the members of the Loop “:loop”',
         // TASK-1757 — see the French file for why this surface only.
         'transaction_proposal_created' => ':prenom replies to “:titre” — :temps',
+        'conversation_private_received' => ':prenom sent you a private message',
         // TASK-1786 — named ONLY here. `:type` carries "mutual aid offer" or
         // "help request", resolved by the controller, which is what lets ONE
         // key serve both listing types.
@@ -397,6 +401,16 @@ return [
         // TASK-1751 — FALLBACK, used when the administrable template is
         // missing or disabled. The coherence suite requires it as soon as
         // the `email` channel is declared.
+        // TASK-1885 C5 — required by the coherence suite; never used in
+        // practice (the email is sent by `SendNewMessageReceivedEmail`).
+        'conversation_private_received' => [
+            'subject' => 'You received a private message',
+            'body' => '<p>Hello,</p>'
+                .'<p>A member sent you a private message on BouclePro.</p>'
+                .'<p><a href=":url">Read the conversation</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
         'transaction_proposal_created' => [
             'subject' => 'Someone replied to your help request or offer',
             'body' => '<p>Hello,</p>'

@@ -139,6 +139,8 @@ return [
 
         // TASK-1751 — ni la personne, ni le titre de l'annonce.
         'transaction_proposal_created' => 'Ouvrez BouclePro pour voir la proposition.',
+        // TASK-1885 C5 — ecran verrouille : ni nom, ni extrait.
+        'conversation_private_received' => 'Ouvrez BouclePro pour lire la conversation.',
 
         // TASK-1802 — ni la Boucle ni l'Evenement : un Push s'affiche sur un
         // ecran VERROUILLE, et la Boucle peut etre privee.
@@ -169,6 +171,7 @@ return [
         // TASK-1751 — ni le nom de la personne, ni le titre de l'annonce :
         // ce texte s'affiche sur un écran VERROUILLÉ (CDC §6.4/6.5).
         'transaction_proposal_created' => 'On répond à votre demande d’aide',
+        'conversation_private_received' => 'Vous avez reçu un message privé',
         'loop_member_added' => 'Vous avez rejoint une Boucle',
         'loop_join_request_accepted' => 'Votre demande a été acceptée',
 
@@ -232,6 +235,8 @@ return [
         // une seule clé sert les deux sens de l'échange, et le fait vu du
         // destinataire est le même — on répond à SON annonce.
         'transaction_proposal_created' => 'Quelqu’un répond à votre demande ou proposition d’aide',
+        // TASK-1885 C5 — libelle du reglage demande par Cyril.
+        'conversation_private_received' => 'Recevoir un message privé',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
@@ -292,6 +297,8 @@ return [
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
         'transaction_proposal_created' => ':prenom répond à « :titre » — :temps',
+        // TASK-1885 C5 — nomme UNIQUEMENT ici (Centre authentifie).
+        'conversation_private_received' => ':prenom vous a envoyé un message privé',
         // TASK-1786 — nommee UNIQUEMENT ici, meme doctrine que ses voisines : le
         // Centre est derriere l'authentification. C'est le texte du CDC §7, et
         // `:type` porte « proposition d'entraide » ou « demande d'aide », resolu
@@ -444,6 +451,17 @@ return [
         // administrable `transaction_proposal_created` ; ce texte sert si
         // le gabarit est absent ou désactivé. La suite de cohérence
         // l'exige dès que le canal `email` est déclaré.
+        // TASK-1885 C5 — exige par la suite de coherence (canal email declare).
+        // Jamais employe en pratique : l'email part par `SendNewMessageReceivedEmail`
+        // (gabarit `private_message_received`), le canal n'etant pas planifie.
+        'conversation_private_received' => [
+            'subject' => 'Vous avez reçu un message privé',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Un membre vous a envoyé un message privé sur BouclePro.</p>'
+                .'<p><a href=":url">Lire la conversation</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L’équipe BouclePro</p>',
+        ],
         'transaction_proposal_created' => [
             'subject' => 'Quelqu’un répond à votre demande ou proposition d’aide',
             'body' => '<p>Bonjour,</p>'

@@ -419,6 +419,21 @@ final class NotificationCatalogue
     public const FEED_POST_MENTION_CREATED = 'feed.post_mention.created';
 
     /**
+     * TASK-1885 C5 (demande Cyril, 22/11) — on m'a envoye un message dans une
+     * DISCUSSION PRIVEE (`Transaction::isDirectConversation()`).
+     *
+     * Le nom dit le FAIT et evite la sous-chaine « message » : la garde
+     * anti-bruit de T1744 l'interdit dans toute cle qui pousse (§6.2 du CDC
+     * notifications combat la diffusion de tout message a tous). Une
+     * discussion privee vise UNE personne : c'est l'inverse de ce bruit.
+     *
+     * L'email n'est PAS planifie par le catalogue : il part deja par
+     * `SendNewMessageReceivedEmail` (gabarit `private_message_received`), qui
+     * lit desormais la preference email de CETTE cle. Voir `channelIsPlanned()`.
+     */
+    public const CONVERSATION_PRIVATE_RECEIVED = 'conversation.private.received';
+
+    /**
      * Le type d'objet de cette cle, expose comme constante.
      *
      * Le resolver de cible en a besoin pour brancher. Le lire ici plutot que de
@@ -1123,6 +1138,23 @@ final class NotificationCatalogue
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
             ],
         ],
+
+        // TASK-1885 C5 (demande Cyril, 22/11) — « Recevoir un message prive » :
+        // email, application et PWA ACTIFS par defaut, et reglables (meme regime
+        // que `ENTRAIDE_COMMENT_CREATED`, demande explicite d'un reglage).
+        // L'objet est la conversation : `OBJECT_TRANSACTION` mene a `messages.show`.
+        self::CONVERSATION_PRIVATE_RECEIVED => [
+            'category' => 'transaction',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
+            'object_type' => self::OBJECT_TRANSACTION,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+                // `planned => false` : livre par `SendNewMessageReceivedEmail`,
+                // jamais par le planificateur (sinon DEUX emails par message).
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true, 'planned' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
     ];
 
     public static function has(string $notificationKey): bool
@@ -1234,6 +1266,19 @@ final class NotificationCatalogue
     public static function channelIsConfigurable(string $notificationKey, string $channel): bool
     {
         return self::definition($notificationKey)['channels'][$channel]['configurable'] ?? false;
+    }
+
+    /**
+     * TASK-1885 C5 — ce canal est-il livre par le PLANIFICATEUR ?
+     *
+     * Vrai par defaut, pour toutes les cles existantes. `false` signifie qu'un
+     * job metier dedie livre deja ce canal (et lit la preference du membre) :
+     * le planificateur ne doit rien mettre en file, sous peine de double envoi.
+     * Le canal reste declare — donc reglable a l'ecran des preferences.
+     */
+    public static function channelIsPlanned(string $notificationKey, string $channel): bool
+    {
+        return self::definition($notificationKey)['channels'][$channel]['planned'] ?? true;
     }
 
     /**

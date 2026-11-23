@@ -9,6 +9,10 @@
         $latestMessagesHref = $organizationRouteParam && request()->routeIs('organization.*')
             ? route('organization.loops.latest-messages', ['organization' => $organizationRouteParam])
             : route('loops.latest-messages');
+        // TASK-1885 C9 — la recherche dans mes Boucles.
+        $loopsSearchAction = $organizationRouteParam && request()->routeIs('organization.*')
+            ? route('organization.loops.search', ['organization' => $organizationRouteParam])
+            : route('loops.search');
         $loopShowHref = function ($loop) use ($organizationRouteParam) {
             if ($organizationRouteParam && request()->routeIs('organization.*')) {
                 // TASK-1717 — le SLUG dans l'URL org-scopee, l'identifiant en
@@ -95,6 +99,8 @@
         {{-- Le parent (`x-page`) restreint deja cette rangee au bureau
              (`hidden md:flex`) : pas besoin de le repeter ici. --}}
         <div class="flex items-center gap-3">
+            {{-- TASK-1885 C9 — la loupe, a gauche de Grille/Liste. --}}
+            @include('loops.partials.search-trigger', ['searchAction' => $loopsSearchAction, 'hasMemberLoops' => $loops->contains('is_member', true)])
             {{-- TASK-1801 correctif 05 — a la GAUCHE du bouton « Nouvelle »,
                  toujours visible : sa page montre ou non quelque chose selon
                  le role (voir `loops/latest-messages.blade.php`), pas la
@@ -150,6 +156,8 @@
              ici, a sa GAUCHE : le bloc ne depend donc plus de `$canCreate`
              seul, il reste rendu pour qui ne peut que lire. --}}
         <div class="md:hidden flex items-center justify-end gap-2 mb-6">
+            {{-- TASK-1885 C9 — la loupe, a gauche de Grille/Liste. --}}
+            @include('loops.partials.search-trigger', ['searchAction' => $loopsSearchAction, 'hasMemberLoops' => $loops->contains('is_member', true), 'compact' => true, 'class' => $loops->isEmpty() ? 'mr-auto' : ''])
             @if($loops->isNotEmpty())
                 @include('loops.partials.view-switch', ['compact' => true, 'class' => 'mr-auto'])
             @endif

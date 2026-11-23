@@ -73,6 +73,8 @@
                     <x-input-error :messages="$errors->get('description')" class="mt-1" />
                 </label>
 
+                @include('loops.partials.pitch-field', ['value' => $currentLoop->pitch])
+
                 <fieldset>
                     <legend class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('loops.type_label') }}</legend>
                     <p class="mb-2 mt-1 text-xs text-gray-400">

@@ -341,6 +341,13 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             // TASK-1884 #7 (demande Cyril, 22/11) — tache d'article confiee :
             // in-app + email configurables, AUCUN Web Push (sobriete).
             NotificationCatalogue::BLOG_TODO_ASSIGNED,
+            // TASK-1885 C5 (demande Cyril, 22/11) — message recu dans une
+            // DISCUSSION PRIVEE : « email, app, pwa actives par defaut », et un
+            // reglage. Les trois canaux ON et configurables. Le nom evite
+            // « message » (garde anti-bruit ci-dessous) : une discussion privee
+            // vise UNE personne. L'email n'est pas planifie (`planned => false`) :
+            // il part deja par `SendNewMessageReceivedEmail`.
+            NotificationCatalogue::CONVERSATION_PRIVATE_RECEIVED,
         ];
 
         sort($attendues);

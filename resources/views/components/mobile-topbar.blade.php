@@ -97,7 +97,9 @@
         'boucles.index' => __('navigation.loops'),
         'loops.index' => __('navigation.loops'),
         'organization.loops.index' => __('navigation.loops'),
-        'organization.flux' => __('navigation.feed'),
+        // TASK-1885 C8 (demande Cyril, 22/11) — « Flux - <Organisation> ».
+        'organization.flux' => currentOrganization() ? __('feed.title_with_org', ['org' => currentOrganization()->name]) : __('navigation.feed'),
+        'flux' => currentOrganization() ? __('feed.title_with_org', ['org' => currentOrganization()->name]) : __('navigation.feed'),
         'organization.flux.create' => __('navigation.new_announcement'),
         'blog.index' => __('navigation.blog'),
         'organization.blog.index' => __('navigation.blog'),
