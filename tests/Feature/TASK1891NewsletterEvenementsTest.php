@@ -65,7 +65,8 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         $this->assertSame('<p>A</p><p>B</p>', $blocs->developper('<p>A</p>{evenements;3}<p>B</p>', $this->org, 'fr'), 'Sans evenement : rien, pas meme le titre.');
 
         $publique = $this->evenement($this->org, 'Atelier public', ['_boucle' => 'public', 'visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->addHours(3)]);
-        $this->evenement($this->org, 'Assemblee', ['starts_at' => now()->addDays(4), 'format' => LoopEvent::FORMAT_ONLINE, 'location' => null]);
+        $this->evenement($this->org, 'Assemblee', ['starts_at' => now()->addDays(4), 'format' => LoopEvent::FORMAT_ONLINE, 'location' => null,
+            'meeting_url' => 'https://visio.example.org/ag', 'description' => "Ordre du **jour** : budget\n\net bureau."]);
         $this->evenement($this->org, 'En cours', ['_boucle' => 'public', 'visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->subHour(), 'ends_at' => now()->addHour()]);
         $this->evenement($this->org, 'Plus tard', ['_boucle' => 'public', 'starts_at' => now()->addDays(9)]);
         $this->evenement($this->org, 'Boucle privee', ['visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->addHours(2)]);
@@ -75,12 +76,15 @@ class TASK1891NewsletterEvenementsTest extends TestCase
 
         $html = (new HelpDigestBlocks)->developper('{evenements;1}', $this->org, 'fr', null, null, null, 3);
 
-        $this->assertStringContainsString('À l’agenda', $html);
+        $this->assertStringContainsString('>Agenda</h2>', $html);
         $this->assertSame(3, substr_count($html, '<li'), 'Le nombre de l ecran remplace celui du gabarit.');
         $this->assertLessThan(strpos($html, 'Atelier public'), strpos($html, 'En cours'));
         $this->assertLessThan(strpos($html, 'Assemblee'), strpos($html, 'Atelier public'));
-        $this->assertStringContainsString('en ligne', $html);
-        $this->assertStringContainsString('Salle A', $html);
+        // Titre, description (Markdown rendu en texte), lien de connexion ou lieu.
+        $this->assertStringContainsString('Ordre du jour : budget et bureau.', $html);
+        $this->assertStringContainsString('Lien de connexion : <a href="https://visio.example.org/ag">https://visio.example.org/ag</a>', $html);
+        $this->assertStringContainsString('Lieu : Salle A', $html);
+        $this->assertStringNotContainsString('visio.example.org/ag</a></span><br><span style="color:#374151">Lieu', $html, 'En ligne : pas de lieu.');
         $this->assertStringContainsString('— Boucle Atelier public', $html);
         // Boucle publique : lien vers la Boucle ; remonte a l'organisation : l'agenda.
         $this->assertStringContainsString(route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $publique->loop->slug]), $html);
@@ -90,7 +94,10 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         }
 
         $this->assertSame('', (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'fr', null, null, null, 0));
-        $this->assertStringContainsString('Coming up', (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'en'));
+        $en = (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'en');
+        $this->assertStringContainsString('>Agenda</h2>', $en);
+        $this->assertStringContainsString('Join link: ', $en);
+        $this->assertStringContainsString('Location: Salle A', $en);
         $this->assertTrue((new HelpDigestBlocks)->aDuContenu($this->org, 0, 0, 0, 1));
         $this->assertFalse((new HelpDigestBlocks)->aDuContenu($this->autre, 0, 0, 0, 0));
     }
@@ -101,6 +108,17 @@ class TASK1891NewsletterEvenementsTest extends TestCase
 
         $this->assertSame('', (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'fr'));
         $this->assertFalse((new HelpDigestBlocks)->aDuContenu($this->org, 0, 0, 0, 3));
+    }
+
+    public function test_un_lien_de_connexion_non_web_n_est_jamais_cliquable(): void
+    {
+        $this->evenement($this->org, 'Visio douteuse', ['format' => LoopEvent::FORMAT_HYBRID, 'meeting_url' => 'javascript:alert(1)', 'location' => 'Mairie']);
+
+        $html = (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'fr');
+
+        $this->assertStringNotContainsString('javascript:', $html);
+        $this->assertStringContainsString('En ligne', $html);
+        $this->assertStringContainsString('Lieu : Mairie', $html, 'Hybride : le lieu aussi.');
     }
 
     public function test_le_titre_de_l_evenement_est_echappe(): void
@@ -168,7 +186,7 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         ])->assertOk()->json();
 
         $this->assertStringContainsString('Assemblee generale', $rendu['html']);
-        $this->assertLessThan(strpos($rendu['html'], 'Ils ont besoin d’aide'), strpos($rendu['html'], 'À l’agenda'));
+        $this->assertLessThan(strpos($rendu['html'], 'Ils ont besoin d’aide'), strpos($rendu['html'], '>Agenda</h2>'));
         $this->assertGreaterThanOrEqual(1, $rendu['recipients']);
     }
 

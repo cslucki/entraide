@@ -148,7 +148,7 @@ final class HelpDigestBlocks
                     ->orWhere(fn ($q) => $q->whereNull('ends_at')->where('starts_at', '>', now())))
                 ->orderBy('starts_at')
                 ->limit($n)
-                ->get(['id', 'title', 'starts_at', 'ends_at', 'timezone', 'format', 'location', 'organization_id', 'loop_id', 'status', 'visibility']),
+                ->get(['id', 'title', 'description', 'starts_at', 'ends_at', 'timezone', 'format', 'location', 'meeting_url', 'organization_id', 'loop_id', 'status', 'visibility']),
             // Billets publies et listes dans le blog, les plus recents d'abord.
             self::BILLETS => BlogPost::query()->published()
                 ->where('organization_id', $organization->id)
@@ -191,8 +191,9 @@ final class HelpDigestBlocks
     }
 
     /**
-     * TASK-1891 — « titre — Boucle / date et heure — lieu », un lien vers
-     * l'agenda (evenement d'organisation) ou la Boucle publique. Titre de section COMPRIS : sans evenement, rien du tout.
+     * TASK-1891 — section « Agenda » : titre (lien vers l'agenda ou la Boucle
+     * publique) — Boucle, date et heure, description, lien de connexion
+     * et/ou lieu selon le format. Titre de section COMPRIS : sans evenement, rien du tout.
      */
     private function blocEvenements(Organization $organization, Collection $evenements, string $langue): string
     {
@@ -213,18 +214,39 @@ final class HelpDigestBlocks
                 ? $agenda
                 : route('organization.loops.show', ['organization' => $organization->slug, 'loop' => $boucle->slug ?: $boucle->getKey()]);
             $quand = $evenement->startsAtLocal()->locale($langue)->isoFormat($fr ? 'dddd D MMMM, HH:mm' : 'dddd, MMMM D, h:mm A');
-            $ou = $evenement->format === LoopEvent::FORMAT_ONLINE
-                ? ($fr ? 'en ligne' : 'online')
-                : trim((string) $evenement->location);
 
-            return '<li style="margin:0 0 12px">'
+            // Demande Cyril (23/11) : titre, description, lien de connexion ou lieu.
+            $texte = html_entity_decode(strip_tags(\Illuminate\Support\Str::markdown((string) $evenement->description, ['html_input' => 'strip'])), ENT_QUOTES | ENT_HTML5);
+            $description = \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', $texte)), 220);
+
+            $distance = in_array($evenement->format, [LoopEvent::FORMAT_ONLINE, LoopEvent::FORMAT_HYBRID], true);
+            $presence = in_array($evenement->format, [LoopEvent::FORMAT_IN_PERSON, LoopEvent::FORMAT_HYBRID], true);
+            $connexion = trim((string) $evenement->meeting_url);
+            // Seul un lien http(s) devient cliquable (valide a la creation, revalide ici).
+            $connexion = $distance && preg_match('#^https?://#i', $connexion) ? $connexion : '';
+            $lieu = $presence ? trim((string) $evenement->location) : '';
+
+            $acces = '';
+            if ($connexion !== '') {
+                $acces .= '<br><span style="color:#374151">'.e($fr ? 'Lien de connexion : ' : 'Join link: ')
+                    .'<a href="'.e($connexion).'">'.e($connexion).'</a></span>';
+            } elseif ($distance) {
+                $acces .= '<br><span style="color:#374151">'.e($fr ? 'En ligne' : 'Online').'</span>';
+            }
+            if ($lieu !== '') {
+                $acces .= '<br><span style="color:#374151">'.e(($fr ? 'Lieu : ' : 'Location: ').$lieu).'</span>';
+            }
+
+            return '<li style="margin:0 0 14px">'
                 .'<a href="'.e($lien).'" style="font-weight:600">'.e((string) $evenement->title).'</a>'
                 .($boucle?->name ? ' <span style="color:#6b7280">— '.e((string) $boucle->name).'</span>' : '')
-                .'<br><span style="color:#374151">'.e(\Illuminate\Support\Str::ucfirst($quand)).($ou !== '' ? ' — '.e($ou) : '').'</span>'
+                .'<br><span style="color:#374151">'.e(\Illuminate\Support\Str::ucfirst($quand)).'</span>'
+                .($description !== '' ? '<br><span style="color:#374151">'.e($description).'</span>' : '')
+                .$acces
                 .'</li>';
         })->implode('');
 
-        return '<h2 style="font-size:18px;margin:24px 0 8px">'.e($fr ? 'À l’agenda' : 'Coming up').'</h2>'
+        return '<h2 style="font-size:18px;margin:24px 0 8px">Agenda</h2>'
             .'<ul style="padding-left:18px;margin:8px 0 16px">'.$lignes.'</ul>';
     }
 
