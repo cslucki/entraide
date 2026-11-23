@@ -337,6 +337,8 @@ class AdminSystemEmailTemplatesController extends Controller
             'loop_tagline' => $fr ? 'Ensemble, on va plus loin' : 'Together we go further',
             'personal_message' => $fr ? 'Au plaisir de vous accueillir parmi nous !' : 'Looking forward to welcoming you!',
             'expires_at' => now()->addDays(7)->isoFormat('LL'),
+            // TASK-1894 — l'objet par defaut de la newsletter (T1891) porte la date.
+            'newsletter_date' => now('Europe/Paris')->format($fr ? 'd/m/y' : 'm/d/y'),
         ];
 
         $demo = [];
