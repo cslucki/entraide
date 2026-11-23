@@ -4,6 +4,9 @@ return [
     'by_amt' => 'Un projet porté par l\'AMT',
     'partner_artscilab' => 'en partenariat avec ArtSciLab',
     'mentions_legales' => 'Mentions légales',
+    // TASK-1898
+    'privacy' => 'Confidentialité',
+    'account_deletion' => 'Supprimer mon compte',
     // TASK-1608 — le lien vers la carte interactive, juste a droite de Mycelium.
     'flowchart' => 'Logigramme',
     'kit_demo' => 'Kit démo',
