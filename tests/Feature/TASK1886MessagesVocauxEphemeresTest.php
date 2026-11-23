@@ -348,4 +348,91 @@ class TASK1886MessagesVocauxEphemeresTest extends TestCase
             ->assertSeeHtml('data-message-voice-expired')
             ->assertSee(__('messages.voice_expired'));
     }
+
+    // ── 4. TASK-1887 : le depot temporaire S3 de Laravel Cloud ──────────────
+    //
+    // En PROD, le depot temporaire Livewire est sur S3 : `getMimeType()` y rend
+    // le Content-Type ANNONCE par le navigateur (`audio/webm;codecs=opus`).
+    // Sous les tests, Livewire rend de meme le type DECLARE du faux fichier :
+    // declarer ce type reproduit exactement le refus constate le 23/11.
+
+    /** Un fichier au type annonce choisi, au contenu reel donne. */
+    private function annonce(string $nom, string $typeAnnonce, string $contenu): UploadedFile
+    {
+        $fichier = UploadedFile::fake()->create($nom, 0, $typeAnnonce);
+        file_put_contents($fichier->getPathname(), $contenu);
+
+        return $fichier;
+    }
+
+    /** L'en-tete MP4/AAC d'un enregistrement Safari (`ftyp M4A `). */
+    private function enteteM4a(): string
+    {
+        return "\x00\x00\x00\x1CftypM4A \x00\x00\x02\x00isomiso2mp41\x00\x00\x00\x08free".str_repeat("\0", 64);
+    }
+
+    public function test_un_webm_annonce_avec_codecs_est_accepte_et_enregistre_en_audio_webm(): void
+    {
+        // L'objet reste vivant : la fabrique efface son fichier a sa liberation.
+        $enregistrement = $this->enregistrement();
+        $contenu = file_get_contents($enregistrement->getPathname());
+
+        $composant = Livewire::actingAs($this->acheteur)
+            ->test(MessageThread::class, ['transaction' => $this->echange])
+            ->set('voiceDuration', 4)
+            ->set('voice', $this->annonce('vocal.webm', 'audio/webm;codecs=opus', $contenu));
+
+        // Le cas de PROD est bien reproduit : le type lu par Livewire est l'annonce.
+        $this->assertSame('audio/webm;codecs=opus', $composant->get('voice')->getMimeType());
+
+        $composant->assertHasNoErrors()->call('sendMessage')->assertHasNoErrors();
+
+        $vocal = Message::whereNotNull('voice_expires_at')->firstOrFail();
+        $this->assertSame('audio/webm', $vocal->file_mime);
+        $this->assertStringStartsWith('message-voice/', $vocal->file_path);
+        Storage::disk('message_files')->assertExists($vocal->file_path);
+    }
+
+    public function test_un_pdf_annonce_audio_webm_est_refuse_sur_son_contenu(): void
+    {
+        $pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n";
+
+        Livewire::actingAs($this->acheteur)
+            ->test(MessageThread::class, ['transaction' => $this->echange])
+            ->set('voice', $this->annonce('vocal.webm', 'audio/webm', $pdf))
+            ->assertHasErrors('voice')
+            ->assertSet('voice', null)
+            ->call('sendMessage');
+
+        $this->assertSame(0, Message::where('transaction_id', $this->echange->id)->count());
+        $this->assertSame([], Storage::disk('message_files')->allFiles());
+    }
+
+    public function test_le_refus_s_affiche_puis_s_efface_a_la_tentative_valide(): void
+    {
+        $pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n";
+        $enregistrement = $this->enregistrement();
+        $webm = file_get_contents($enregistrement->getPathname());
+
+        Livewire::actingAs($this->acheteur)
+            ->test(MessageThread::class, ['transaction' => $this->echange])
+            ->set('voice', $this->annonce('vocal.webm', 'audio/webm;codecs=opus', $pdf))
+            ->assertSee(__('messages.voice_invalid'))
+            ->set('voice', $this->annonce('vocal.webm', 'audio/webm;codecs=opus', $webm))
+            ->assertHasNoErrors('voice')
+            ->assertDontSee(__('messages.voice_invalid'));
+    }
+
+    public function test_un_m4a_safari_annonce_avec_codecs_est_enregistre_en_audio_mp4(): void
+    {
+        Livewire::actingAs($this->acheteur)
+            ->test(MessageThread::class, ['transaction' => $this->echange])
+            ->set('voiceDuration', 3)
+            ->set('voice', $this->annonce('vocal.m4a', 'audio/mp4;codecs=mp4a.40.2', $this->enteteM4a()))
+            ->assertHasNoErrors()
+            ->call('sendMessage')
+            ->assertHasNoErrors();
+
+        $this->assertSame('audio/mp4', Message::whereNotNull('voice_expires_at')->firstOrFail()->file_mime);
+    }
 }
