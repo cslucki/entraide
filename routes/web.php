@@ -70,6 +70,7 @@ use App\Http\Controllers\Admin\OrgWorkshopRegistrantsController;
 use App\Http\Controllers\Admin\OrgWorkshopSessionController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
+use App\Http\Controllers\AndroidAssetLinksController;
 use App\Http\Controllers\Auth\AccountLinkController;
 use App\Http\Controllers\Auth\AccountSwitchController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -397,6 +398,12 @@ Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap')
 // fichier statique de `public/`) pour que `name`/`short_name` varient par
 // environnement. Voir `PwaManifestController` pour le pourquoi complet.
 Route::get('/site.webmanifest', PwaManifestController::class)->name('pwa.manifest');
+// TASK-1895 — Digital Asset Links de l'application Android (TWA). HORS du
+// groupe `web` : le verificateur Google exige un 200 direct, sans redirection,
+// et n'a que faire d'une session. Voir `AndroidAssetLinksController`.
+Route::get('/.well-known/assetlinks.json', AndroidAssetLinksController::class)
+    ->withoutMiddleware('web')
+    ->name('android.assetlinks');
 // TASK-1488 (P0 privacy) — /search etait un CONTOURNEMENT vivant du correctif
 // deja merge par TASK-1479. Mesure : un anonyme obtenait 200 avec le nom
 // complet, la ville et la note de membres d'une Organization privee — les
