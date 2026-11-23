@@ -101,7 +101,8 @@ class TASK1788Correctif02AvatarSuppressionTest extends TestCase
         $this->membre->refresh();
 
         $this->assertNull($this->membre->avatar, 'La photo n\'a pas ete supprimee.');
-        $this->assertStringContainsString('ui-avatars.com', $this->membre->avatar_url,
+        // TASK-1896 — les initiales sont generees LOCALEMENT (SVG en data URI).
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $this->membre->avatar_url,
             'Apres suppression, le profil doit retomber sur les initiales generees.');
     }
 
@@ -216,7 +217,8 @@ class TASK1788Correctif02AvatarSuppressionTest extends TestCase
         $this->membre->refresh();
 
         $this->assertNull($this->membre->avatar, 'La fenetre n\'a pas supprime la photo.');
-        $this->assertStringContainsString('ui-avatars.com', $this->membre->avatar_url,
+        // TASK-1896 — les initiales sont generees LOCALEMENT (SVG en data URI).
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $this->membre->avatar_url,
             'Apres suppression, le profil doit retomber sur les initiales generees.');
     }
 
