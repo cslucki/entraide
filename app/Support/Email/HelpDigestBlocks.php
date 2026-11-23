@@ -3,6 +3,7 @@
 namespace App\Support\Email;
 
 use App\Models\BlogPost;
+use App\Models\LoopEvent;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -33,9 +34,18 @@ final class HelpDigestBlocks
     /** Demande Cyril (22/11) : les derniers billets de blog, en option. */
     public const BILLETS = 'billets_blog';
 
+    /**
+     * TASK-1891 (demande Cyril, 23/11) — les prochains evenements, EN TETE de
+     * la newsletter : ceux des Boucles, « sauf les Boucles privees, accessibles
+     * sur invitation ». Donc tout evenement d'une Boucle PUBLIQUE, plus ceux
+     * qu'un auteur a remontes a toute l'organisation. Le bloc est le meme pour
+     * tous les membres : rien d'une Boucle privee n'y entre autrement.
+     */
+    public const EVENEMENTS = 'evenements';
+
     public const MAX = 10;
 
-    public const MOTIF = '/\{(demande_aide|proposition_aide|billets_blog);(\d{1,2})\}/';
+    public const MOTIF = '/\{(demande_aide|proposition_aide|billets_blog|evenements);(\d{1,2})\}/';
 
     /** @var array<string, Collection> */
     private array $elements = [];
@@ -50,18 +60,19 @@ final class HelpDigestBlocks
      * donnes (ecran d'envoi), remplacent le N ecrit dans le gabarit. Un N hors
      * de 1..MAX laisse le bloc tel quel.
      */
-    public function developper(string $html, Organization $organization, string $langue, ?int $nDemandes = null, ?int $nPropositions = null, ?int $nBillets = null): string
+    public function developper(string $html, Organization $organization, string $langue, ?int $nDemandes = null, ?int $nPropositions = null, ?int $nBillets = null, ?int $nEvenements = null): string
     {
-        return preg_replace_callback(self::MOTIF, function (array $m) use ($organization, $langue, $nDemandes, $nPropositions, $nBillets) {
+        return preg_replace_callback(self::MOTIF, function (array $m) use ($organization, $langue, $nDemandes, $nPropositions, $nBillets, $nEvenements) {
             $type = $m[1];
             $n = match ($type) {
                 self::DEMANDES => $nDemandes,
                 self::PROPOSITIONS => $nPropositions,
+                self::EVENEMENTS => $nEvenements,
                 default => $nBillets,
             } ?? (int) $m[2];
 
-            // Billets : 0 demande « rien », titre de section compris.
-            if ($type === self::BILLETS && $n === 0) {
+            // Billets, evenements : 0 demande « rien », titre de section compris.
+            if (in_array($type, [self::BILLETS, self::EVENEMENTS], true) && $n === 0) {
                 return '';
             }
 
@@ -74,11 +85,12 @@ final class HelpDigestBlocks
     }
 
     /** Vrai si l'organisation a au moins une demande ouverte ou une proposition active a montrer. */
-    public function aDuContenu(Organization $organization, int $nDemandes, int $nPropositions, int $nBillets = 0): bool
+    public function aDuContenu(Organization $organization, int $nDemandes, int $nPropositions, int $nBillets = 0, int $nEvenements = 0): bool
     {
         return ($nDemandes > 0 && $this->elements($organization, self::DEMANDES, $nDemandes)->isNotEmpty())
             || ($nPropositions > 0 && $this->elements($organization, self::PROPOSITIONS, $nPropositions)->isNotEmpty())
-            || ($nBillets > 0 && $this->elements($organization, self::BILLETS, $nBillets)->isNotEmpty());
+            || ($nBillets > 0 && $this->elements($organization, self::BILLETS, $nBillets)->isNotEmpty())
+            || ($nEvenements > 0 && $this->elements($organization, self::EVENEMENTS, $nEvenements)->isNotEmpty());
     }
 
     private function bloc(Organization $organization, string $langue, string $type, int $n): string
@@ -88,6 +100,10 @@ final class HelpDigestBlocks
 
         if ($type === self::BILLETS) {
             return $this->blocBillets($organization, $elements, $fr);
+        }
+
+        if ($type === self::EVENEMENTS) {
+            return $this->blocEvenements($organization, $elements, $langue);
         }
 
         if ($elements->isEmpty()) {
@@ -121,6 +137,18 @@ final class HelpDigestBlocks
         $cle = $organization->id.'|'.$type.'|'.$n;
 
         return $this->elements[$cle] ??= $this->dans($organization, fn () => match ($type) {
+            // Les plus proches d'abord ; ni annules, ni termines.
+            self::EVENEMENTS => LoopEvent::query()
+                ->where('organization_id', $organization->id)
+                ->where(fn ($q) => $q->where('visibility', LoopEvent::VISIBILITY_ORGANIZATION)
+                    ->orWhereHas('loop', fn ($boucle) => $boucle->where('visibility', 'public')))
+                ->with('loop:id,name,slug,visibility,organization_id')
+                ->where('status', '!=', LoopEvent::STATUS_CANCELLED)
+                ->where(fn ($q) => $q->where('ends_at', '>', now())
+                    ->orWhere(fn ($q) => $q->whereNull('ends_at')->where('starts_at', '>', now())))
+                ->orderBy('starts_at')
+                ->limit($n)
+                ->get(['id', 'title', 'description', 'starts_at', 'ends_at', 'timezone', 'format', 'location', 'meeting_url', 'organization_id', 'loop_id', 'status', 'visibility']),
             // Billets publies et listes dans le blog, les plus recents d'abord.
             self::BILLETS => BlogPost::query()->published()
                 ->where('organization_id', $organization->id)
@@ -159,6 +187,66 @@ final class HelpDigestBlocks
         })->implode('');
 
         return '<h2 style="font-size:18px;margin:24px 0 8px">'.e($fr ? 'À lire sur le blog' : 'On the blog').'</h2>'
+            .'<ul style="padding-left:18px;margin:8px 0 16px">'.$lignes.'</ul>';
+    }
+
+    /**
+     * TASK-1891 — section « Agenda » : titre (lien vers l'agenda ou la Boucle
+     * publique) — Boucle, date et heure, description, lien de connexion
+     * et/ou lieu selon le format. Titre de section COMPRIS : sans evenement, rien du tout.
+     */
+    private function blocEvenements(Organization $organization, Collection $evenements, string $langue): string
+    {
+        if ($evenements->isEmpty()) {
+            return '';
+        }
+
+        $fr = $langue !== 'en';
+        $agenda = $organization->is_default
+            ? route('events.agenda')
+            : route('organization.events.agenda', ['organization' => $organization->slug]);
+
+        $lignes = $evenements->map(function (LoopEvent $evenement) use ($organization, $agenda, $langue, $fr) {
+            // Remonte a toute l'organisation : l'agenda le montre a chacun.
+            // Sinon (Boucle publique) : la Boucle, que tout membre peut ouvrir.
+            $boucle = $evenement->loop;
+            $lien = $evenement->visibility === LoopEvent::VISIBILITY_ORGANIZATION || $boucle === null
+                ? $agenda
+                : route('organization.loops.show', ['organization' => $organization->slug, 'loop' => $boucle->slug ?: $boucle->getKey()]);
+            $quand = $evenement->startsAtLocal()->locale($langue)->isoFormat($fr ? 'dddd D MMMM, HH:mm' : 'dddd, MMMM D, h:mm A');
+
+            // Demande Cyril (23/11) : titre, description, lien de connexion ou lieu.
+            $texte = html_entity_decode(strip_tags(\Illuminate\Support\Str::markdown((string) $evenement->description, ['html_input' => 'strip'])), ENT_QUOTES | ENT_HTML5);
+            $description = \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', $texte)), 220);
+
+            $distance = in_array($evenement->format, [LoopEvent::FORMAT_ONLINE, LoopEvent::FORMAT_HYBRID], true);
+            $presence = in_array($evenement->format, [LoopEvent::FORMAT_IN_PERSON, LoopEvent::FORMAT_HYBRID], true);
+            $connexion = trim((string) $evenement->meeting_url);
+            // Seul un lien http(s) devient cliquable (valide a la creation, revalide ici).
+            $connexion = $distance && preg_match('#^https?://#i', $connexion) ? $connexion : '';
+            $lieu = $presence ? trim((string) $evenement->location) : '';
+
+            $acces = '';
+            if ($connexion !== '') {
+                $acces .= '<br><span style="color:#374151">'.e($fr ? 'Lien de connexion : ' : 'Join link: ')
+                    .'<a href="'.e($connexion).'">'.e($connexion).'</a></span>';
+            } elseif ($distance) {
+                $acces .= '<br><span style="color:#374151">'.e($fr ? 'En ligne' : 'Online').'</span>';
+            }
+            if ($lieu !== '') {
+                $acces .= '<br><span style="color:#374151">'.e(($fr ? 'Lieu : ' : 'Location: ').$lieu).'</span>';
+            }
+
+            return '<li style="margin:0 0 14px">'
+                .'<a href="'.e($lien).'" style="font-weight:600">'.e((string) $evenement->title).'</a>'
+                .($boucle?->name ? ' <span style="color:#6b7280">— '.e((string) $boucle->name).'</span>' : '')
+                .'<br><span style="color:#374151">'.e(\Illuminate\Support\Str::ucfirst($quand)).'</span>'
+                .($description !== '' ? '<br><span style="color:#374151">'.e($description).'</span>' : '')
+                .$acces
+                .'</li>';
+        })->implode('');
+
+        return '<h2 style="font-size:18px;margin:24px 0 8px">Agenda</h2>'
             .'<ul style="padding-left:18px;margin:8px 0 16px">'.$lignes.'</ul>';
     }
 

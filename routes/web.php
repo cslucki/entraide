@@ -1631,6 +1631,13 @@ Route::prefix('/org/{organization}')
         Route::get('/', [OrganizationLandingController::class, '__invoke'])
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('home');
+        // TASK-1891 (Cyril, 23/11) — desinscription de la newsletter SCOPEE a
+        // l'organisation du membre. Lien SIGNE, sans connexion (comme
+        // `/newsletter/desinscription/{compte}`, garde pour les lettres deja
+        // parties) ; le compte doit appartenir a cette organisation.
+        Route::get('/newsletter/desinscription/{compte}', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'show'])->withoutMiddleware(['auth', 'organization.member'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe');
+        Route::post('/newsletter/desinscription/{compte}', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'destroy'])->withoutMiddleware(['auth', 'organization.member'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe.confirm');
+        Route::post('/newsletter/desinscription/{compte}/annuler', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'resubscribe'])->withoutMiddleware(['auth', 'organization.member'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe.undo');
         // TASK-1442 — SW-8a : la surface publique du Shell Welcome (lecture pure + premier geste). Distincte du Shell membre.
         Route::get('/shell', [GuestShellController::class, 'show'])->middleware('throttle:60,1')->name('shell.show');
         Route::post('/shell/message', [GuestShellController::class, 'message'])->middleware('throttle:30,1')->name('shell.message');

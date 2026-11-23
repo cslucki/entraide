@@ -21,6 +21,28 @@
     l'incorporation des styles. Le HTML brut y survit — verifie,
     `Illuminate\Mail\Markdown::parse()` le laisse intact.
 --}}
+{{-- TASK-1891 (Cyril, 23/11) — la newsletter parle au nom de l'organisation :
+     en-tete et pied portent SON nom (`$marque`), pas la marque de la
+     plateforme. Sans `$marque`, habillage standard, inchange pour les autres
+     courriels systeme. --}}
+@isset($marque)
+<x-mail::layout>
+<x-slot:header>
+<x-mail::header :url="$marqueUrl ?? config('app.url')">
+{{ $marque }}
+</x-mail::header>
+</x-slot:header>
+
+{!! $html !!}
+
+<x-slot:footer>
+<x-mail::footer>
+© {{ date('Y') }} {{ $marque }}
+</x-mail::footer>
+</x-slot:footer>
+</x-mail::layout>
+@else
 @component('mail::message')
 {!! $html !!}
 @endcomponent
+@endisset

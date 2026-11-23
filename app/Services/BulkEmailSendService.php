@@ -516,7 +516,7 @@ class BulkEmailSendService
      * (`$organizationIds` vide = toutes), comptes actifs abonnes, et seulement
      * dans les organisations qui ont quelque chose a montrer.
      *
-     * @param  array{organization_ids: list<string>, subject: ?string, demand_count: int, offer_count: int, blog_count?: int}  $data
+     * @param  array{organization_ids: list<string>, subject: ?string, demand_count: int, offer_count: int, blog_count?: int, event_count?: int}  $data
      */
     public function createNewsletterSend(array $data, User $admin): BulkEmailSend
     {
@@ -532,6 +532,7 @@ class BulkEmailSendService
                 'demand_count' => $data['demand_count'],
                 'offer_count' => $data['offer_count'],
                 'blog_count' => (int) ($data['blog_count'] ?? 0),
+                'event_count' => (int) ($data['event_count'] ?? 0),
                 'status' => BulkEmailSend::STATUS_DRAFT,
                 'total_recipients' => 0,
                 'sent_count' => 0,
@@ -541,7 +542,7 @@ class BulkEmailSendService
 
             $send->organizations()->sync($ids);
 
-            $userIds = $this->newsletterRecipients($ids, (int) $data['demand_count'], (int) $data['offer_count'], (int) ($data['blog_count'] ?? 0))->pluck('id');
+            $userIds = $this->newsletterRecipients($ids, (int) $data['demand_count'], (int) $data['offer_count'], (int) ($data['blog_count'] ?? 0), (int) ($data['event_count'] ?? 0))->pluck('id');
 
             $now = now();
             foreach ($userIds->chunk(500) as $lot) {
@@ -570,13 +571,13 @@ class BulkEmailSendService
      *
      * @param  list<string>  $organizationIds  vide = toutes
      */
-    public function newsletterRecipients(array $organizationIds, int $demandCount, int $offerCount, int $blogCount = 0): Builder
+    public function newsletterRecipients(array $organizationIds, int $demandCount, int $offerCount, int $blogCount = 0, int $eventCount = 0): Builder
     {
         $blocs = new HelpDigestBlocks;
         $avecContenu = Organization::query()
             ->when($organizationIds !== [], fn ($q) => $q->whereIn('id', $organizationIds))
             ->get()
-            ->filter(fn (Organization $org) => $blocs->aDuContenu($org, $demandCount, $offerCount, $blogCount))
+            ->filter(fn (Organization $org) => $blocs->aDuContenu($org, $demandCount, $offerCount, $blogCount, $eventCount))
             ->pluck('id')
             ->all();
 
@@ -611,9 +612,10 @@ class BulkEmailSendService
         $demandes = (int) ($send->demand_count ?? 3);
         $propositions = (int) ($send->offer_count ?? 3);
         $billets = (int) ($send->blog_count ?? 0);
+        $evenements = (int) ($send->event_count ?? 0);
         $this->blocs ??= new HelpDigestBlocks;
 
-        if (! $apercu && ! $this->blocs->aDuContenu($org, $demandes, $propositions, $billets)) {
+        if (! $apercu && ! $this->blocs->aDuContenu($org, $demandes, $propositions, $billets, $evenements)) {
             return null;
         }
 
@@ -626,23 +628,32 @@ class BulkEmailSendService
             return null;
         }
 
-        // Apercu : membre FICTIF, son lien signe menerait a un 404 ; lien inerte.
-        $desinscription = $apercu ? '#desinscription-apercu' : NewsletterSubscriptionController::urlDesinscription($user);
+        // TASK-1891 (Cyril, 23/11) — l'apercu montre le MEME lien que l'envoi :
+        // scope a l'organisation, signe. Le membre de l'apercu est fictif : son
+        // lien a la bonne forme, mais ne mene a aucun compte (404).
+        $desinscription = NewsletterSubscriptionController::urlDesinscription($user);
         $vars = $this->emailer->availableVariables($user) + [
             'recipient_name' => $user->publicDisplayName(),
             'organization_name' => (string) $org->name,
             'explorer_url' => $org->is_default ? route('explorer') : route('organization.explorer', ['organization' => $org->slug]),
             'unsubscribe_url' => $desinscription,
             'app_name' => (string) config('app.name'),
+            // TASK-1891 (Cyril, 23/11) — « [OFSH] - newsletter du 21/11/26 ».
+            'newsletter_date' => now('Europe/Paris')->format($langue === 'en' ? 'm/d/y' : 'd/m/y'),
         ];
-        $cles = ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name'];
+        $cles = ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name', 'newsletter_date'];
 
-        $html = $this->blocs->developper((string) $gabarit->content_html, $org, $langue, $demandes, $propositions, $billets);
+        $html = $this->blocs->developper((string) $gabarit->content_html, $org, $langue, $demandes, $propositions, $billets, $evenements);
         $html = $this->emailer->interpolate($html, $vars, $cles);
 
         return [
             'subject' => $this->emailer->interpolateSubject(filled($send->subject) ? $send->subject : (string) $gabarit->subject, $vars, $cles),
-            'body' => (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]),
+            // TASK-1891 — en-tete et pied au nom de l'organisation du membre.
+            'body' => (string) app(Markdown::class)->render('emails.system-email', [
+                'html' => $html,
+                'marque' => (string) $org->name,
+                'marqueUrl' => $vars['explorer_url'],
+            ]),
             'unsubscribe_url' => $desinscription,
         ];
     }
@@ -735,6 +746,7 @@ class BulkEmailSendService
                     'demand_count' => $send->demand_count,
                     'offer_count' => $send->offer_count,
                     'blog_count' => $send->blog_count,
+                    'event_count' => $send->event_count,
                 ] : [
                     'source' => 'bulk-email',
                     'sender_id' => $sender?->id,
