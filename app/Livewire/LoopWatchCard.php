@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\Loop;
 use App\Models\LoopWatchItem;
 use App\Services\Loops\LoopWatchService;
@@ -19,6 +20,23 @@ use Livewire\Component;
  */
 class LoopWatchCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'plugin.veille';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->resetForm();
+        $this->resetMessages();
+        $this->confirmingDeleteId = null;
+        $this->showCategories = false;
+        $this->renamingCategoryId = null;
+    }
+
     public Loop $loop;
 
     // ── Liste ───────────────────────────────────────────────────────────────

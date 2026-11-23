@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\CourseAssignment;
 use App\Models\Loop;
 use App\Models\LoopMember;
@@ -30,6 +31,21 @@ use Livewire\Component;
  */
 class LoopAssignmentsCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'training.assignments';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->showForm = false;
+        $this->editingId = null;
+        $this->openAssignmentId = null;
+    }
+
     public const FACE_MINE = 'mine';
 
     public const FACE_EVERYONE = 'everyone';
