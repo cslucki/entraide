@@ -70,6 +70,7 @@ use App\Http\Controllers\Admin\OrgWorkshopRegistrantsController;
 use App\Http\Controllers\Admin\OrgWorkshopSessionController;
 use App\Http\Controllers\AgentIaController;
 use App\Http\Controllers\AiAgentLoopController;
+use App\Http\Controllers\AndroidAssetLinksController;
 use App\Http\Controllers\Auth\AccountLinkController;
 use App\Http\Controllers\Auth\AccountSwitchController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -397,6 +398,12 @@ Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap')
 // fichier statique de `public/`) pour que `name`/`short_name` varient par
 // environnement. Voir `PwaManifestController` pour le pourquoi complet.
 Route::get('/site.webmanifest', PwaManifestController::class)->name('pwa.manifest');
+// TASK-1895 — Digital Asset Links de l'application Android (TWA). HORS du
+// groupe `web` : le verificateur Google exige un 200 direct, sans redirection,
+// et n'a que faire d'une session. Voir `AndroidAssetLinksController`.
+Route::get('/.well-known/assetlinks.json', AndroidAssetLinksController::class)
+    ->withoutMiddleware('web')
+    ->name('android.assetlinks');
 // TASK-1488 (P0 privacy) — /search etait un CONTOURNEMENT vivant du correctif
 // deja merge par TASK-1479. Mesure : un anonyme obtenait 200 avec le nom
 // complet, la ville et la note de membres d'une Organization privee — les
@@ -407,6 +414,11 @@ Route::get('/site.webmanifest', PwaManifestController::class)->name('pwa.manifes
 Route::get('/search', [SearchController::class, 'index'])->middleware(['auth', 'organization.member'])->name('search');
 Route::view('/aide', 'help')->name('help');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
+// TASK-1898 — pages publiques exigees par Google Play (politique de
+// confidentialite et suppression de compte), sur le modele des mentions
+// legales : contenu global unique, aucune authentification.
+Route::view('/confidentialite', 'legal.privacy')->name('confidentialite');
+Route::view('/suppression-de-compte', 'legal.account-deletion')->name('suppression-de-compte');
 Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
 // TASK-1612 — Open Source Explorer.
@@ -1745,6 +1757,16 @@ Route::prefix('/org/{organization}')
         Route::view('/mentions-legales', 'mentions-legales')
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('mentions-legales');
+
+        // TASK-1898 — confidentialite et suppression de compte servies DANS le
+        // contexte de l'Organization, exactement comme les mentions legales
+        // ci-dessus : MEME vue que la route globale, contenu unique.
+        Route::view('/confidentialite', 'legal.privacy')
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('confidentialite');
+        Route::view('/suppression-de-compte', 'legal.account-deletion')
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('suppression-de-compte');
 
         // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
         // l'Organization, exactement comme les mentions legales ci-dessus :

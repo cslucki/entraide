@@ -92,6 +92,11 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         // ne l'est plus.
         'organization.mentions-legales' => 'Mentions legales, contenu global servi dans le contexte de l\'Organization.',
 
+        // TASK-1898 — memes montage et nature que les mentions legales : pages
+        // exigees par Google Play, contenu global unique, rien d'interne.
+        'organization.confidentialite' => 'Politique de confidentialite, contenu global servi dans le contexte de l\'Organization.',
+        'organization.suppression-de-compte' => 'Suppression de compte, contenu global servi dans le contexte de l\'Organization.',
+
         // ─── TASK-1692 / MICRO-11.2B — DIX-HUIT ENTREES RETIREES ────────────
         //
         // Ces dix-huit surfaces etaient declarees publiques ici et ne le sont
@@ -374,6 +379,9 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         foreach ([
             'organization.home',
             'organization.mentions-legales',
+            // TASK-1898 — memes exceptions `withoutMiddleware()` que les mentions legales.
+            'organization.confidentialite',
+            'organization.suppression-de-compte',
             'organization.flowchart',
             'organization.mycelium',
             'organization.open-source',

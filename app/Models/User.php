@@ -685,7 +685,34 @@ class User extends Authenticatable implements MustVerifyEmail
             return (string) app(ImageVariantResolver::class)->url($this->avatar, 'avatar');
         }
 
-        return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name).'&background=6366f1&color=fff';
+        return $this->fallbackAvatarDataUri();
+    }
+
+    /**
+     * TASK-1896 — l'avatar de repli, dessine ICI plutot que demande a un tiers.
+     *
+     * Le repli etait `https://ui-avatars.com/api/?name=<nom complet>` : chaque
+     * affichage d'un membre sans photo envoyait son nom complet (et l'IP du
+     * visiteur) a un service externe. C'est desormais un SVG genere localement,
+     * rendu en `data:` URI : aucun appel reseau, rien ne quitte le serveur.
+     *
+     * Meme apparence qu'avant (fond #6366f1, initiales blanches) pour qu'aucune
+     * des ~50 vues qui lisent `avatar_url` ne change d'aspect. Les initiales
+     * viennent de `getInitialsAttribute()` et sont echappees pour le XML ; le
+     * base64 tient l'URI a l'abri des guillemets de l'attribut `src`.
+     */
+    public function fallbackAvatarDataUri(): string
+    {
+        $initiales = htmlspecialchars($this->initials, ENT_QUOTES | ENT_XML1 | ENT_SUBSTITUTE, 'UTF-8');
+
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">'
+            .'<rect width="64" height="64" fill="#6366f1"/>'
+            .'<text x="50%" y="50%" dy=".35em" text-anchor="middle" fill="#ffffff"'
+            .' font-family="system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"'
+            .' font-size="26" font-weight="600">'.$initiales.'</text>'
+            .'</svg>';
+
+        return 'data:image/svg+xml;base64,'.base64_encode($svg);
     }
 
     /**
