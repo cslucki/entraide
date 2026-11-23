@@ -166,6 +166,34 @@ class TASK1684DepotFichierBoucleTest extends TestCase
     }
 
     /**
+     * TASK-1889 — sur telephone, la galerie photo est proposee : une entree
+     * `image/*,video/*` SANS `capture` (avec `capture`, Android ouvrirait
+     * l'appareil photo au lieu de la galerie), branchee sur le MEME depot
+     * que le bouton Fichier.
+     */
+    public function test_la_card_propose_la_galerie_photo_sur_le_meme_depot(): void
+    {
+        $html = Livewire::actingAs($this->membre)
+            ->test(LoopDossiersCard::class, ['loop' => $this->loop])
+            ->assertSee(__('loops.cards.dossiers.upload_gallery'))
+            ->html();
+
+        $this->assertMatchesRegularExpression(
+            '/data-action="depot-galerie"[^>]*>\s*<input type="file" class="hidden" multiple accept="image\/\*,video\/\*" @change="deposer\(\$event\)">/',
+            $html,
+        );
+        $this->assertStringNotContainsString('capture', $this->entreeGalerie($html));
+        $this->assertSame(2, substr_count($html, '@change="deposer($event)"'), 'Fichier et galerie partagent le meme depot.');
+    }
+
+    private function entreeGalerie(string $html): string
+    {
+        $debut = strpos($html, 'data-action="depot-galerie"');
+
+        return substr($html, $debut, strpos($html, '</label>', $debut) - $debut);
+    }
+
+    /**
      * TASK-1684 recette 2 — le panneau « Nouveau » ne doit plus deborder.
      *
      * Ancre `left-0` sous 640 px, le panneau (`w-64`, 256 px) partait du bord

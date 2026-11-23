@@ -394,6 +394,28 @@ class TASK1828DossierCardContextualNavigationTest extends TestCase
             ->assertSee($file->id, false);
     }
 
+    /**
+     * TASK-1889 — renomme depuis Dossiers, le fichier se lit sous son nom
+     * ACTUEL dans la tuile du chat, et la tuile vise toujours le meme fichier.
+     */
+    public function test_la_tuile_du_chat_suit_le_renommage_du_fichier(): void
+    {
+        $file = $this->file(['original_name' => 'photo-chantier.jpg', 'display_name' => 'photo-chantier.jpg']);
+        app(\App\Services\LoopMessageService::class)->sendDossierFileMessage($this->loop, $this->owner, collect([$file]));
+
+        $this->actingAs($this->owner)
+            ->patchJson(route('organization.dossiers.files.rename', [$this->organization->slug, $file->dossier_id, $file->id]), ['display_name' => 'Facade nord'])
+            ->assertOk();
+
+        $this->actingAs($this->owner)
+            ->get(route('organization.loops.show', [$this->organization->slug, $this->loop]))
+            ->assertOk()
+            ->assertSee('« Facade nord.jpg »', false)
+            ->assertDontSee('photo-chantier.jpg', false)
+            ->assertSee("Livewire.dispatch('open-dossier-file-detail'", false)
+            ->assertSee($file->id, false);
+    }
+
     public function test_un_depot_multiple_recent_propose_voir_les_fichiers_depuis_le_chat(): void
     {
         $fileA = $this->file();

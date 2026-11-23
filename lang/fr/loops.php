@@ -663,6 +663,7 @@ return [
             'open' => 'Ouvrir',
             'create_article' => 'Écrire un Article',
             'upload_file' => 'Déposer un fichier',
+            'upload_gallery' => 'Photos de la galerie',
             'article_title_placeholder' => 'Titre de l\'Article',
             'article_start' => 'Créer et écrire',
             'uploading' => 'Envoi…',

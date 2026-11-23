@@ -659,6 +659,7 @@ return [
             'open' => 'Open',
             'create_article' => 'Write an article',
             'upload_file' => 'Upload a file',
+            'upload_gallery' => 'Gallery photos',
             'article_title_placeholder' => 'Article title',
             'article_start' => 'Create and write',
             'uploading' => 'Uploading…',
