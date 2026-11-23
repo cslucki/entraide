@@ -66,6 +66,9 @@ class LoopInvitationMailer
             'fallback_reason' => $fallbackReason,
         ];
 
+        // TASK-1894 — habille au nom de l'organisation de la Boucle.
+        $html = \App\Support\Email\HabillageOrganisation::envelopper($html, $invitation->organization, 'loop_invitation');
+
         try {
             Mail::html($html, function ($message) use ($invitation, $subject) {
                 $message->to($invitation->recipient_email)->subject($subject);

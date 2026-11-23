@@ -25,6 +25,9 @@
      en-tete et pied portent SON nom (`$marque`), pas la marque de la
      plateforme. Sans `$marque`, habillage standard, inchange pour les autres
      courriels systeme. --}}
+{{-- TASK-1894 — meme habillage pour tous les emails qui le recoivent :
+     `$signature` (+ `$reglagesUrl`, `$langue`) ajoute la fin commune,
+     voir `App\Support\Email\HabillageOrganisation`. --}}
 @isset($marque)
 <x-mail::layout>
 <x-slot:header>
@@ -34,6 +37,9 @@
 </x-slot:header>
 
 {!! $html !!}
+@isset($signature)
+@include('emails.partials.cloture')
+@endisset
 
 <x-slot:footer>
 <x-mail::footer>

@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\Email\HabillageOrganisation;
 use App\Models\SystemEmailTemplate;
 use App\Support\Email\SystemEmailTemplateResolver;
 use App\Services\EmailerService;
@@ -66,9 +67,11 @@ class VerifyEmailWithTemplate extends FrameworkVerifyEmail
             ->subject($emailer->interpolateSubject($template->subject, $vars, array_keys($extra)))
             // TASK-1694 bug P — `markdown()` et non `view()` : c'est ce chemin
                 // qui declenche l'habillage et l'incorporation des styles.
+                // TASK-1894 — habille au nom de l'organisation du compte (jamais
+                // de lien de reglages : cet email ne se coupe pas).
                 ->markdown('emails.system-email', [
                 'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extra)),
-            ]);
+            ] + HabillageOrganisation::pour($notifiable->organization ?? null, self::SLUG, $template->locale));
     }
 
     /**

@@ -220,9 +220,16 @@ class TASK1772MentionEmailEtCibleTest extends TestCase
             'Le courriel ne reprend pas le message : la personne doit ouvrir l\'application '
             .'pour savoir de quoi il s\'agit — c\'est exactement le FOMO qu\'on voulait retirer.');
 
+        // TASK-1894 — le lien de reglages n'est plus dans le corps du gabarit :
+        // c'est le CADRE commun (`emails.partials.cloture`, pose par
+        // `NotificationEmailDeliverer::habiller()`) qui le porte. La garantie
+        // se mesure donc sur le corps HABILLE, celui qui part.
+        $habille = view('emails.notification-shell', ['html' => $contenu['body'], 'themeCss' => '']
+            + \App\Support\Email\HabillageOrganisation::pour($this->org, 'notification', 'fr'))->render();
+
         $this->assertStringContainsString(
             route('organization.notifications.preferences.edit', ['organization' => $this->org]),
-            $contenu['body'],
+            $habille,
             'Aucun lien vers les reglages de notifications : le seul recours serait de chercher '
             .'dans l\'application, ou de ne plus lire nos courriels.');
     }

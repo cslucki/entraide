@@ -1151,6 +1151,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->middleware('throttle:10,1')->name('loop-plugins.models.refresh');
 
     Route::get('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'index'])->name('system-email-templates');
+    // TASK-1894 — tous les gabarits globaux d'une langue sur une page (lecture seule).
+    Route::get('/system-email-templates/view-all', [AdminSystemEmailTemplatesController::class, 'viewAll'])->name('system-email-templates.view-all');
     // TASK-1681 — creer UNE personnalisation (surcharge DESACTIVEE par
     // defaut, pre-remplie du catalogue canonique). Jamais de seed global.
     Route::post('/system-email-templates', [AdminSystemEmailTemplatesController::class, 'store'])->name('system-email-templates.store');

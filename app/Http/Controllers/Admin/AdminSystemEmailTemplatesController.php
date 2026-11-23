@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
+use App\Support\Email\HabillageOrganisation;
 use App\Support\Email\HelpDigestBlocks;
 use App\Services\EmailerService;
 use Database\Seeders\SystemEmailTemplateSeeder;
@@ -214,27 +215,94 @@ class AdminSystemEmailTemplatesController extends Controller
             'content_html' => 'required|string',
         ]);
 
+        return response()->json($this->rendre($systemEmailTemplate, $validated['subject'], $validated['content_html']));
+    }
+
+    /**
+     * TASK-1894 — TOUS les gabarits globaux d'une langue sur UNE page, chacun
+     * rendu comme dans l'apercu (meme `rendre()`), pour comparer leur mise en
+     * forme d'un coup d'oeil. Lecture seule : aucun envoi, aucune ecriture.
+     */
+    public function viewAll(Request $request): View
+    {
+        $locale = in_array($request->query('locale'), ['fr', 'en'], true)
+            ? (string) $request->query('locale')
+            : self::LOCALE_PAR_DEFAUT;
+
+        $langueAvant = app()->getLocale();
+
+        // TASK-1894 — l'organisation au nom de laquelle les emails sont
+        // habilles dans cet apercu (par defaut : l'organisation par defaut).
+        $organisations = Organization::query()->orderBy('name')->get(['id', 'name', 'slug', 'is_default', 'admin_id']);
+        $organisation = $organisations->firstWhere('slug', (string) $request->query('organisation'))
+            ?? $organisations->firstWhere('is_default', true)
+            ?? $organisations->first();
+
+        $gabarits = SystemEmailTemplate::query()
+            ->whereNull('organization_id')
+            ->where('locale', $locale)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (SystemEmailTemplate $gabarit) => ['gabarit' => $gabarit] + $this->rendre($gabarit, (string) $gabarit->subject, (string) $gabarit->content_html, $organisation));
+
+        // `rendre()` bascule la langue de l'application : l'ecran d'admin
+        // autour reste dans celle de l'administrateur.
+        app()->setLocale($langueAvant);
+
+        return view('admin.system-email-templates.view-all', compact('gabarits', 'locale', 'organisations', 'organisation'));
+    }
+
+    /**
+     * Rendu REEL d'un gabarit (theme + variables de demonstration), partage par
+     * l'apercu de l'editeur et la page « Tout voir ». N'envoie rien.
+     *
+     * @return array{subject: string, html: string}
+     */
+    private function rendre(SystemEmailTemplate $systemEmailTemplate, string $sujet, string $contenu, ?Organization $pour = null): array
+    {
         $locale = $systemEmailTemplate->locale ?: self::LOCALE_PAR_DEFAUT;
         app()->setLocale($locale);
 
+        // TASK-1894 — l'organisation au nom de laquelle l'apercu est habille
+        // (en-tete, signature, reglages) : ce que verra un membre.
+        $organisation = $systemEmailTemplate->organization
+            ?? $pour
+            ?? Organization::query()->where('is_default', true)->first()
+            ?? Organization::query()->where('is_active', true)->orderBy('name')->first();
+
         $cles = $systemEmailTemplate->variables ?? [];
+
+        // TASK-1894 — le nom de l'organisation est TOUJOURS fourni a l'envoi
+        // (`EmailerService::availableVariables()`), meme quand le gabarit ne
+        // le declare pas : sans lui, l'apercu affichait « {{ organisation }} »
+        // brut la ou le membre lit le vrai nom.
+        $clesOrganisation = array_values(array_filter(
+            ['organization', 'organisation', 'organization_name'],
+            fn (string $cle) => str_contains($sujet.$contenu, '{{ '.$cle.' }}'),
+        ));
+        $cles = array_values(array_unique(array_merge($cles, $clesOrganisation)));
+
         $demo = $this->variablesDeDemonstration($cles, $locale);
+        foreach (['organization', 'organisation', 'organization_name'] as $cle) {
+            if ($organisation !== null && array_key_exists($cle, $demo)) {
+                $demo[$cle] = (string) $organisation->name;
+            }
+        }
 
         $emailer = app(EmailerService::class);
-        $subject = $emailer->interpolateSubject($validated['subject'], $demo, $cles);
+        $subject = $emailer->interpolateSubject($sujet, $demo, $cles);
         // TASK-1883 — les blocs de la newsletter, avec les vraies demandes et
-        // propositions de l'organisation par defaut (lecture seule, aucun envoi).
-        $contenu = $validated['content_html'];
-        if (HelpDigestBlocks::contient($contenu)
-            && ($org = Organization::query()->where('is_default', true)->first() ?? Organization::query()->where('is_active', true)->orderBy('name')->first())) {
-            $contenu = app(HelpDigestBlocks::class)->developper($contenu, $org, $locale);
+        // propositions de l'organisation de l'apercu (lecture seule, aucun envoi).
+        if (HelpDigestBlocks::contient($contenu) && $organisation !== null) {
+            $contenu = app(HelpDigestBlocks::class)->developper($contenu, $organisation, $locale);
         }
 
         $html = $emailer->interpolate($contenu, $demo, $cles);
 
-        $rendu = (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]);
+        $rendu = (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]
+            + HabillageOrganisation::pour($organisation, (string) $systemEmailTemplate->slug, $locale));
 
-        return response()->json(['subject' => $subject, 'html' => $rendu]);
+        return ['subject' => $subject, 'html' => $rendu];
     }
 
     /**
@@ -269,6 +337,8 @@ class AdminSystemEmailTemplatesController extends Controller
             'loop_tagline' => $fr ? 'Ensemble, on va plus loin' : 'Together we go further',
             'personal_message' => $fr ? 'Au plaisir de vous accueillir parmi nous !' : 'Looking forward to welcoming you!',
             'expires_at' => now()->addDays(7)->isoFormat('LL'),
+            // TASK-1894 — l'objet par defaut de la newsletter (T1891) porte la date.
+            'newsletter_date' => now('Europe/Paris')->format($fr ? 'd/m/y' : 'm/d/y'),
         ];
 
         $demo = [];

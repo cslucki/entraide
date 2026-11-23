@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\Email\HabillageOrganisation;
 use App\Models\Message;
 use App\Models\SystemEmailTemplate;
 use App\Models\Transaction;
@@ -77,7 +78,7 @@ class NewMessageReceived extends Notification
                 ))
                 ->markdown('emails.system-email', [
                     'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extraVars)),
-                ]);
+                ] + HabillageOrganisation::pour($this->transaction->organization, 'private_message_received', $template->locale));
         }
 
         return (new MailMessage)
@@ -132,9 +133,10 @@ class NewMessageReceived extends Notification
                 ))
                 // TASK-1694 bug P — `markdown()` et non `view()` : c'est ce chemin
                 // qui declenche l'habillage et l'incorporation des styles.
+                // TASK-1894 — habille au nom de l'organisation de l'echange.
                 ->markdown('emails.system-email', [
                     'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extraVars)),
-                ]);
+                ] + HabillageOrganisation::pour($this->transaction->organization, 'new_message', $template->locale));
         }
 
         return (new MailMessage)

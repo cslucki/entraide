@@ -41,7 +41,7 @@ class AiBudgetExceeded extends Notification
                 // qui declenche l'habillage et l'incorporation des styles.
                 ->markdown('emails.system-email', [
                     'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extraVars)),
-                ]);
+                ] + \App\Support\Email\HabillageOrganisation::pour($notifiable->organization ?? null, 'ai_budget_exceeded', $template->locale));
         }
 
         return (new MailMessage)

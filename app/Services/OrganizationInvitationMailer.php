@@ -158,6 +158,9 @@ class OrganizationInvitationMailer
             'fallback_reason' => $fallbackReason,
         ];
 
+        // TASK-1894 — habille au nom de l'organisation qui invite.
+        $html = \App\Support\Email\HabillageOrganisation::envelopper($html, $organization, 'organization_invitation', $locale);
+
         try {
             Mail::html($html, function ($message) use ($invitation, $subject) {
                 $message->to($invitation->recipient_email)->subject($subject);

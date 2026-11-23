@@ -55,7 +55,7 @@ class AccountLinkEstablished extends Notification
             ->subject($emailer->interpolateSubject($template->subject, $vars, array_keys($extra)))
             ->markdown('emails.system-email', [
                 'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extra)),
-            ]);
+            ] + \App\Support\Email\HabillageOrganisation::pour($notifiable->organization ?? null, 'liaison-comptes-creee', $template->locale));
     }
 
     private function resolveTemplate(object $notifiable): ?SystemEmailTemplate
