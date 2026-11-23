@@ -351,7 +351,9 @@ class MessageThread extends Component
 
         $this->replyToMessageId = $message->id;
         $this->replyingTo = [
-            'body' => mb_substr($message->body, 0, 120),
+            // TASK-1886 — un vocal n'a pas de texte : sans ce libelle, la
+            // citation s'affichait VIDE (vu en recette).
+            'body' => $message->voiceSummary() ?? mb_substr($message->body, 0, 120),
             'sender_name' => $message->sender?->name ?? 'BouclePro',
         ];
     }

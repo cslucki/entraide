@@ -245,7 +245,10 @@ class NewMessageReceived extends Notification
      */
     private function apercu(): string
     {
-        return mb_strimwidth(strip_tags($this->message->body ?? ''), 0, 120, '…');
+        // TASK-1886 — un vocal n'a pas de texte : l'email annonce un vocal
+        // plutot qu'un apercu vide.
+        return $this->message->voiceSummary()
+            ?? mb_strimwidth(strip_tags($this->message->body ?? ''), 0, 120, '…');
     }
 
     /**
