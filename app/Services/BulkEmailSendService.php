@@ -628,8 +628,10 @@ class BulkEmailSendService
             return null;
         }
 
-        // Apercu : membre FICTIF, son lien signe menerait a un 404 ; lien inerte.
-        $desinscription = $apercu ? '#desinscription-apercu' : NewsletterSubscriptionController::urlDesinscription($user);
+        // TASK-1891 (Cyril, 23/11) — l'apercu montre le MEME lien que l'envoi :
+        // scope a l'organisation, signe. Le membre de l'apercu est fictif : son
+        // lien a la bonne forme, mais ne mene a aucun compte (404).
+        $desinscription = NewsletterSubscriptionController::urlDesinscription($user);
         $vars = $this->emailer->availableVariables($user) + [
             'recipient_name' => $user->publicDisplayName(),
             'organization_name' => (string) $org->name,

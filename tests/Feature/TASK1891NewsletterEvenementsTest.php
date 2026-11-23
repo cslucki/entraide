@@ -225,6 +225,34 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         $this->assertContains('newsletter_date', is_array($variables) ? $variables : json_decode((string) $variables, true));
     }
 
+        /** Correctif 5 — lien de desinscription scope a l'organisation, signe, identique apercu/envoi. */
+    public function test_le_lien_de_desinscription_est_scope_et_identifie_le_membre(): void
+    {
+        $membre = User::factory()->create(['organization_id' => $this->org->id]);
+        $url = \App\Http\Controllers\NewsletterSubscriptionController::urlDesinscription($membre);
+
+        $this->assertStringStartsWith(url('/org/'.$this->org->slug.'/newsletter/desinscription/'.$membre->id), $url);
+        $this->assertStringContainsString('signature=', $url);
+
+        // Sans connexion, sans saisir d'email : la page demande confirmation, puis desinscrit.
+        $page = $this->get($url)->assertOk()->assertSee('data-newsletter-unsubscribe-confirm', false)->getContent();
+        $this->assertStringContainsString('/org/'.$this->org->slug.'/newsletter/desinscription/'.$membre->id, html_entity_decode($page));
+        $this->post($url)->assertOk()->assertSee('data-newsletter-unsubscribed', false);
+        $this->assertNotNull($membre->fresh()->newsletter_unsubscribed_at);
+        $this->assertGuest();
+
+        // Le compte doit etre celui de l'organisation du lien, meme signe.
+        $intrus = \Illuminate\Support\Facades\URL::signedRoute('organization.newsletter.unsubscribe', ['organization' => $this->autre->slug, 'compte' => $membre->id]);
+        $this->get($intrus)->assertNotFound();
+
+        // Les liens des lettres deja parties (sans /org/) restent servis.
+        $ancien = \Illuminate\Support\Facades\URL::signedRoute('newsletter.unsubscribe', ['compte' => $membre->id]);
+        $this->get($ancien)->assertOk();
+
+        // Un lien scope non signe est refuse.
+        $this->get(url('/org/'.$this->org->slug.'/newsletter/desinscription/'.$membre->id))->assertForbidden();
+    }
+
         private function entete(string $html): string
     {
         $debut = strpos($html, 'class="header"');
