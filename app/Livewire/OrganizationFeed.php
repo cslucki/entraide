@@ -5,8 +5,8 @@ namespace App\Livewire;
 use App\Livewire\Concerns\ReactsAndCommentsOnFeedPosts;
 use App\Models\FeedPost;
 use App\Models\Reaction;
+use App\Support\Search\TexteContient;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -88,13 +88,14 @@ class OrganizationFeed extends Component
                 }
 
                 if ($recherche !== '') {
-                    $operateur = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
-                    $motif = '%'.addcslashes($recherche, '%_\\').'%';
+                    // TASK-1885 C9 — meme aide que la recherche des Boucles :
+                    // `ESCAPE` explicite, jokers pris litteralement.
+                    $motif = TexteContient::motif($recherche);
 
-                    $query->where(function (Builder $q) use ($operateur, $motif): void {
-                        $q->where('title', $operateur, $motif)
-                            ->orWhere('content', $operateur, $motif)
-                            ->orWhereHas('user', fn (Builder $u) => $u->where('name', $operateur, $motif));
+                    $query->where(function (Builder $q) use ($motif): void {
+                        TexteContient::where($q, 'title', $motif);
+                        TexteContient::orWhere($q, 'content', $motif);
+                        $q->orWhereHas('user', fn (Builder $u) => TexteContient::where($u, 'name', $motif));
                     });
                 }
 

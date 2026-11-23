@@ -282,6 +282,9 @@
             {{-- TASK-1879 — revenir au fil sur telephone (le panneau couvre
                  l'ecran) ; sur grand ecran, fil et outil restent cote a cote. --}}
             @bp-close-loop-card-mobile.window="if (window.matchMedia('(max-width: 1023px)').matches) { closeCard() }"
+            {{-- TASK-1885 C9 — `?card=core.events` (depuis la recherche) ouvre la
+                 Card demandee, si l'espace la rend : une cle inconnue n'ouvre rien. --}}
+            x-init="(() => { const c = new URLSearchParams(window.location.search).get('card'); if (c && @js($panelCards->pluck('key')).includes(c)) { activeCard = c; } })()"
             x-bind:data-resizing="resizing ? 'true' : 'false'"
             class="loops-show-container h-dvh flex flex-col bg-[var(--bp-page)]"
             data-loop-workspace-shell
