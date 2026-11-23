@@ -23,7 +23,7 @@ return [
     'article_label' => 'article|articles',
     'articles_title' => 'Articles publiés',
     'loops_title' => 'Boucles',
-    'search_placeholder' => 'Rechercher un nom, un mot-clé…',
+    'search_placeholder' => 'Rechercher un nom, une ville, un mot-clé…',
 
     // TASK-1762 point 10 — le filtre par ville.
     'city_label' => 'Localisation',
@@ -47,7 +47,7 @@ return [
     'load_more' => 'Voir le membre suivant|Voir les :count membres suivants',
 
     // TASK-1762 point 9 — employé quand l'Organization a ouvert le champ Structure.
-    'search_placeholder_with_structure' => 'Rechercher un nom, une structure, un mot-clé…',
+    'search_placeholder_with_structure' => 'Rechercher un nom, une structure, une ville, un mot-clé…',
     'search_label' => 'Rechercher un membre',
     'search_submit' => 'Rechercher',
     'search_clear' => 'Effacer',
