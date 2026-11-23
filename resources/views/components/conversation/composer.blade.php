@@ -591,7 +591,7 @@
              data-voice-recorder
              role="status"
              aria-live="polite"
-             class="flex min-h-10 min-w-0 flex-1 items-center justify-end gap-1.5 pl-1 sm:gap-2">
+             class="flex min-h-10 flex-1 min-w-0 items-center justify-end gap-1.5 pl-1 sm:gap-2">
 
             <span x-show="etat === 'demande'" class="mr-auto min-w-0 truncate pl-2 text-sm text-gray-500 dark:text-gray-400">{{ __('messages.voice_mic_asking') }}</span>
             <span x-show="etat === 'erreur'" x-text="erreur" data-voice-error class="mr-auto min-w-0 pl-2 text-sm text-red-600 dark:text-red-400"></span>
