@@ -35,7 +35,10 @@ class TASK1884CoAuthorLoopMembersTest extends TestCase
         parent::setUp();
 
         $this->org = Organization::factory()->create(['is_active' => true]);
-        $this->auteur = User::factory()->create(['organization_id' => $this->org->id, 'name' => 'Auteur Principal']);
+        // TASK-1893 — prenom FIXE : la fabrique en tirait un au hasard, et un
+        // « Camille » rendait l'auteur trouvable par la recherche `q=Camille`
+        // (flake CI du 23/11, PR #906).
+        $this->auteur = User::factory()->create(['organization_id' => $this->org->id, 'first_name' => 'Alix', 'name' => 'Auteur Principal']);
         $this->membreBoucle = User::factory()->create(['organization_id' => $this->org->id, 'name' => 'Camille Boucle']);
         $this->horsBoucle = User::factory()->create(['organization_id' => $this->org->id, 'name' => 'Camille Dehors']);
 
