@@ -15,6 +15,7 @@ use App\Support\Files\TypesDeFichiersAcceptes;
 use App\Support\Messaging\ConversationBroadcaster;
 use App\Support\Messaging\UnreadCountBroadcaster;
 use App\Support\ScopedReadCache;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +25,7 @@ use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 
 class MessageThread extends Component
@@ -392,22 +394,85 @@ class MessageThread extends Component
         if ($validator->fails()) {
             $this->voice = null;
             $this->addError('voice', __('messages.voice_invalid'));
+
+            return;
         }
+
+        // TASK-1887 — une nouvelle tentative valide efface l'ancien refus.
+        $this->resetErrorBag('voice');
     }
 
     /**
-     * TASK-1886 — `mimetypes:` lit le type DEVINE sur le contenu (finfo), jamais
-     * celui que le navigateur annonce.
+     * TASK-1887 — la regle d'un vocal : poids d'abord, puis type LU dans le
+     * contenu par `typeVocal()`. `mimetypes:` est abandonne ici : sur Laravel
+     * Cloud, le depot temporaire Livewire est sur S3, et `getMimeType()` y rend
+     * le Content-Type ANNONCE par le navigateur (`audio/webm;codecs=opus`),
+     * jamais le type du contenu — tous les vocaux Chrome etaient refuses.
      *
-     * @return list<string>
+     * @return list<mixed>
      */
     private function reglesDeVocal(): array
     {
         return [
+            'bail',
             'file',
-            'mimetypes:'.implode(',', array_keys(self::TYPES_VOCAUX)),
             'max:'.self::TAILLE_MAX_VOCAL_KO,
+            function (string $attribut, mixed $fichier, \Closure $echec): void {
+                if ($this->typeVocal($fichier) === null) {
+                    $echec(__('messages.voice_invalid'));
+                }
+            },
         ];
+    }
+
+    /** TASK-1887 — octets lus pour reconnaitre un conteneur audio. */
+    private const OCTETS_DE_TETE = 4096;
+
+    /**
+     * TASK-1887 — le type audio honnete d'un vocal, devine par finfo sur ses
+     * PREMIERS octets, ou null s'il doit etre refuse.
+     *
+     * Ni le type annonce par le navigateur, ni les metadonnees S3 ne sont lus.
+     * Le poids est verifie AVANT toute lecture, et seul un extrait borne est
+     * lu. Un fichier illisible ou non reconnu est refuse, jamais devine.
+     */
+    private function typeVocal(mixed $fichier): ?string
+    {
+        if (! $fichier instanceof UploadedFile) {
+            return null;
+        }
+
+        try {
+            $taille = (int) $fichier->getSize();
+
+            if ($taille <= 0 || $taille > self::TAILLE_MAX_VOCAL_KO * 1024) {
+                return null;
+            }
+
+            $flux = $fichier instanceof TemporaryUploadedFile
+                ? $fichier->readStream()
+                : fopen($fichier->getRealPath(), 'rb');
+
+            if (! is_resource($flux)) {
+                return null;
+            }
+
+            try {
+                $tete = stream_get_contents($flux, self::OCTETS_DE_TETE);
+            } finally {
+                fclose($flux);
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! is_string($tete) || $tete === '') {
+            return null;
+        }
+
+        $devine = (string) (new \finfo(FILEINFO_MIME_TYPE))->buffer($tete);
+
+        return self::TYPES_VOCAUX[$devine] ?? null;
     }
 
     /**
@@ -1130,15 +1195,16 @@ class MessageThread extends Component
         $disque = 'message_files';
         $chemin = self::PREFIXE_VOCAL.'/'.$this->organizationId.'/'.$this->transactionId.'/'.Str::uuid()->toString();
 
-        Storage::disk($disque)->put($chemin, $file->get());
+        // TASK-1887 — la MEME detection que la validation, jamais le type annonce.
+        $type = $this->typeVocal($file) ?? 'audio/webm';
 
-        $devine = (string) ($file->getMimeType() ?: '');
+        Storage::disk($disque)->put($chemin, $file->get());
 
         return [
             'path' => $chemin,
             'disk' => $disque,
             'name' => __('messages.voice_file_name'),
-            'mime' => self::TYPES_VOCAUX[$devine] ?? 'audio/webm',
+            'mime' => $type,
             'size' => (int) $file->getSize(),
         ];
     }
