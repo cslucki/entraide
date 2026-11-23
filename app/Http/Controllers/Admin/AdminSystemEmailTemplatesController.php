@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
+use App\Support\Email\HabillageOrganisation;
 use App\Support\Email\HelpDigestBlocks;
 use App\Services\EmailerService;
 use Database\Seeders\SystemEmailTemplateSeeder;
@@ -230,18 +231,25 @@ class AdminSystemEmailTemplatesController extends Controller
 
         $langueAvant = app()->getLocale();
 
+        // TASK-1894 — l'organisation au nom de laquelle les emails sont
+        // habilles dans cet apercu (par defaut : l'organisation par defaut).
+        $organisations = Organization::query()->orderBy('name')->get(['id', 'name', 'slug', 'is_default', 'admin_id']);
+        $organisation = $organisations->firstWhere('slug', (string) $request->query('organisation'))
+            ?? $organisations->firstWhere('is_default', true)
+            ?? $organisations->first();
+
         $gabarits = SystemEmailTemplate::query()
             ->whereNull('organization_id')
             ->where('locale', $locale)
             ->orderBy('name')
             ->get()
-            ->map(fn (SystemEmailTemplate $gabarit) => ['gabarit' => $gabarit] + $this->rendre($gabarit, (string) $gabarit->subject, (string) $gabarit->content_html));
+            ->map(fn (SystemEmailTemplate $gabarit) => ['gabarit' => $gabarit] + $this->rendre($gabarit, (string) $gabarit->subject, (string) $gabarit->content_html, $organisation));
 
         // `rendre()` bascule la langue de l'application : l'ecran d'admin
         // autour reste dans celle de l'administrateur.
         app()->setLocale($langueAvant);
 
-        return view('admin.system-email-templates.view-all', compact('gabarits', 'locale'));
+        return view('admin.system-email-templates.view-all', compact('gabarits', 'locale', 'organisations', 'organisation'));
     }
 
     /**
@@ -250,7 +258,7 @@ class AdminSystemEmailTemplatesController extends Controller
      *
      * @return array{subject: string, html: string}
      */
-    private function rendre(SystemEmailTemplate $systemEmailTemplate, string $sujet, string $contenu): array
+    private function rendre(SystemEmailTemplate $systemEmailTemplate, string $sujet, string $contenu, ?Organization $pour = null): array
     {
         $locale = $systemEmailTemplate->locale ?: self::LOCALE_PAR_DEFAUT;
         app()->setLocale($locale);
@@ -269,7 +277,16 @@ class AdminSystemEmailTemplatesController extends Controller
 
         $html = $emailer->interpolate($contenu, $demo, $cles);
 
-        $rendu = (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]);
+        // TASK-1894 — le rendu montre l'habillage AU NOM DE L'ORGANISATION
+        // (en-tete, signature, reglages), avec l'organisation par defaut et
+        // son administrateur : ce que verra un membre, pas « BouclePro ».
+        $organisation = $systemEmailTemplate->organization
+            ?? $pour
+            ?? Organization::query()->where('is_default', true)->first()
+            ?? Organization::query()->where('is_active', true)->orderBy('name')->first();
+
+        $rendu = (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]
+            + HabillageOrganisation::pour($organisation, (string) $systemEmailTemplate->slug, $locale));
 
         return ['subject' => $subject, 'html' => $rendu];
     }

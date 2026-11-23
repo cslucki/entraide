@@ -768,6 +768,7 @@ return [
     'system_email_adapted' => 'Copie créée pour votre organisation, désactivée. Relisez le texte puis activez-la : tant qu\'elle est inactive, la version Plateforme continue de partir.',
     'system_email_adapt_exists' => 'Votre organisation a déjà une version de ce gabarit.',
     'system_email_adapt_hint' => 'Les gabarits « Plateforme » ne sont pas modifiables ici : « Adapter » en crée une copie propre à votre organisation.',
+    'system_email_view_all_as' => 'Au nom de',
     'system_email_view_all' => 'Tout voir',
     'system_email_view_all_title' => 'Tous les emails système',
     'system_email_view_all_intro' => 'Chaque modèle global, rendu comme il partira, avec des exemples à la place des vraies données. Rien n\'est envoyé.',

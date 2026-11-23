@@ -761,6 +761,7 @@ return [
     'system_email_adapted' => 'Copy created for your organization, disabled. Review the text then enable it: while it is inactive, the platform version keeps being sent.',
     'system_email_adapt_exists' => 'Your organization already has a version of this template.',
     'system_email_adapt_hint' => '“Platform” templates cannot be edited here: “Adapt” creates a copy that belongs to your organization.',
+    'system_email_view_all_as' => 'On behalf of',
     'system_email_view_all' => 'View all',
     'system_email_view_all_title' => 'All system emails',
     'system_email_view_all_intro' => 'Each global template, rendered as it will be sent, with sample values instead of real data. Nothing is sent.',

@@ -28,14 +28,14 @@ class SystemEmailTemplateSeeder extends Seeder
             // survit au deshabillage des balises.
             'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
 <p>Il ne reste qu\'une étape : confirmer votre adresse email.</p>
-<p><a href="{{ url }}">Confirmer mon adresse</a></p>
+<p><a href="{{ url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Confirmer mon adresse</a></p>
 <p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
 <p>Ce lien est valable <strong>24 heures</strong>. Passé ce délai, vous pourrez en demander un nouveau depuis la page d\'attente.</p>
 <p>Si vous n\'êtes pas à l\'origine de cette inscription, vous pouvez ignorer ce message.</p>
 <p>Pour recevoir nos prochains messages, vérifiez que les emails envoyés par « relai-smtp.net » n\'arrivent pas dans vos indésirables (spam).</p>',
             'content_html_en' => '<h1>Hello {{ name }},</h1>
 <p>One last step: confirm your email address.</p>
-<p><a href="{{ url }}">Confirm my address</a></p>
+<p><a href="{{ url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Confirm my address</a></p>
 <p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
 <p>This link is valid for <strong>24 hours</strong>. After that, you can request a new one from the waiting page.</p>
 <p>If you did not create this account, you can ignore this message.</p>
@@ -64,13 +64,13 @@ class SystemEmailTemplateSeeder extends Seeder
             'content_html_fr' => '<h1>Nouveau message de {{ sender_name }}</h1>
 <p>Bonjour {{ name }},</p>
 <p><strong>{{ sender_name }}</strong> vous a envoyé un message à propos de l\'entraide <strong>{{ transaction_title }}</strong>.</p>
-<blockquote>{{ message_preview }}</blockquote>
-<p><a href="{{ url }}">Voir la conversation</a></p>',
+<blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote>
+<p><a href="{{ url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Voir la conversation</a></p>',
             'content_html_en' => '<h1>New message from {{ sender_name }}</h1>
 <p>Hello {{ name }},</p>
 <p><strong>{{ sender_name }}</strong> sent you a message about <strong>{{ transaction_title }}</strong>.</p>
-<blockquote>{{ message_preview }}</blockquote>
-<p><a href="{{ url }}">View conversation</a></p>',
+<blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote>
+<p><a href="{{ url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">View conversation</a></p>',
             // `sender_first_name` est fourni par `NewMessageReceived` et donc
             // utilisable dans le gabarit ; l'ecran d'administration doit le dire.
             'variables' => ['name', 'sender_first_name', 'sender_name', 'transaction_title', 'message_preview', 'url'],
@@ -507,8 +507,8 @@ class SystemEmailTemplateSeeder extends Seeder
             // qui porte l'extrait et le lien de desabonnement, sans passer
             // par la precedente. La suite TASK-1772 verifie que ces deux
             // chaines ne divergent pas.
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
                 'loop_name', 'author_name', 'message_url', 'message_excerpt',

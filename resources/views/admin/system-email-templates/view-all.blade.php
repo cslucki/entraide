@@ -17,10 +17,22 @@
                     </p>
                 </div>
 
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    {{-- TASK-1894 — au nom de quelle organisation l'apercu est habille. --}}
+                    <form method="GET" class="flex items-center gap-2 text-sm">
+                        <input type="hidden" name="locale" value="{{ $locale }}">
+                        <label for="vue-organisation" class="text-gray-600 dark:text-gray-400">{{ __('admin.system_email_view_all_as') }}</label>
+                        <select id="vue-organisation" name="organisation" onchange="this.form.submit()" data-system-email-view-all-org
+                                class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 text-sm py-1.5">
+                            @foreach($organisations as $o)
+                                <option value="{{ $o->slug }}" @selected($organisation?->id === $o->id)>{{ $o->name }}</option>
+                            @endforeach
+                        </select>
+                    </form>
+
                     <nav class="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden text-sm" aria-label="{{ __('admin.locale') }}">
                         @foreach(['fr' => 'Français', 'en' => 'English'] as $code => $libelle)
-                            <a href="{{ route('admin.system-email-templates.view-all', ['locale' => $code]) }}"
+                            <a href="{{ route('admin.system-email-templates.view-all', ['locale' => $code, 'organisation' => $organisation?->slug]) }}"
                                data-system-email-view-all-locale="{{ $code }}"
                                @if($code === $locale) aria-current="page" @endif
                                class="px-3 py-1.5 {{ $code === $locale ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700' }}">
