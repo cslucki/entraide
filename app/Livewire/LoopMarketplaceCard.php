@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\Loop;
 use App\Models\LoopMarketplaceLink;
 use App\Models\Service;
@@ -41,6 +42,19 @@ use Livewire\Component;
  */
 class LoopMarketplaceCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'core.marketplace';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->cancel();
+    }
+
     public Loop $loop;
 
     /** `offer`, `request`, ou vide quand aucun selecteur n'est ouvert. */

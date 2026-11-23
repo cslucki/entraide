@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\Loop;
 use App\Models\LoopJournalEntry;
 use App\Models\LoopMessage;
@@ -31,6 +32,19 @@ use Livewire\Component;
  */
 class LoopJournalCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'core.journal';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->cancel();
+    }
+
     public Loop $loop;
 
     public bool $showForm = false;

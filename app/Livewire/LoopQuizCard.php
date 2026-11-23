@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\CourseQuiz;
 use App\Models\CourseQuizQuestion;
 use App\Models\Loop;
@@ -34,6 +35,20 @@ use Livewire\Component;
  */
 class LoopQuizCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'training.quiz';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->showForm = false;
+        $this->editingId = null;
+    }
+
     public const FACE_MINE = 'mine';
 
     public const FACE_EVERYONE = 'everyone';
