@@ -55,9 +55,8 @@ $secondaryCtaUrl = $showInternalHomepageContent
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ $organization->name }} — {{ $organization->platform_tagline ?? __('hero.meta_title') }}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.bunny.net">
+<link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800,900|caveat:500,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="{{ asset('css/bouclepro-hero.css') }}?v={{ filemtime(public_path('css/bouclepro-hero.css')) }}">
 {{-- TASK-1471 : le MEME producteur de tokens que les layouts applicatifs. --}}
