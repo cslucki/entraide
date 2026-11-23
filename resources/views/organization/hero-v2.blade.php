@@ -454,6 +454,12 @@ $secondaryCtaUrl = $showInternalHomepageContent
         <span class="foot-sep" aria-hidden="true">·</span>
         <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
       </span>
+      {{-- TASK-1899 — pages exigees par Google Play (T1898), bornees a l'Organization. --}}
+      <span class="foot-pair">
+        <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
+        <span class="foot-sep" aria-hidden="true">·</span>
+        <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
+      </span>
       <span class="foot-pair">
         <a href="{{ route('organization.bug-reports.index', $organization) }}" data-footer-bug>{{ __('footer.bug') }}</a>
         <span class="foot-sep" aria-hidden="true">·</span>

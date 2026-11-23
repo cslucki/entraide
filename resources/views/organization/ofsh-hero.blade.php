@@ -363,6 +363,12 @@ $urlApropos = route('organization.about', ['organization' => $organization->slug
         <span class="footer-sep" aria-hidden="true">·</span>
         <a href="{{ route('organization.mentions-legales', ['organization' => $organization->slug]) }}">{{ __('footer.mentions_legales') }}</a>
       </span>
+      {{-- TASK-1899 — pages exigees par Google Play (T1898), bornees a l'Organization. --}}
+      <span class="footer-pair">
+        <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
+      </span>
       <span class="footer-pair">
         <a href="{{ route('organization.bug-reports.index', ['organization' => $organization->slug]) }}" data-footer-bug>{{ __('footer.bug') }}</a>
         <span class="footer-sep" aria-hidden="true">·</span>

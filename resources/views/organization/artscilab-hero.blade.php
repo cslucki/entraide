@@ -243,6 +243,9 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
       </span>
       <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ org_trans('artscilab.footer_terms') }}</a>
+      {{-- TASK-1899 — pages exigees par Google Play (T1898), bornees a l'Organization. --}}
+      <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
+      <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
       {{-- TASK-1613 — l'icone ouvre l'explorateur du depot, comme partout
            ailleurs. Cible : `/open-source/github`, une redirection
            BouclePro — jamais l'URL du depot, ni dans le HTML ni au survol. --}}
