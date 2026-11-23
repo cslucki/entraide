@@ -160,6 +160,8 @@ return [
     'chat_updated' => 'The event “:title” has been updated.',
     'chat_cancelled' => 'The event “:title” has been cancelled.',
     'chat_open_card' => 'Open the agenda',
+    'chat_pin' => 'Pin',
+    'chat_unpin' => 'Unpin',
     'chat_join_link' => 'Join',
 
     'add_to_calendar' => 'Add to calendar',
