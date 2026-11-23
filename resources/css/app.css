@@ -546,7 +546,9 @@
 
 /* TASK-1890 — bandeau de l'evenement epingle dans ChatLoop. Telephone et
    tablette : ticker en boucle, le texte rendu deux fois glisse de la moitie
-   de sa largeur, sans saut. Ordinateur : une ligne fixe, tronquee. */
+   de sa largeur, sans saut — y compris si le telephone demande moins
+   d'animations : sinon la fin du texte (la date) resterait invisible
+   (Cyril, 23/11). Ordinateur : une ligne fixe, tronquee. */
 @keyframes bp-ticker {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
@@ -558,12 +560,6 @@
     mask-image: linear-gradient(to right, transparent, #000 0.75rem, #000 calc(100% - 0.75rem), transparent);
 }
 @media (min-width: 1024px) {
-    .bp-ticker-fenetre { -webkit-mask-image: none; mask-image: none; }
-    .bp-ticker { display: block; overflow: hidden; text-overflow: ellipsis; animation: none; }
-    .bp-ticker-item { padding-right: 0; }
-    .bp-ticker-copie { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
     .bp-ticker-fenetre { -webkit-mask-image: none; mask-image: none; }
     .bp-ticker { display: block; overflow: hidden; text-overflow: ellipsis; animation: none; }
     .bp-ticker-item { padding-right: 0; }

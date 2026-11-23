@@ -19,7 +19,8 @@
          nouvelle date ; annule ou passe, le bandeau disparait).
          Telephone/tablette : ticker qui defile en boucle (texte rendu deux
          fois, la copie est muette pour les lecteurs d'ecran). Ordinateur : une
-         ligne fixe, tronquee. Mouvement reduit demande : fixe partout. --}}
+         ligne fixe, tronquee. Le telephone defile meme en mouvement reduit :
+         sinon on ne lit pas la date (Cyril, 23/11). --}}
     @if($pinnedEvent)
         @php
             $tickerEvent = $pinnedEvent['event'];
