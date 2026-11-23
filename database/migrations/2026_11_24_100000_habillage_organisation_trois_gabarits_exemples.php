@@ -18,7 +18,9 @@ use Illuminate\Support\Facades\DB;
  */
 return new class extends Migration
 {
-    public const BOUTON = 'display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600';
+    // Meme valeur que `HabillageOrganisation::BOUTON` (copiee : une migration ne
+    // doit pas changer si la classe evolue).
+    public const BOUTON = 'display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;';
 
     /** @return array<string, array<string, list<array{0: string, 1: string}>>> */
     public static function remplacements(): array

@@ -152,6 +152,9 @@ final class ReviewReceivedMailer
             'fallback_reason' => $rendu['fallback_reason'],
         ];
 
+        // TASK-1894 — habille au nom de l'organisation de l'entraide.
+        $rendu['body'] = \App\Support\Email\HabillageOrganisation::envelopper($rendu['body'], $organization, 'entraide_review_received', $locale);
+
         try {
             Mail::html($rendu['body'], function ($message) use ($aidant, $rendu) {
                 $message->to($aidant->email)->subject($rendu['subject']);

@@ -21,6 +21,9 @@ use Illuminate\Support\Facades\Route;
  */
 final class HabillageOrganisation
 {
+    /** Style UNIQUE des boutons d'email : celui d'`organization_invitation` (choix Cyril, 23/11). */
+    public const BOUTON = 'display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;';
+
     /** Gabarits qu'aucun reglage de notification ne coupe. */
     public const NON_DESABONNABLES = [
         'affectation-points-suite-inscription',
@@ -35,7 +38,33 @@ final class HabillageOrganisation
         'weekly_help_digest',
         'password_reset',
         'verify_email',
+        // Aucune preference ne les coupe (verifie : `NewMessageReceived` et
+        // `TransactionStatusChanged` ont `via() = ['mail']` sans garde ; les
+        // deux suivants partent en `Mail::html()` direct, hors notifications).
+        'new_message',
+        'transaction_status_changed',
+        'entraide_evaluation_invite',
+        'entraide_review_received',
     ];
+
+    /**
+     * Habille un FRAGMENT HTML (corps de gabarit) pour un envoi direct par
+     * `Mail::html()` : meme cadre que les notifications
+     * (`emails.notification-shell`), au nom de l'organisation. Un document
+     * complet (repli Blade deja habille) est rendu tel quel : jamais de double
+     * habillage.
+     */
+    public static function envelopper(string $html, ?Organization $organisation, string $slug, ?string $langue = null): string
+    {
+        if (stripos($html, '<html') !== false) {
+            return $html;
+        }
+
+        return view('emails.notification-shell', self::pour($organisation, $slug, $langue) + [
+            'html' => $html,
+            'themeCss' => file_get_contents(resource_path('views/vendor/mail/html/themes/bouclepro.css')) ?: '',
+        ])->render();
+    }
 
     public static function desabonnable(string $slug): bool
     {

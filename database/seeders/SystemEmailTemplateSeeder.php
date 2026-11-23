@@ -28,14 +28,14 @@ class SystemEmailTemplateSeeder extends Seeder
             // survit au deshabillage des balises.
             'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
 <p>Il ne reste qu\'une étape : confirmer votre adresse email.</p>
-<p><a href="{{ url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Confirmer mon adresse</a></p>
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Confirmer mon adresse</a></p>
 <p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
 <p>Ce lien est valable <strong>24 heures</strong>. Passé ce délai, vous pourrez en demander un nouveau depuis la page d\'attente.</p>
 <p>Si vous n\'êtes pas à l\'origine de cette inscription, vous pouvez ignorer ce message.</p>
 <p>Pour recevoir nos prochains messages, vérifiez que les emails envoyés par « relai-smtp.net » n\'arrivent pas dans vos indésirables (spam).</p>',
             'content_html_en' => '<h1>Hello {{ name }},</h1>
 <p>One last step: confirm your email address.</p>
-<p><a href="{{ url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Confirm my address</a></p>
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Confirm my address</a></p>
 <p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
 <p>This link is valid for <strong>24 hours</strong>. After that, you can request a new one from the waiting page.</p>
 <p>If you did not create this account, you can ignore this message.</p>
@@ -50,10 +50,10 @@ class SystemEmailTemplateSeeder extends Seeder
             'subject_en' => 'Welcome to {{ organization }}, {{ name }}!',
             'content_html_fr' => '<h1>Bienvenue sur {{ organization }}, {{ name }} !</h1>
 <p>Votre compte a bien été créé. Vous avez reçu <strong>100 points de bienvenue</strong> pour démarrer vos premières entraides.</p>
-<p><a href="{{ url }}">Découvrir les services</a></p>',
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Découvrir les services</a></p>',
             'content_html_en' => '<h1>Welcome to {{ organization }}, {{ name }}!</h1>
 <p>Your account has been created. You received <strong>100 welcome points</strong> to get started.</p>
-<p><a href="{{ url }}">Explore services</a></p>',
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Explore services</a></p>',
             'variables' => ['name', 'url'],
         ],
         'new_message' => [
@@ -65,12 +65,12 @@ class SystemEmailTemplateSeeder extends Seeder
 <p>Bonjour {{ name }},</p>
 <p><strong>{{ sender_name }}</strong> vous a envoyé un message à propos de l\'entraide <strong>{{ transaction_title }}</strong>.</p>
 <blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote>
-<p><a href="{{ url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Voir la conversation</a></p>',
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir la conversation</a></p>',
             'content_html_en' => '<h1>New message from {{ sender_name }}</h1>
 <p>Hello {{ name }},</p>
 <p><strong>{{ sender_name }}</strong> sent you a message about <strong>{{ transaction_title }}</strong>.</p>
 <blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote>
-<p><a href="{{ url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">View conversation</a></p>',
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View conversation</a></p>',
             // `sender_first_name` est fourni par `NewMessageReceived` et donc
             // utilisable dans le gabarit ; l'ecran d'administration doit le dire.
             'variables' => ['name', 'sender_first_name', 'sender_name', 'transaction_title', 'message_preview', 'url'],
@@ -97,8 +97,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Private message received',
             'subject_fr' => 'Message privé de {{ sender_first_name }} {{ sender_name }}',
             'subject_en' => 'Private message from {{ sender_first_name }} {{ sender_name }}',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Vous avez reçu un message privé de <strong>{{ sender_first_name }} {{ sender_name }}</strong> sur {{ organization_name }}.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px">Lire le message et répondre</a></p><p style="font-size:12px;color:#777">Lien : {{ message_url }}</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>You received a private message from <strong>{{ sender_first_name }} {{ sender_name }}</strong> on {{ organization_name }}.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px">Read and reply</a></p><p style="font-size:12px;color:#777">Link: {{ message_url }}</p><p>See you soon,<br>The {{ app_name }} team</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Vous avez reçu un message privé de <strong>{{ sender_first_name }} {{ sender_name }}</strong> sur {{ organization_name }}.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote><p><a href="{{ message_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Lire le message et répondre</a></p><p style="font-size:12px;color:#777">Lien : {{ message_url }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>You received a private message from <strong>{{ sender_first_name }} {{ sender_name }}</strong> on {{ organization_name }}.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_preview }}</blockquote><p><a href="{{ message_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Read and reply</a></p><p style="font-size:12px;color:#777">Link: {{ message_url }}</p>',
             // Obligatoire : `ligne()` lit `$def['variables']` SANS repli.
             // Meme liste que la migration jumelle.
             'variables' => [
@@ -116,12 +116,12 @@ class SystemEmailTemplateSeeder extends Seeder
 <p>Bonjour {{ name }},</p>
 <p>Le statut de votre entraide <strong>{{ title }}</strong> a changé : <strong>{{ status_label }}</strong>.</p>
 <p>Points : {{ points }} pts</p>
-<p><a href="{{ url }}">Voir la conversation</a></p>',
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir la conversation</a></p>',
             'content_html_en' => '<h1>Your mutual aid has been updated</h1>
 <p>Hello {{ name }},</p>
 <p>The status of your mutual aid <strong>{{ title }}</strong> changed to: <strong>{{ status_label }}</strong>.</p>
 <p>Points: {{ points }} pts</p>
-<p><a href="{{ url }}">View conversation</a></p>',
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View conversation</a></p>',
             'variables' => ['name', 'title', 'status_label', 'points', 'url'],
         ],
         'referral_invitation' => [
@@ -132,11 +132,11 @@ class SystemEmailTemplateSeeder extends Seeder
             'content_html_fr' => '<h1>{{ sender_name }} vous invite à rejoindre {{ organization }}</h1>
 <p>{{ sender_name }} vous a envoyé le message suivant :</p>
 <blockquote>{{ sender_message }}</blockquote>
-<p><a href="{{ referral_link }}">Rejoindre {{ organization }}</a></p>',
+<p><a href="{{ referral_link }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Rejoindre {{ organization }}</a></p>',
             'content_html_en' => '<h1>{{ sender_name }} invites you to join {{ organization }}</h1>
 <p>{{ sender_name }} sent you the following message:</p>
 <blockquote>{{ sender_message }}</blockquote>
-<p><a href="{{ referral_link }}">Join {{ organization }}</a></p>',
+<p><a href="{{ referral_link }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Join {{ organization }}</a></p>',
             'variables' => ['sender_name', 'recipient_name', 'sender_message', 'referral_link'],
         ],
         'ai_budget_exceeded' => [
@@ -151,7 +151,7 @@ class SystemEmailTemplateSeeder extends Seeder
 <li>Coût actuel : <strong>{{ current_cost }} €</strong></li>
 <li>Limite : <strong>{{ budget_limit }} €</strong></li>
 </ul>
-<p><a href="{{ url }}">Voir les détails</a></p>',
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir les détails</a></p>',
             'content_html_en' => '<h1>AI Budget Alert</h1>
 <p>Hello {{ name }},</p>
 <p>The AI scenario <strong>{{ scenario_id }}</strong> has exceeded its budget.</p>
@@ -159,7 +159,7 @@ class SystemEmailTemplateSeeder extends Seeder
 <li>Current cost: <strong>{{ current_cost }} €</strong></li>
 <li>Limit: <strong>{{ budget_limit }} €</strong></li>
 </ul>
-<p><a href="{{ url }}">See details</a></p>',
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">See details</a></p>',
             'variables' => ['name', 'scenario_id', 'current_cost', 'budget_limit', 'url'],
         ],
         'blog_contribution_invitation' => [
@@ -170,11 +170,11 @@ class SystemEmailTemplateSeeder extends Seeder
             'content_html_fr' => '<h1>{{ sender_name }} vous invite à lire et contribuer</h1>
 <p>Bonjour {{ recipient_name }},</p>
 <blockquote>{{ sender_message }}</blockquote>
-<p><a href="{{ article_url }}">Lire l\'article : {{ article_title }}</a></p>',
+<p><a href="{{ article_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Lire l\'article : {{ article_title }}</a></p>',
             'content_html_en' => '<h1>{{ sender_name }} invites you to read and contribute</h1>
 <p>Hello {{ recipient_name }},</p>
 <blockquote>{{ sender_message }}</blockquote>
-<p><a href="{{ article_url }}">Read the article: {{ article_title }}</a></p>',
+<p><a href="{{ article_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Read the article: {{ article_title }}</a></p>',
             'variables' => ['sender_name', 'recipient_name', 'sender_message', 'article_url', 'article_title', 'register_url'],
         ],
         /*
@@ -202,8 +202,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Added to a Loop',
             'subject_fr' => 'Vous avez été ajouté à la Boucle {{ loop_name }}',
             'subject_en' => 'You have been added to the {{ loop_name }} Loop',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vous a ajouté à la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }}. Vous en êtes désormais membre.</p><p><a href="{{ invitation_url }}">Ouvrir la Boucle</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ invitation_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} added you to the <strong>{{ loop_name }}</strong> Loop in {{ organization_name }}. You are now a member.</p><p><a href="{{ invitation_url }}">Open the Loop</a></p><p>If the link does not work, copy this address into your browser:<br>{{ invitation_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vous a ajouté à la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }}. Vous en êtes désormais membre.</p><p><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Ouvrir la Boucle</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ invitation_url }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} added you to the <strong>{{ loop_name }}</strong> Loop in {{ organization_name }}. You are now a member.</p><p><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Open the Loop</a></p><p>If the link does not work, copy this address into your browser:<br>{{ invitation_url }}</p>',
             'variables' => [
                 'recipient_name', 'sender_name', 'organization_name',
                 'loop_name', 'loop_tagline', 'invitation_url', 'app_name',
@@ -236,8 +236,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Join request accepted',
             'subject_fr' => 'Votre demande pour rejoindre la Boucle {{ loop_name }} a été acceptée',
             'subject_en' => 'Your request to join the {{ loop_name }} Loop has been accepted',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Votre demande pour rejoindre la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }} a été acceptée. Vous en êtes désormais membre.</p><p><a href="{{ invitation_url }}">Ouvrir la Boucle</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ invitation_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Your request to join the <strong>{{ loop_name }}</strong> Loop in {{ organization_name }} has been accepted. You are now a member.</p><p><a href="{{ invitation_url }}">Open the Loop</a></p><p>If the link does not work, copy this address into your browser:<br>{{ invitation_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Votre demande pour rejoindre la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }} a été acceptée. Vous en êtes désormais membre.</p><p><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Ouvrir la Boucle</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ invitation_url }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Your request to join the <strong>{{ loop_name }}</strong> Loop in {{ organization_name }} has been accepted. You are now a member.</p><p><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Open the Loop</a></p><p>If the link does not work, copy this address into your browser:<br>{{ invitation_url }}</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
                 'loop_name', 'loop_tagline', 'personal_message', 'invitation_url',
@@ -262,8 +262,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Reply to your help request or offer',
             'subject_fr' => 'Quelqu’un répond à « {{ subject_title }} »',
             'subject_en' => 'Someone replied to “{{ subject_title }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vient de répondre à <strong>{{ subject_title }}</strong> au sein de {{ organization_name }}, pour {{ points_proposed }} points.</p><p>Vous pouvez accepter ou refuser cette proposition depuis la conversation.</p><p><a href="{{ exchange_url }}">Voir la proposition</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ exchange_url }}</p><p>À bientôt,<br>{{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} has just replied to <strong>{{ subject_title }}</strong> in {{ organization_name }}, for {{ points_proposed }} points.</p><p>You can accept or decline this proposal from the conversation.</p><p><a href="{{ exchange_url }}">View the proposal</a></p><p>If the link does not work, copy this address into your browser:<br>{{ exchange_url }}</p><p>See you soon,<br>{{ app_name }}</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ sender_name }} vient de répondre à <strong>{{ subject_title }}</strong> au sein de {{ organization_name }}, pour {{ points_proposed }} points.</p><p>Vous pouvez accepter ou refuser cette proposition depuis la conversation.</p><p><a href="{{ exchange_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir la proposition</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ exchange_url }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ sender_name }} has just replied to <strong>{{ subject_title }}</strong> in {{ organization_name }}, for {{ points_proposed }} points.</p><p>You can accept or decline this proposal from the conversation.</p><p><a href="{{ exchange_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View the proposal</a></p><p>If the link does not work, copy this address into your browser:<br>{{ exchange_url }}</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
                 'subject_title', 'points_proposed', 'exchange_url', 'app_name',
@@ -341,8 +341,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Invitation to rate the helper',
             'subject_fr' => 'Terminer et évaluer l’entraide de {{ aidant_first_name }}',
             'subject_en' => 'Finish and rate your exchange with {{ aidant_first_name }}',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Vous avez indiqué que votre échange avec {{ aidant_first_name }} est terminé et {{ points }} points lui ont été transférés depuis votre compte.</p><p>Merci d’avance de lui laisser une évaluation pour reconnaître sa contribution. Ce sera sûrement apprécié !</p><p><a href="{{ evaluation_url }}">Évaluer l’entraide avec {{ aidant_first_name }}</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ evaluation_url }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>You’ve marked your exchange with {{ aidant_first_name }} as complete, and {{ points }} points have been transferred from your account.</p><p>We’d really appreciate it if you could leave them a review to recognize their contribution!</p><p><a href="{{ evaluation_url }}">Rate your exchange with {{ aidant_first_name }}</a></p><p>If the link does not work, copy this address into your browser:<br>{{ evaluation_url }}</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Vous avez indiqué que votre échange avec {{ aidant_first_name }} est terminé et {{ points }} points lui ont été transférés depuis votre compte.</p><p>Merci d’avance de lui laisser une évaluation pour reconnaître sa contribution. Ce sera sûrement apprécié !</p><p><a href="{{ evaluation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Évaluer l’entraide avec {{ aidant_first_name }}</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ evaluation_url }}</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>You’ve marked your exchange with {{ aidant_first_name }} as complete, and {{ points }} points have been transferred from your account.</p><p>We’d really appreciate it if you could leave them a review to recognize their contribution!</p><p><a href="{{ evaluation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Rate your exchange with {{ aidant_first_name }}</a></p><p>If the link does not work, copy this address into your browser:<br>{{ evaluation_url }}</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'aidant_name', 'aidant_first_name',
                 'organization_name', 'evaluation_url', 'app_name', 'points',
@@ -367,8 +367,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'You received a review',
             'subject_fr' => '{{ aide_first_name }} vous a laissé une évaluation !',
             'subject_en' => '{{ aide_first_name }} left you a review!',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ aide_first_name }} vous a laissé une évaluation pour votre entraide.</p><p style="font-size:20px;letter-spacing:2px">{{ rating_stars }} <span style="font-size:14px;color:#777">({{ rating_fraction }})</span></p><p>{{ comment_text }}</p><p><a href="{{ conversation_url }}">Voir la conversation</a></p><p>Merci de faire vivre l’entraide sur {{ app_name }}.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ aide_first_name }} left you a review for your mutual aid.</p><p style="font-size:20px;letter-spacing:2px">{{ rating_stars }} <span style="font-size:14px;color:#777">({{ rating_fraction }})</span></p><p>{{ comment_text }}</p><p><a href="{{ conversation_url }}">View the conversation</a></p><p>Thank you for keeping mutual aid alive on {{ app_name }}.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>{{ aide_first_name }} vous a laissé une évaluation pour votre entraide.</p><p style="font-size:20px;letter-spacing:2px">{{ rating_stars }} <span style="font-size:14px;color:#777">({{ rating_fraction }})</span></p><p>{{ comment_text }}</p><p><a href="{{ conversation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir la conversation</a></p><p>Merci de faire vivre l’entraide.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>{{ aide_first_name }} left you a review for your mutual aid.</p><p style="font-size:20px;letter-spacing:2px">{{ rating_stars }} <span style="font-size:14px;color:#777">({{ rating_fraction }})</span></p><p>{{ comment_text }}</p><p><a href="{{ conversation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View the conversation</a></p><p>Thank you for keeping mutual aid alive.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'aide_name', 'aide_first_name',
                 'rating_stars', 'rating_fraction', 'comment_text', 'conversation_url',
@@ -381,8 +381,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Comment on your mutual aid',
             'subject_fr' => 'Un membre a commenté votre {{ listing_type }}',
             'subject_en' => 'A member commented on your {{ listing_type }}',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir le commentaire</a></p><p>Un commentaire n’engage rien : ni entraide engagée, ni acceptation d’aide, ni temps promis. Vous répondrez si vous le souhaitez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View the comment</a></p><p>A comment commits to nothing: no mutual aid started, no accepted help, no promised time. You may reply if you wish.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir le commentaire</a></p><p>Un commentaire n’engage rien : ni entraide engagée, ni acceptation d’aide, ni temps promis. Vous répondrez si vous le souhaitez.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your {{ listing_type }} <strong>{{ listing_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View the comment</a></p><p>A comment commits to nothing: no mutual aid started, no accepted help, no promised time. You may reply if you wish.</p>',
             // Obligatoire : `ligne()` lit `$def['variables']` SANS repli
             // (`SystemEmailTemplateSeeder:450`). L'omettre ne casse pas le
             // seeder tout seul — il casse TOUT ce qui l'invoque, soit 209 tests
@@ -400,8 +400,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Comment on your article',
             'subject_fr' => '{{ author_name }} a commenté « {{ post_title }} »',
             'subject_en' => '{{ author_name }} commented on “{{ post_title }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre article <strong>{{ post_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Lire le commentaire</a></p><p>Rien ne presse : le commentaire vous attend, vous y répondrez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your article <strong>{{ post_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Read the comment</a></p><p>No rush: the comment will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a laissé un commentaire sur votre article <strong>{{ post_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Lire le commentaire</a></p><p>Rien ne presse : le commentaire vous attend, vous y répondrez quand vous voudrez.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> left a comment on your article <strong>{{ post_title }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Read the comment</a></p><p>No rush: the comment will wait for you.</p>',
             // Obligatoire : `ligne()` lit `$def['variables']` SANS repli
             // (`SystemEmailTemplateSeeder:450`). L'omettre ne casse pas le
             // seeder tout seul — il casse TOUT ce qui l'invoque, soit 209
@@ -432,8 +432,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Comment on the Feed',
             'subject_fr' => 'Commentaire sur le flux',
             'subject_en' => 'Comment on the Feed',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vient de commenter le flux à propos d\'un sujet qui vous concerne : <strong>{{ feed_context }}</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">Voir dans le Flux</a></p><p>Rien ne presse : vous n\'avez pas besoin de vous connecter pour en prendre connaissance.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> just commented on the Feed about something that concerns you: <strong>{{ feed_context }}</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}">View in the Feed</a></p><p>No rush: you don\'t need to sign in to read it.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vient de commenter le flux à propos d\'un sujet qui vous concerne : <strong>{{ feed_context }}</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir dans le Flux</a></p><p>Rien ne presse : vous n\'avez pas besoin de vous connecter pour en prendre connaissance.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> just commented on the Feed about something that concerns you: <strong>{{ feed_context }}</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ comment_excerpt }}</blockquote><p><a href="{{ comment_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View in the Feed</a></p><p>No rush: you don\'t need to sign in to read it.</p>',
             // Obligatoire : `ligne()` lit `$def['variables']` SANS repli — voir
             // le commentaire identique sur `blog_comment_created` ci-dessus.
             // Meme liste que la migration jumelle.
@@ -454,8 +454,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Mention in a Feed announcement',
             'subject_fr' => '{{ author_first_name }} vous a identifié sur le Flux',
             'subject_en' => '{{ author_first_name }} tagged you on the Feed',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a identifié dans une annonce du Flux :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ post_message }}</blockquote><p><a href="{{ post_url }}">Voir l\'annonce dans le Flux</a></p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> tagged you in a Feed announcement:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ post_message }}</blockquote><p><a href="{{ post_url }}">View the announcement in the Feed</a></p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a identifié dans une annonce du Flux :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ post_message }}</blockquote><p><a href="{{ post_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir l\'annonce dans le Flux</a></p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> tagged you in a Feed announcement:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ post_message }}</blockquote><p><a href="{{ post_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View the announcement in the Feed</a></p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'author_first_name',
                     'organization_name', 'post_message', 'post_url',
@@ -472,8 +472,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Named co-author of an article',
             'subject_fr' => '{{ author_first_name }} vous a nommé co-auteur d’un article',
             'subject_en' => '{{ author_first_name }} made you co-author of an article',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a nommé co-auteur d’un article : <strong>{{ post_title }}</strong>.</p><p>Vous pouvez désormais le modifier vous aussi. Voici le lien de cet article :</p><p><a href="{{ post_url }}">Ouvrir l’article</a></p><p>À bientôt,<br>L’équipe {{ organization_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> made you co-author of an article: <strong>{{ post_title }}</strong>.</p><p>You can now edit it together. Here is the link to this article:</p><p><a href="{{ post_url }}">Open the article</a></p><p>See you soon,<br>The {{ organization_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a nommé co-auteur d’un article : <strong>{{ post_title }}</strong>.</p><p>Vous pouvez désormais le modifier vous aussi. Voici le lien de cet article :</p><p><a href="{{ post_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Ouvrir l’article</a></p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> made you co-author of an article: <strong>{{ post_title }}</strong>.</p><p>You can now edit it together. Here is the link to this article:</p><p><a href="{{ post_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Open the article</a></p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'author_first_name',
                 'organization_name', 'post_title', 'post_url',
@@ -489,8 +489,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Task assigned on an article',
             'subject_fr' => '{{ todo_title }} sur « {{ post_title_short }} »',
             'subject_en' => '{{ todo_title }} on “{{ post_title_short }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a confié une tâche sur l’article <strong>{{ post_title }}</strong> :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ todo_title }}</blockquote><p>Tâche saisie le {{ todo_date }}.</p><p><a href="{{ post_url }}">Ouvrir l’article</a></p><p>À bientôt,<br>L’équipe {{ organization_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> assigned you a task on the article <strong>{{ post_title }}</strong>:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ todo_title }}</blockquote><p>Task created on {{ todo_date }}.</p><p><a href="{{ post_url }}">Open the article</a></p><p>See you soon,<br>The {{ organization_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a confié une tâche sur l’article <strong>{{ post_title }}</strong> :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ todo_title }}</blockquote><p>Tâche saisie le {{ todo_date }}.</p><p><a href="{{ post_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Ouvrir l’article</a></p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> assigned you a task on the article <strong>{{ post_title }}</strong>:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ todo_title }}</blockquote><p>Task created on {{ todo_date }}.</p><p><a href="{{ post_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Open the article</a></p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'author_first_name', 'organization_name', 'todo_title', 'todo_date', 'post_title', 'post_title_short', 'post_url', 'preferences_url', 'app_name',
             ],
@@ -507,8 +507,8 @@ class SystemEmailTemplateSeeder extends Seeder
             // qui porte l'extrait et le lien de desabonnement, sans passer
             // par la precedente. La suite TASK-1772 verifie que ces deux
             // chaines ne divergent pas.
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> vous a mentionné dans un message de la Boucle <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned you in a message from the Loop <strong>{{ loop_name }}</strong>.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
                 'loop_name', 'author_name', 'message_url', 'message_excerpt',
@@ -527,8 +527,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Collective mention in a Loop',
             'subject_fr' => '{{ author_name }} a mentionné tous les membres de « {{ loop_name }} »',
             'subject_en' => '{{ author_name }} mentioned all the members of “{{ loop_name }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a mentionné <strong>tous les membres</strong> de la Boucle <strong>{{ loop_name }}</strong>, dont vous.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned <strong>all the members</strong> of the Loop <strong>{{ loop_name }}</strong>, including you.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a mentionné <strong>tous les membres</strong> de la Boucle <strong>{{ loop_name }}</strong>, dont vous.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Lire le message dans la Boucle</a></p><p>Rien ne presse : le message vous attend, vous le lirez quand vous voudrez.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> mentioned <strong>all the members</strong> of the Loop <strong>{{ loop_name }}</strong>, including you.</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ message_excerpt }}</blockquote><p><a href="{{ message_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Read the message in the Loop</a></p><p>No rush: the message will wait for you.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
                 'loop_name', 'author_name', 'message_url', 'message_excerpt',
@@ -541,8 +541,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Request to join a Loop',
             'subject_fr' => 'Quelqu’un demande à rejoindre « {{ loop_name }} »',
             'subject_en' => 'Someone is asking to join “{{ loop_name }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> demande à rejoindre la Boucle <strong>{{ loop_name }}</strong>, dont vous êtes responsable.</p><p><a href="{{ request_url }}">Voir la demande et répondre</a></p><p>Tant que vous n’avez pas répondu, cette personne reste en attente.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> is asking to join the Loop <strong>{{ loop_name }}</strong>, which you are responsible for.</p><p><a href="{{ request_url }}">View the request and reply</a></p><p>Until you reply, this person stays on hold.</p><p>See you soon,<br>The {{ app_name }} team</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> demande à rejoindre la Boucle <strong>{{ loop_name }}</strong>, dont vous êtes responsable.</p><p><a href="{{ request_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir la demande et répondre</a></p><p>Tant que vous n’avez pas répondu, cette personne reste en attente.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> is asking to join the Loop <strong>{{ loop_name }}</strong>, which you are responsible for.</p><p><a href="{{ request_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View the request and reply</a></p><p>Until you reply, this person stays on hold.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
                 'loop_name', 'requester_name', 'request_url', 'app_name',
@@ -557,8 +557,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Help request published in a Loop',
             'subject_fr' => 'Une demande d’aide dans « {{ loop_name }} »',
             'subject_en' => 'A help request in “{{ loop_name }}”',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> a publié une demande d’aide dans la Boucle <strong>{{ loop_name }}</strong>, dont vous êtes membre.</p><p><a href="{{ request_url }}">Ouvrir la Boucle</a></p><p>Rien ne presse : la demande vous attend, vous la lirez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> published a help request in the Loop <strong>{{ loop_name }}</strong>, which you are a member of.</p><p><a href="{{ request_url }}">Open the Loop</a></p><p>No rush: the request will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> a publié une demande d’aide dans la Boucle <strong>{{ loop_name }}</strong>, dont vous êtes membre.</p><p><a href="{{ request_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Ouvrir la Boucle</a></p><p>Rien ne presse : la demande vous attend, vous la lirez quand vous voudrez.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ requester_name }}</strong> published a help request in the Loop <strong>{{ loop_name }}</strong>, which you are a member of.</p><p><a href="{{ request_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Open the Loop</a></p><p>No rush: the request will wait for you.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'organization_name',
                 'loop_name', 'requester_name', 'request_url', 'app_name',
@@ -578,8 +578,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'New event proposed in a Loop',
             'subject_fr' => '{{ event_title }} — {{ event_date }}',
             'subject_en' => '{{ event_title }} — {{ event_date }}',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a proposé un nouvel évènement dans la Boucle <strong>{{ loop_name }}</strong> : <strong>{{ event_title }}</strong>, le {{ event_date }}.</p><p>{{ event_practical_info }}</p><p>{{ event_description }}</p><p><a href="{{ event_url }}">Ouvrir la Boucle</a></p><p>Rien ne presse : l’évènement vous attend, vous y répondrez quand vous voudrez.</p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> proposed a new event in the Loop <strong>{{ loop_name }}</strong>: <strong>{{ event_title }}</strong>, on {{ event_date }}.</p><p>{{ event_practical_info }}</p><p>{{ event_description }}</p><p><a href="{{ event_url }}">Open the Loop</a></p><p>No rush: the event will wait for you.</p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> a proposé un nouvel évènement dans la Boucle <strong>{{ loop_name }}</strong> : <strong>{{ event_title }}</strong>, le {{ event_date }}.</p><p>{{ event_practical_info }}</p><p>{{ event_description }}</p><p><a href="{{ event_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Ouvrir la Boucle</a></p><p>Rien ne presse : l’évènement vous attend, vous y répondrez quand vous voudrez.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_name }}</strong> proposed a new event in the Loop <strong>{{ loop_name }}</strong>: <strong>{{ event_title }}</strong>, on {{ event_date }}.</p><p>{{ event_practical_info }}</p><p>{{ event_description }}</p><p><a href="{{ event_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Open the Loop</a></p><p>No rush: the event will wait for you.</p>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'author_name',
                 'organization_name', 'loop_name', 'event_title', 'event_date',
@@ -598,17 +598,17 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><strong>{{ sender_name }}</strong> vous invite à rejoindre la Boucle <strong>{{ loop_name }}</strong> au sein de {{ organization_name }}.</p>
 <p><em>{{ loop_tagline }}</em></p>
 <blockquote>{{ personal_message }}</blockquote>
-<p><a href="{{ invitation_url }}">Voir l\'invitation et rejoindre la Boucle</a></p>
+<p><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir l\'invitation et rejoindre la Boucle</a></p>
 <p>Cette invitation expire le {{ expires_at }}.</p>
-<p>— {{ app_name }}</p>',
+',
             'content_html_en' => '<h1>{{ sender_name }} invites you to join {{ loop_name }}</h1>
 <p>Hello {{ recipient_name }},</p>
 <p><strong>{{ sender_name }}</strong> invites you to join the <strong>{{ loop_name }}</strong> Loop within {{ organization_name }}.</p>
 <p><em>{{ loop_tagline }}</em></p>
 <blockquote>{{ personal_message }}</blockquote>
-<p><a href="{{ invitation_url }}">View the invitation and join the Loop</a></p>
+<p><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">View the invitation and join the Loop</a></p>
 <p>This invitation expires on {{ expires_at }}.</p>
-<p>— {{ app_name }}</p>',
+',
             'variables' => [
                 'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
                 'loop_name', 'loop_tagline', 'personal_message', 'invitation_url',
@@ -631,18 +631,18 @@ class SystemEmailTemplateSeeder extends Seeder
             'content_html_fr' => '<div style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.6;">
 <h1 style="font-size: 20px; font-weight: 700; margin: 0 0 16px;">Vous êtes invité·e à rejoindre {{ organization_name }}</h1>
 <p style="margin: 0 0 12px;">Bonjour {{ recipient_name }},</p>
-<p style="margin: 0 0 12px;"><strong>{{ sender_name }}</strong> vous invite à rejoindre <strong>{{ organization_name }}</strong> sur {{ app_name }}.</p>
+<p style="margin: 0 0 12px;"><strong>{{ sender_name }}</strong> vous invite à rejoindre <strong>{{ organization_name }}</strong>.</p>
 <p style="margin: 0 0 20px;"><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Rejoindre {{ organization_name }}</a></p>
 <p style="margin: 0 0 8px; font-size: 13px; color: #6b7280;">Ce lien expire le {{ expires_at }}.</p>
-<p style="margin: 0; font-size: 13px; color: #9ca3af;">— {{ app_name }}</p>
+
 </div>',
             'content_html_en' => '<div style="font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.6;">
 <h1 style="font-size: 20px; font-weight: 700; margin: 0 0 16px;">You are invited to join {{ organization_name }}</h1>
 <p style="margin: 0 0 12px;">Hi {{ recipient_name }},</p>
-<p style="margin: 0 0 12px;"><strong>{{ sender_name }}</strong> invites you to join <strong>{{ organization_name }}</strong> on {{ app_name }}.</p>
+<p style="margin: 0 0 12px;"><strong>{{ sender_name }}</strong> invites you to join <strong>{{ organization_name }}</strong>.</p>
 <p style="margin: 0 0 20px;"><a href="{{ invitation_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Join {{ organization_name }}</a></p>
 <p style="margin: 0 0 8px; font-size: 13px; color: #6b7280;">This link expires on {{ expires_at }}.</p>
-<p style="margin: 0; font-size: 13px; color: #9ca3af;">— {{ app_name }}</p>
+
 </div>',
             'variables' => [
                 'recipient_name', 'recipient_email', 'sender_name', 'organization_name',
@@ -661,14 +661,14 @@ class SystemEmailTemplateSeeder extends Seeder
             'content_html_fr' => '<h1>Bonjour {{ name }},</h1>
 <p>Vous avez demandé à passer de <strong>{{ source_organization }}</strong> à <strong>{{ target_organization }}</strong>.</p>
 <p>Si c\'est bien vous, confirmez : vous pourrez ensuite passer de l\'une à l\'autre en un clic, sans mot de passe.</p>
-<p><a href="{{ url }}">Confirmer et continuer</a></p>
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Confirmer et continuer</a></p>
 <p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
 <p>Ce lien est valable <strong>15 minutes</strong> et ne peut servir qu\'une fois.</p>
 <p>Ce n\'était pas vous ? Ignorez ce message : rien ne sera lié.</p>',
             'content_html_en' => '<h1>Hello {{ name }},</h1>
 <p>You asked to switch from <strong>{{ source_organization }}</strong> to <strong>{{ target_organization }}</strong>.</p>
 <p>If this was you, confirm it: you will then be able to switch between them in one click, without a password.</p>
-<p><a href="{{ url }}">Confirm and continue</a></p>
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Confirm and continue</a></p>
 <p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
 <p>This link is valid for <strong>15 minutes</strong> and can only be used once.</p>
 <p>Wasn\'t you? Ignore this message: nothing will be linked.</p>',
@@ -683,13 +683,13 @@ class SystemEmailTemplateSeeder extends Seeder
 <p>Votre compte et votre compte de <strong>{{ other_organization }}</strong> sont maintenant liés : vous pouvez passer de l\'un à l\'autre en un clic, depuis le menu de votre avatar.</p>
 <p>Les données des deux organisations restent séparées.</p>
 <p>Vous pouvez révoquer ce lien à tout moment, depuis l\'un ou l\'autre compte :</p>
-<p><a href="{{ url }}">Gérer mes comptes liés</a></p>
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Gérer mes comptes liés</a></p>
 <p>Si vous n\'êtes pas à l\'origine de cette liaison, révoquez-la et changez votre mot de passe.</p>',
             'content_html_en' => '<h1>Hello {{ name }},</h1>
 <p>Your account and your <strong>{{ other_organization }}</strong> account are now linked: you can switch between them in one click from your avatar menu.</p>
 <p>Data from both organizations remains separate.</p>
 <p>You can revoke this link at any time, from either account:</p>
-<p><a href="{{ url }}">Manage my linked accounts</a></p>
+<p><a href="{{ url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Manage my linked accounts</a></p>
 <p>If you did not create this link, revoke it and change your password.</p>',
             'variables' => ['name', 'url', 'other_organization'],
         ],
@@ -704,8 +704,8 @@ class SystemEmailTemplateSeeder extends Seeder
             'name_en' => 'Weekly newsletter — help requests and offers',
             'subject_fr' => '[{{ organization_name }}] - newsletter du {{ newsletter_date }}',
             'subject_en' => '[{{ organization_name }}] - newsletter of {{ newsletter_date }}',
-            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Voici les dernières demandes et propositions d’aide de <strong>{{ organization_name }}</strong>. Un coup de main, même petit, fait souvent la différence.</p>{evenements;3}<h2 style="font-size:18px;margin:24px 0 8px">Ils ont besoin d’aide</h2>{demande_aide;3}<h2 style="font-size:18px;margin:24px 0 8px">Ils proposent leur aide</h2>{proposition_aide;3}{billets_blog;3}<p><a href="{{ explorer_url }}">Voir toutes les demandes et propositions</a></p><p>À bientôt,<br>L’équipe {{ organization_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Vous recevez cette lettre parce que vous êtes membre de {{ organization_name }}. <a href="{{ unsubscribe_url }}">Se désinscrire de la newsletter</a></p>',
-            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Here are the latest help requests and offers from <strong>{{ organization_name }}</strong>. A helping hand, however small, often makes the difference.</p>{evenements;3}<h2 style="font-size:18px;margin:24px 0 8px">They need help</h2>{demande_aide;3}<h2 style="font-size:18px;margin:24px 0 8px">They offer their help</h2>{proposition_aide;3}{billets_blog;3}<p><a href="{{ explorer_url }}">See all requests and offers</a></p><p>See you soon,<br>The {{ organization_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">You receive this letter because you are a member of {{ organization_name }}. <a href="{{ unsubscribe_url }}">Unsubscribe from the newsletter</a></p>',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Voici les dernières demandes et propositions d’aide de <strong>{{ organization_name }}</strong>. Un coup de main, même petit, fait souvent la différence.</p>{evenements;3}<h2 style="font-size:18px;margin:24px 0 8px">Ils ont besoin d’aide</h2>{demande_aide;3}<h2 style="font-size:18px;margin:24px 0 8px">Ils proposent leur aide</h2>{proposition_aide;3}{billets_blog;3}<p><a href="{{ explorer_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">Voir toutes les demandes et propositions</a></p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Vous recevez cette lettre parce que vous êtes membre de {{ organization_name }}. <a href="{{ unsubscribe_url }}">Se désinscrire de la newsletter</a></p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Here are the latest help requests and offers from <strong>{{ organization_name }}</strong>. A helping hand, however small, often makes the difference.</p>{evenements;3}<h2 style="font-size:18px;margin:24px 0 8px">They need help</h2>{demande_aide;3}<h2 style="font-size:18px;margin:24px 0 8px">They offer their help</h2>{proposition_aide;3}{billets_blog;3}<p><a href="{{ explorer_url }}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 600;">See all requests and offers</a></p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">You receive this letter because you are a member of {{ organization_name }}. <a href="{{ unsubscribe_url }}">Unsubscribe from the newsletter</a></p>',
             'variables' => ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name', 'newsletter_date'],
         ],
     ];

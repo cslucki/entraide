@@ -170,6 +170,9 @@ final class EvaluationInviteMailer
             'fallback_reason' => $rendu['fallback_reason'],
         ];
 
+        // TASK-1894 — habille au nom de l'organisation de l'entraide.
+        $rendu['body'] = \App\Support\Email\HabillageOrganisation::envelopper($rendu['body'], $transaction->organization, 'entraide_evaluation_invite', $locale);
+
         try {
             Mail::html($rendu['body'], function ($message) use ($aide, $rendu) {
                 $message->to($aide->email)->subject($rendu['subject']);

@@ -44,7 +44,7 @@ class WelcomeNotification extends Notification
                 // qui declenche l'habillage et l'incorporation des styles.
                 ->markdown('emails.system-email', [
                     'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extraVars)),
-                ]);
+                ] + \App\Support\Email\HabillageOrganisation::pour($notifiable->organization ?? null, self::SLUG, $template->locale));
         }
 
         // TASK-1694 bug G — le repli nomme l'ORGANIZATION, plus la marque.

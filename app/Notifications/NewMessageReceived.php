@@ -78,7 +78,7 @@ class NewMessageReceived extends Notification
                 ))
                 ->markdown('emails.system-email', [
                     'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extraVars)),
-                ]);
+                ] + HabillageOrganisation::pour($this->transaction->organization, 'private_message_received', $template->locale));
         }
 
         return (new MailMessage)

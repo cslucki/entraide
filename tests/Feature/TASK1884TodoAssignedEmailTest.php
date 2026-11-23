@@ -138,13 +138,17 @@ class TASK1884TodoAssignedEmailTest extends TestCase
 
     public function test_migration_et_catalogue_portent_les_memes_textes(): void
     {
+        // TASK-1894 — le catalogue porte le texte REPRIS (signature et reglages
+        // dans le cadre, lien principal en bouton) : la migration d'origine,
+        // passee par la reprise de T1894, doit le redonner EXACTEMENT.
+        $reprise = require database_path('migrations/2026_11_24_100100_habillage_organisation_tous_les_gabarits.php');
         $migration = require database_path('migrations/2026_11_23_120000_add_blog_todo_assigned_email_template.php');
         $gabarits = (fn () => $this->gabarits())->call($migration);
 
         foreach (['fr', 'en'] as $langue) {
             $ligne = SystemEmailTemplateSeeder::rowFor('blog_todo_assigned', $langue);
             $this->assertSame($gabarits[$langue]['subject'], $ligne['subject']);
-            $this->assertSame($gabarits[$langue]['html'], $ligne['content_html']);
+            $this->assertSame($reprise::transformer($gabarits[$langue]['html']), $ligne['content_html']);
         }
     }
 }

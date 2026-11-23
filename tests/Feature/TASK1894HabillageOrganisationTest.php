@@ -47,7 +47,7 @@ class TASK1894HabillageOrganisationTest extends TestCase
     {
         $this->assertNotNull(HabillageOrganisation::pour($this->org, 'loop_mention_created', 'fr')['reglagesUrl']);
 
-        foreach (['confirmation-email-suite-inscription', 'organization_invitation', 'liaison-comptes-confirmation', 'weekly_help_digest'] as $slug) {
+        foreach (['confirmation-email-suite-inscription', 'organization_invitation', 'liaison-comptes-confirmation', 'weekly_help_digest', 'new_message', 'transaction_status_changed'] as $slug) {
             $this->assertNull(HabillageOrganisation::pour($this->org, $slug, 'fr')['reglagesUrl'], $slug);
         }
     }
@@ -55,7 +55,7 @@ class TASK1894HabillageOrganisationTest extends TestCase
     public function test_le_gabarit_systeme_habille_ne_dit_jamais_bouclepro(): void
     {
         $html = (string) app(Markdown::class)->render('emails.system-email', ['html' => '<p>Corps</p>']
-            + HabillageOrganisation::pour($this->org, 'new_message', 'fr'));
+            + HabillageOrganisation::pour($this->org, 'private_message_received', 'fr'));
         $corps = substr($html, (int) strpos($html, '<body'));
 
         $this->assertStringContainsString('OFSH', $corps);
@@ -106,7 +106,7 @@ class TASK1894HabillageOrganisationTest extends TestCase
 
         $migration->up();
         $apres = $lire();
-        $this->assertStringContainsString('background:#4f46e5', $apres);
+        $this->assertStringContainsString(HabillageOrganisation::BOUTON, $apres);
         $this->assertStringNotContainsString('L’équipe {{ app_name }}', $apres);
 
         $migration->up();
@@ -114,5 +114,22 @@ class TASK1894HabillageOrganisationTest extends TestCase
 
         $migration->down();
         $this->assertSame($avant, $lire(), 'Le retour remet le texte d’origine.');
+    }
+
+    public function test_la_reprise_de_tous_les_gabarits_retire_la_marque_et_pose_un_bouton(): void
+    {
+        $migration = require database_path('migrations/2026_11_24_100100_habillage_organisation_tous_les_gabarits.php');
+
+        $avant = '<p>Bonjour</p><p><strong>A</strong> vous invite sur {{ app_name }}.</p><p><a href="{{ comment_url }}">Voir</a></p>'
+            .'<p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee">'
+            .'<p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>';
+        $apres = $migration::transformer($avant);
+
+        $this->assertSame('<p>Bonjour</p><p><strong>A</strong> vous invite.</p><p><a href="{{ comment_url }}" style="'.HabillageOrganisation::BOUTON.'">Voir</a></p>', $apres);
+        $this->assertSame($apres, $migration::transformer($apres), 'Idempotente.');
+
+        // Le lien de desinscription de la newsletter ne devient jamais un bouton.
+        $lettre = '<p><a href="{{ unsubscribe_url }}">Se désinscrire</a></p>';
+        $this->assertSame($lettre, $migration::transformer($lettre));
     }
 }

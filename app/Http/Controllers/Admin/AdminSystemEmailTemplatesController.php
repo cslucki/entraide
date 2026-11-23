@@ -263,27 +263,41 @@ class AdminSystemEmailTemplatesController extends Controller
         $locale = $systemEmailTemplate->locale ?: self::LOCALE_PAR_DEFAUT;
         app()->setLocale($locale);
 
-        $cles = $systemEmailTemplate->variables ?? [];
-        $demo = $this->variablesDeDemonstration($cles, $locale);
-
-        $emailer = app(EmailerService::class);
-        $subject = $emailer->interpolateSubject($sujet, $demo, $cles);
-        // TASK-1883 — les blocs de la newsletter, avec les vraies demandes et
-        // propositions de l'organisation par defaut (lecture seule, aucun envoi).
-        if (HelpDigestBlocks::contient($contenu)
-            && ($org = Organization::query()->where('is_default', true)->first() ?? Organization::query()->where('is_active', true)->orderBy('name')->first())) {
-            $contenu = app(HelpDigestBlocks::class)->developper($contenu, $org, $locale);
-        }
-
-        $html = $emailer->interpolate($contenu, $demo, $cles);
-
-        // TASK-1894 — le rendu montre l'habillage AU NOM DE L'ORGANISATION
-        // (en-tete, signature, reglages), avec l'organisation par defaut et
-        // son administrateur : ce que verra un membre, pas « BouclePro ».
+        // TASK-1894 — l'organisation au nom de laquelle l'apercu est habille
+        // (en-tete, signature, reglages) : ce que verra un membre.
         $organisation = $systemEmailTemplate->organization
             ?? $pour
             ?? Organization::query()->where('is_default', true)->first()
             ?? Organization::query()->where('is_active', true)->orderBy('name')->first();
+
+        $cles = $systemEmailTemplate->variables ?? [];
+
+        // TASK-1894 — le nom de l'organisation est TOUJOURS fourni a l'envoi
+        // (`EmailerService::availableVariables()`), meme quand le gabarit ne
+        // le declare pas : sans lui, l'apercu affichait « {{ organisation }} »
+        // brut la ou le membre lit le vrai nom.
+        $clesOrganisation = array_values(array_filter(
+            ['organization', 'organisation', 'organization_name'],
+            fn (string $cle) => str_contains($sujet.$contenu, '{{ '.$cle.' }}'),
+        ));
+        $cles = array_values(array_unique(array_merge($cles, $clesOrganisation)));
+
+        $demo = $this->variablesDeDemonstration($cles, $locale);
+        foreach (['organization', 'organisation', 'organization_name'] as $cle) {
+            if ($organisation !== null && array_key_exists($cle, $demo)) {
+                $demo[$cle] = (string) $organisation->name;
+            }
+        }
+
+        $emailer = app(EmailerService::class);
+        $subject = $emailer->interpolateSubject($sujet, $demo, $cles);
+        // TASK-1883 — les blocs de la newsletter, avec les vraies demandes et
+        // propositions de l'organisation de l'apercu (lecture seule, aucun envoi).
+        if (HelpDigestBlocks::contient($contenu) && $organisation !== null) {
+            $contenu = app(HelpDigestBlocks::class)->developper($contenu, $organisation, $locale);
+        }
+
+        $html = $emailer->interpolate($contenu, $demo, $cles);
 
         $rendu = (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]
             + HabillageOrganisation::pour($organisation, (string) $systemEmailTemplate->slug, $locale));
