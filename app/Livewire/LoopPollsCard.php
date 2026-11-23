@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\Loop;
 use App\Models\LoopPoll;
 use App\Services\Loops\LoopPollService;
@@ -22,6 +23,20 @@ use Livewire\Component;
  */
 class LoopPollsCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'core.polls';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->closeForm();
+        $this->cancelConfirmation();
+    }
+
     public Loop $loop;
 
     // ── Creation et modification ────────────────────────────────────────────

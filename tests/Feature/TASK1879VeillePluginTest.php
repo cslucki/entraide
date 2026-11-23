@@ -457,6 +457,31 @@ class TASK1879VeillePluginTest extends TestCase
             ->assertSet('errorMessage', __('veille.error_category_not_found'));
     }
 
+    /**
+     * TASK-1888 — un formulaire laisse ouvert ne reste plus colle : rouverte
+     * depuis le menu, la Card Veille montre ses elements. L'evenement d'une
+     * AUTRE Card ne la touche pas.
+     */
+    public function test_rouverte_depuis_le_menu_la_veille_revient_a_ses_elements(): void
+    {
+        $this->activer();
+        $this->publier($this->membre, ['subject' => 'Element deja publie']);
+
+        Livewire::actingAs($this->membre)
+            ->test(LoopWatchCard::class, ['loop' => $this->loop])
+            ->call('openCreateForm')
+            ->set('subject', 'Brouillon abandonne')
+            ->assertSet('showForm', true)
+            ->assertSeeHtml('data-section="watch-form"')
+            ->dispatch('loop-card-opened-from-menu', card: 'core.polls')
+            ->assertSet('showForm', true)
+            ->dispatch('loop-card-opened-from-menu', card: 'plugin.veille')
+            ->assertSet('showForm', false)
+            ->assertSet('subject', '')
+            ->assertDontSeeHtml('data-section="watch-form"')
+            ->assertSee('Element deja publie');
+    }
+
     #[DataProvider('urlsRefusees')]
     public function test_les_sources_non_http_sont_refusees(string $url): void
     {

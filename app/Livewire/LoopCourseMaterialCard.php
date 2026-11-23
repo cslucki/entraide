@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\CourseModule;
 use App\Models\CourseSequence;
 use App\Models\Loop;
@@ -29,6 +30,21 @@ use Livewire\Component;
  */
 class LoopCourseMaterialCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'training.course_material';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->showModuleForm = false;
+        $this->openSequenceFormFor = null;
+        $this->editingModuleId = null;
+    }
+
     public Loop $loop;
 
     /** L'etat des fenetres vit **cote serveur** : fermer une fenetre doit se

@@ -193,7 +193,34 @@
                  stockage. --}}
             @if($urls && ($canCreateArticle || $canUploadFile))
                 <div class="mt-3 border-t border-[var(--bp-border)] pt-3"
-                     x-data="{ writing: false, uploading: false, uploadError: '', pourcent: 0, phase: 'envoi', mesurable: false }">
+                     x-data="{ writing: false, uploading: false, uploadError: '', pourcent: 0, phase: 'envoi', mesurable: false,
+                     {{-- TASK-1889 — UN depot pour les deux entrees (fichiers, galerie). --}}
+                     async deposer(event) {
+                         const fichiers = [...event.target.files].slice(0, 5);
+                         event.target.value = '';
+                         if (! fichiers.length) return;
+                         this.uploading = true; this.uploadError = ''; this.pourcent = 0;
+                         // La mire du telephone ecoute ces deux
+                         // evenements : la Card n'a pas a la
+                         // connaitre, elle annonce, c'est tout.
+                         const annonce = (p, ph) => {
+                             this.pourcent = p;
+                             this.phase = ph || 'envoi';
+                             if (this.phase === 'envoi' && p > 0 && p < 100) { this.mesurable = true; }
+                             window.dispatchEvent(new CustomEvent('bp-depot-progression', {
+                                 detail: { pourcent: p, phase: this.phase, nombre: fichiers.length, nom: fichiers[0]?.name ?? '' },
+                             }));
+                         };
+                         this.mesurable = false;
+                         annonce(0, 'envoi');
+                         const r = await window.bpTeleverserFichiers(@js($urls['upload']), fichiers, annonce);
+                         this.uploading = false;
+                         window.dispatchEvent(new CustomEvent('bp-depot-fichier', {
+                             detail: { ok: r.ok, nombre: fichiers.length, raison: r.raison },
+                         }));
+                         if (r.ok) { this.$wire.$refresh(); }
+                         else { this.uploadError = r.raison || @js(__('loops.cards.dossiers.upload_failed')); }
+                     } }">
                     <div class="flex flex-wrap gap-2">
                         @if($canCreateArticle)
                             <button type="button" @click="writing = ! writing; uploadError = ''"
@@ -213,32 +240,7 @@
                                             `bpTeleverserFichiers` (XHR), partage avec le composeur de
                                             la Boucle — une seule facon de televerser dans le produit,
                                             et une seule a corriger. --}}
-                                       @change="
-                                            const fichiers = [...$event.target.files].slice(0, 5);
-                                            $event.target.value = '';
-                                            if (! fichiers.length) return;
-                                            uploading = true; uploadError = ''; pourcent = 0;
-                                            // La mire du telephone ecoute ces deux
-                                            // evenements : la Card n'a pas a la
-                                            // connaitre, elle annonce, c'est tout.
-                                            const annonce = (p, ph) => {
-                                                pourcent = p;
-                                                phase = ph || 'envoi';
-                                                if (phase === 'envoi' && p > 0 && p < 100) { mesurable = true; }
-                                                window.dispatchEvent(new CustomEvent('bp-depot-progression', {
-                                                    detail: { pourcent: p, phase: phase, nombre: fichiers.length, nom: fichiers[0]?.name ?? '' },
-                                                }));
-                                            };
-                                            mesurable = false;
-                                            annonce(0, 'envoi');
-                                            const r = await window.bpTeleverserFichiers(@js($urls['upload']), fichiers, annonce);
-                                            uploading = false;
-                                            window.dispatchEvent(new CustomEvent('bp-depot-fichier', {
-                                                detail: { ok: r.ok, nombre: fichiers.length, raison: r.raison },
-                                            }));
-                                            if (r.ok) { $wire.$refresh(); }
-                                            else { uploadError = r.raison || @js(__('loops.cards.dossiers.upload_failed')); }
-                                       ">
+                                       @change="deposer($event)">
                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"/></svg>
                                 {{-- TASK-1772 — le chiffre SEULEMENT quand il veut dire
                                      quelque chose. Sur une liaison rapide le navigateur
@@ -252,6 +254,17 @@
                                         : (mesurable
                                             ? @js(__('dossiers.file_upload_progress')).replace(':percent', pourcent)
                                             : @js(__('loops.cards.dossiers.uploading'))))"></span>
+                            </label>
+                            {{-- TASK-1889 (Cyril, 23/11) — sur telephone, le choix de fichier
+                                 sans `accept` propose Fichiers, Appareil photo, Camera, mais
+                                 JAMAIS la galerie : retrouver ses dernieres photos etait
+                                 laborieux. `image/*,video/*` SANS `capture` ouvre le selecteur
+                                 de photos du systeme. Meme depot, meme mire. Inutile sur
+                                 ordinateur, ou le bouton Fichier suffit. --}}
+                            <label class="{{ $quiet }} cursor-pointer lg:hidden" :class="uploading && 'pointer-events-none opacity-50'" data-action="depot-galerie">
+                                <input type="file" class="hidden" multiple accept="image/*,video/*" @change="deposer($event)">
+                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A1.5 1.5 0 0 0 21.75 19.5V4.5A1.5 1.5 0 0 0 20.25 3H3.75A1.5 1.5 0 0 0 2.25 4.5v15A1.5 1.5 0 0 0 3.75 21Zm10.5-11.25h.008v.008h-.008V9.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+                                {{ __('loops.cards.dossiers.upload_gallery') }}
                             </label>
                             {{-- La barre, a cote du bouton : le pourcentage dit
                                  « ca avance », la barre dit « de combien ». --}}

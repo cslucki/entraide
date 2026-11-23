@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\LoopRoadmapItem;
@@ -20,6 +21,21 @@ use Livewire\Component;
 
 class LoopRoadmapCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'core.roadmap';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->cancelEdit();
+        $this->closeDetail();
+        $this->cancelEditMessage();
+    }
+
     public Loop $loop;
 
     // Create form (premium "+" modal).

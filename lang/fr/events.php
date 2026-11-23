@@ -169,6 +169,8 @@ return [
     'chat_updated' => 'L\'événement « :title » a été mis à jour.',
     'chat_cancelled' => 'L\'événement « :title » a été annulé.',
     'chat_open_card' => 'Ouvrir l\'agenda',
+    'chat_pin' => 'Épingler',
+    'chat_unpin' => 'Désépingler',
     'chat_join_link' => 'Rejoindre',
 
     // TASK-1802 (suite, demande Cyril) — « juste un bouton pour participer

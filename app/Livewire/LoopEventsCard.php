@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\RevientASaListe;
 use App\Models\Loop;
 use App\Models\LoopEvent;
 use App\Models\LoopEventResponse;
@@ -25,6 +26,21 @@ use Livewire\Component;
  */
 class LoopEventsCard extends Component
 {
+    use RevientASaListe;
+
+    protected function cleDeCard(): string
+    {
+        return 'core.events';
+    }
+
+    /** TASK-1888 — rouverte depuis le menu, la Card montre sa liste. */
+    protected function revenirALaListe(): void
+    {
+        $this->closeForm();
+        $this->closeEventDetail();
+        $this->cancelConfirmation();
+    }
+
     public Loop $loop;
 
     public string $view = 'list'; // list | calendar
