@@ -127,7 +127,7 @@ class TASK1883NewsletterSendTest extends TestCase
         $this->envoyer([$this->a->id]);
 
         // TASK-1891 — objet par defaut date du jour de l'envoi.
-        $this->assertSame('[Org A] - notre newsletter du '.now('Europe/Paris')->locale('fr')->isoFormat('D MMMM YYYY'), EmailLog::where('user_id', $alice->id)->value('subject'));
+        $this->assertSame('[Org A] - newsletter du '.now('Europe/Paris')->format('d/m/y'), EmailLog::where('user_id', $alice->id)->value('subject'));
     }
 
     public function test_desabonne_entre_la_preparation_et_l_envoi_rien_n_est_envoye(): void

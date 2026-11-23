@@ -207,7 +207,7 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         $this->assertSame('nom de chaque organisation cette semaine', $toutes->setRelation('organizations', collect())->objetLisible());
     }
 
-    /** Correctif 4 — objet par defaut « [organisation] - notre newsletter du [date du jour] ». */
+    /** Correctif 4 — objet par defaut « [organisation] - newsletter du [date du jour] ». */
     public function test_l_objet_par_defaut_porte_l_organisation_et_la_date_du_jour(): void
     {
         $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-24 23:30', 'UTC'));
@@ -218,8 +218,8 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         $en = User::factory()->create(['organization_id' => $this->org->id, 'preferred_locale' => 'en']);
 
         // 23 h 30 UTC = 0 h 30 a Paris : la date est celle de Paris.
-        $this->assertSame('[Entraide Test] - notre newsletter du 25 novembre 2026', app(BulkEmailSendService::class)->newsletterPour($fr->load('organization'), $envoi)['subject']);
-        $this->assertSame('[Entraide Test] - our newsletter of November 25, 2026', app(BulkEmailSendService::class)->newsletterPour($en->load('organization'), $envoi)['subject']);
+        $this->assertSame('[Entraide Test] - newsletter du 25/11/26', app(BulkEmailSendService::class)->newsletterPour($fr->load('organization'), $envoi)['subject']);
+        $this->assertSame('[Entraide Test] - newsletter of 11/25/26', app(BulkEmailSendService::class)->newsletterPour($en->load('organization'), $envoi)['subject']);
 
         $variables = SystemEmailTemplate::query()->whereNull('organization_id')->where('slug', 'weekly_help_digest')->where('locale', 'fr')->firstOrFail()->variables;
         $this->assertContains('newsletter_date', is_array($variables) ? $variables : json_decode((string) $variables, true));

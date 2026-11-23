@@ -72,15 +72,15 @@ class TASK1883AdminNewsletterTest extends TestCase
 
         // Le champ est pre-rempli avec l'objet FR du modele, et modifiable.
         $this->actingAs($this->superadmin)->get(route('admin.newsletter'))
-            ->assertSee('[{{ organization_name }}] - notre newsletter du {{ newsletter_date }}', false)
+            ->assertSee('[{{ organization_name }}] - newsletter du {{ newsletter_date }}', false)
             ->assertSee('data-admin-newsletter-subject', false);
 
         // Laisse tel quel : un membre anglophone garde l'objet EN.
         $en = $this->actingAs($this->superadmin)->postJson(route('admin.newsletter.preview'), $this->formulaire([
-            'locale' => 'en', 'subject' => '[{{ organization_name }}] - notre newsletter du {{ newsletter_date }}',
+            'locale' => 'en', 'subject' => '[{{ organization_name }}] - newsletter du {{ newsletter_date }}',
         ]))->json();
         $this->assertStringContainsString('They need help', $en['html']);
-        $this->assertSame('[Entraide Test] - our newsletter of '.now('Europe/Paris')->locale('en')->isoFormat('MMMM D, YYYY'), $en['subject']);
+        $this->assertSame('[Entraide Test] - newsletter of '.now('Europe/Paris')->format('m/d/y'), $en['subject']);
     }
 
     public function test_envoyer_puis_suivre_la_progression_et_le_doublon_demande_confirmation(): void

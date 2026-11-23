@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * TASK-1891 (demande Cyril, 23/11) — objet par defaut de la newsletter :
- * « [{{ organization_name }}] - notre newsletter du [date du jour] ».
+ * « [{{ organization_name }}] - newsletter du [date du jour] », ex. « [OFSH] - newsletter du 21/11/26 ».
  * `{{ newsletter_date }}` est calcule a l'envoi (BulkEmailSendService).
  *
  * Seul un objet reste IDENTIQUE a celui d'origine (T1883) est remplace : un
@@ -22,8 +22,8 @@ return new class extends Migration
     ];
 
     private const NOUVEAUX = [
-        'fr' => '[{{ organization_name }}] - notre newsletter du {{ newsletter_date }}',
-        'en' => '[{{ organization_name }}] - our newsletter of {{ newsletter_date }}',
+        'fr' => '[{{ organization_name }}] - newsletter du {{ newsletter_date }}',
+        'en' => '[{{ organization_name }}] - newsletter of {{ newsletter_date }}',
     ];
 
     public function up(): void

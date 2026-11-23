@@ -638,8 +638,8 @@ class BulkEmailSendService
             'explorer_url' => $org->is_default ? route('explorer') : route('organization.explorer', ['organization' => $org->slug]),
             'unsubscribe_url' => $desinscription,
             'app_name' => (string) config('app.name'),
-            // TASK-1891 (Cyril, 23/11) — « notre newsletter du [date du jour] ».
-            'newsletter_date' => now('Europe/Paris')->locale($langue)->isoFormat($langue === 'en' ? 'MMMM D, YYYY' : 'D MMMM YYYY'),
+            // TASK-1891 (Cyril, 23/11) — « [OFSH] - newsletter du 21/11/26 ».
+            'newsletter_date' => now('Europe/Paris')->format($langue === 'en' ? 'm/d/y' : 'd/m/y'),
         ];
         $cles = ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name', 'newsletter_date'];
 
