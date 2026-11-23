@@ -409,11 +409,18 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             'GET org/{organization}/login',
             'GET org/{organization}/mentions-legales',
             'GET org/{organization}/mycelium',
+            // TASK-1891 (decision Cyril, 23/11) — desinscription de la newsletter,
+            // scopee : lien SIGNE envoye dans chaque lettre, sans connexion. Le
+            // compte doit appartenir a cette Organization (404 sinon) ; le GET
+            // n'ecrit rien, seuls les deux POST signes agissent.
+            'GET org/{organization}/newsletter/desinscription/{compte}',
             'GET org/{organization}/open-source',
             'GET org/{organization}/register',
             'GET org/{organization}/reset-password/{token}',
             'POST org/{organization}/forgot-password',
             'POST org/{organization}/login',
+            'POST org/{organization}/newsletter/desinscription/{compte}',
+            'POST org/{organization}/newsletter/desinscription/{compte}/annuler',
             'POST org/{organization}/register',
             'POST org/{organization}/reset-password',
         ], $public);
