@@ -7,6 +7,7 @@ import { chatLoopAdaptivePolling } from './chatloop-adaptive-polling.js';
 import { notificationsBadgeRealtime } from './notifications-badge-realtime.js';
 import { messageThreadAdaptivePolling, messageThreadRealtimeNudge } from './message-thread-adaptive-polling.js';
 import { messagesUnreadBadgeRealtime } from './messages-unread-badge-realtime.js';
+import { voiceRecorder, voiceNotePlayer } from './voice-notes.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
@@ -324,6 +325,22 @@ function registerChatLoopAdaptivePolling() {
     // `loop-chat.blade.php`. Voir `chatloop-adaptive-polling.js` pour la
     // logique (testable sans navigateur).
     Alpine.data('chatLoopAdaptivePolling', chatLoopAdaptivePolling);
+}
+
+/**
+ * TASK-1886 — l'enregistreur et le lecteur des messages vocaux. Meme
+ * idempotence que les `register*()` voisins (Alpine vit dans le bundle
+ * Livewire, il peut etre pret avant OU apres ce fichier).
+ */
+function registerVoiceNotes() {
+    if (!window.Alpine || window.__voiceNotesRegistered) {
+        return;
+    }
+
+    window.__voiceNotesRegistered = true;
+
+    Alpine.data('voiceRecorder', voiceRecorder);
+    Alpine.data('voiceNotePlayer', voiceNotePlayer);
 }
 
 /**
@@ -8621,6 +8638,7 @@ document.addEventListener('alpine:init', () => {
     registerAlpineStores();
     registerChatLoopAdaptivePolling();
     registerMessageThreadAdaptivePolling();
+    registerVoiceNotes();
     registerBlogSnapshotCard();
     registerBlogEditor();
     registerBlogMethodSelectionCard();
@@ -8644,6 +8662,7 @@ document.addEventListener('alpine:init', () => {
 registerAlpineStores();
 registerChatLoopAdaptivePolling();
 registerMessageThreadAdaptivePolling();
+registerVoiceNotes();
 registerBlogSnapshotCard();
 registerBlogEditor();
 registerBlogMethodSelectionCard();

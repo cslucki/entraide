@@ -71,6 +71,18 @@
            surfaces (courte et prefixee), et une piece doit rester sur celle
            ou le membre se trouve. */
         $_threadAttachment = function ($message) use ($_threadRoute) {
+            /* TASK-1886 — un vocal PURGE n'a plus de fichier, mais sa bulle
+               reste : « Message vocal expire ». */
+            if ($message->isVoice() && ! $message->hasFile()) {
+                return ['voice' => [
+                    'id' => (string) $message->id,
+                    'duration' => $message->voice_duration,
+                    'peaks' => null,
+                    'expired' => true,
+                    'expiresIn' => null,
+                ], 'previewUrl' => null];
+            }
+
             if (! $message->hasFile()) {
                 return null;
             }
@@ -85,6 +97,15 @@
                 'previewUrl' => $message->fileIsPreviewable()
                     ? $_threadRoute('messages.attachments.preview', 'organization.messages.attachments.preview', $params)
                     : null,
+                /* TASK-1886 — un vocal se LIT dans la bulle ; la carte fichier
+                   ne s'affiche pas pour lui. */
+                'voice' => $message->isVoice() ? [
+                    'id' => (string) $message->id,
+                    'duration' => $message->voice_duration,
+                    'peaks' => $message->voiceWaveform(),
+                    'expired' => $message->voiceIsExpired(),
+                    'expiresIn' => $message->voiceExpiryForHumans(),
+                ] : null,
             ];
         };
     @endphp
@@ -687,6 +708,10 @@
                  qu'une image : elle seule elargit le selecteur. --}}
             :upload-accept="\App\Support\Files\TypesDeFichiersAcceptes::pourAttributAccept()"
             :upload-label="__('messages.send_file')"
+            {{-- TASK-1886 — le micro facon WhatsApp : seule la Messagerie
+                 sait recevoir un vocal ephemere. --}}
+            :voice="true"
+            :voice-max-seconds="\App\Models\Message::VOICE_MAX_SECONDS"
         >
             {{-- TASK-1772 (recette Cyril, 06/11) — LA MEME PILULE QUE LE CHATLOOP.
                  =====================================================================

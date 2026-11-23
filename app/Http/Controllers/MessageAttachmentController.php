@@ -61,6 +61,7 @@ class MessageAttachmentController extends Controller
             $message->file_path,
             $message->fileDisplayName(),
             $message->file_mime,
+            $message->voice_expires_at,
         );
     }
 
@@ -80,6 +81,7 @@ class MessageAttachmentController extends Controller
             $message->file_path,
             $message->fileDisplayName(),
             $message->file_mime,
+            $message->voice_expires_at,
         );
     }
 
@@ -90,6 +92,12 @@ class MessageAttachmentController extends Controller
 
         abort_if((string) $message->transaction_id !== (string) $transaction->id, 404);
         abort_if(! $message->hasFile(), 404);
+
+        // TASK-1886 — un vocal echu est ferme A L'HEURE DITE, que le purgeur
+        // soit passe ou non. 410 et non 404 : la piece a existe, elle a
+        // expire — c'est la promesse faite aux deux membres. Cette garde
+        // tient aussi pour une URL deja connue : toute lecture repasse ici.
+        abort_if($message->voiceIsExpired(), 410);
 
         // Le disque est celui ECRIT avec la piece, mais il doit rester un
         // disque que l'application connait : une valeur inattendue en base ne
