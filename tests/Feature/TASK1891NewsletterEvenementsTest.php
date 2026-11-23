@@ -157,4 +157,33 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         $this->assertLessThan(strpos($rendu['html'], 'Ils ont besoin d’aide'), strpos($rendu['html'], 'À l’agenda'));
         $this->assertGreaterThanOrEqual(1, $rendu['recipients']);
     }
+
+    /** Correctif 2 — la newsletter parle au nom de l'organisation, en tete et en pied. */
+    public function test_l_en_tete_et_le_pied_portent_le_nom_de_l_organisation(): void
+    {
+        config(['app.name' => 'BouclePro']);
+        $this->evenement($this->org, 'Assemblee');
+        $membre = User::factory()->create(['organization_id' => $this->org->id, 'preferred_locale' => 'fr']);
+        $envoi = new \App\Models\BulkEmailSend(['system_template_slug' => BulkEmailSendService::NEWSLETTER_SLUG, 'demand_count' => 3, 'offer_count' => 3, 'blog_count' => 0, 'event_count' => 3]);
+
+        $html = app(BulkEmailSendService::class)->newsletterPour($membre->load('organization'), $envoi)['body'];
+
+        $entete = $this->entete($html);
+        $this->assertStringContainsString('Entraide Test', $entete);
+        $this->assertStringNotContainsString('BouclePro', $entete);
+        $this->assertStringContainsString('© '.date('Y').' Entraide Test', $html);
+        // Seul le `<title>` technique du `<head>` (jamais affiche) garde la marque.
+        $this->assertStringNotContainsString('BouclePro', substr($html, strpos($html, '<body')));
+
+        // Les autres courriels systeme gardent l'habillage de la plateforme.
+        $autre = (string) app(\Illuminate\Mail\Markdown::class)->render('emails.system-email', ['html' => '<p>x</p>']);
+        $this->assertStringContainsString('BouclePro', $this->entete($autre));
+    }
+
+    private function entete(string $html): string
+    {
+        $debut = strpos($html, 'class="header"');
+
+        return substr($html, $debut, strpos($html, '</td>', $debut) - $debut);
+    }
 }

@@ -644,7 +644,12 @@ class BulkEmailSendService
 
         return [
             'subject' => $this->emailer->interpolateSubject(filled($send->subject) ? $send->subject : (string) $gabarit->subject, $vars, $cles),
-            'body' => (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]),
+            // TASK-1891 — en-tete et pied au nom de l'organisation du membre.
+            'body' => (string) app(Markdown::class)->render('emails.system-email', [
+                'html' => $html,
+                'marque' => (string) $org->name,
+                'marqueUrl' => $vars['explorer_url'],
+            ]),
             'unsubscribe_url' => $desinscription,
         ];
     }
