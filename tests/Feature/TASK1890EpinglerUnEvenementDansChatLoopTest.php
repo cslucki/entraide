@@ -82,6 +82,9 @@ class TASK1890EpinglerUnEvenementDansChatLoopTest extends TestCase
             ->call('toggleEventPin', $tuile->id)
             ->assertSeeHtml('data-pinned-event-ticker')
             ->assertSee($attendu)
+            // Le ticker du telephone rend le texte deux fois : la copie qui
+            // boucle le defilement est muette pour les lecteurs d'ecran.
+            ->assertSeeHtml('bp-ticker-copie" aria-hidden="true">'.e($attendu).'</span>')
             ->assertSee(__('events.chat_unpin'))
             ->assertSeeHtml('data-action="unpin-event"');
 

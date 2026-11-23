@@ -544,14 +544,28 @@
     }
 }
 
-/* TASK-1890 — bandeau de l'evenement epingle dans ChatLoop : le texte trop
-   long pour l'ecran defile d'un bord a l'autre. */
+/* TASK-1890 — bandeau de l'evenement epingle dans ChatLoop. Telephone et
+   tablette : ticker en boucle, le texte rendu deux fois glisse de la moitie
+   de sa largeur, sans saut. Ordinateur : une ligne fixe, tronquee. */
 @keyframes bp-ticker {
-    0%, 15% { transform: translateX(0); }
-    85%, 100% { transform: translateX(var(--bp-ticker-ecart, 0)); }
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
 }
-.bp-ticker-defile { animation: bp-ticker 10s ease-in-out infinite alternate; }
+.bp-ticker { display: inline-flex; animation: bp-ticker var(--bp-ticker-duree, 12s) linear infinite; }
+.bp-ticker-item { flex-shrink: 0; padding-right: 3rem; }
+.bp-ticker-fenetre {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 0.75rem, #000 calc(100% - 0.75rem), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 0.75rem, #000 calc(100% - 0.75rem), transparent);
+}
+@media (min-width: 1024px) {
+    .bp-ticker-fenetre { -webkit-mask-image: none; mask-image: none; }
+    .bp-ticker { display: block; overflow: hidden; text-overflow: ellipsis; animation: none; }
+    .bp-ticker-item { padding-right: 0; }
+    .bp-ticker-copie { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
-    .bp-ticker-defile { animation: none; }
-    .bp-ticker { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .bp-ticker-fenetre { -webkit-mask-image: none; mask-image: none; }
+    .bp-ticker { display: block; overflow: hidden; text-overflow: ellipsis; animation: none; }
+    .bp-ticker-item { padding-right: 0; }
+    .bp-ticker-copie { display: none; }
 }

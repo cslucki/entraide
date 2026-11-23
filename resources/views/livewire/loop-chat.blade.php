@@ -16,8 +16,10 @@
 
     {{-- TASK-1890 (Cyril, 23/11) — l'evenement epingle : UNE ligne, « titre —
          date et heure », relue en direct (un evenement deplace se lit a sa
-         nouvelle date ; annule ou passe, le bandeau disparait). Trop long pour
-         l'ecran, le texte defile ; mouvement reduit demande : il est tronque. --}}
+         nouvelle date ; annule ou passe, le bandeau disparait).
+         Telephone/tablette : ticker qui defile en boucle (texte rendu deux
+         fois, la copie est muette pour les lecteurs d'ecran). Ordinateur : une
+         ligne fixe, tronquee. Mouvement reduit demande : fixe partout. --}}
     @if($pinnedEvent)
         @php
             $tickerEvent = $pinnedEvent['event'];
@@ -28,11 +30,12 @@
             <svg class="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0V11.25A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
             <button type="button"
                     x-on:click="$dispatch('bp-open-loop-card', { card: 'core.events' })"
-                    x-data="{ ecart: 0 }"
-                    x-init="$nextTick(() => { ecart = Math.max(0, $refs.texte.scrollWidth - $el.clientWidth) })"
                     title="{{ $tickerTexte }}"
-                    class="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs font-medium text-sky-900 dark:text-sky-100">
-                <span x-ref="texte" class="bp-ticker inline-block" x-bind:class="ecart > 0 && 'bp-ticker-defile'" x-bind:style="ecart > 0 ? '--bp-ticker-ecart: -' + ecart + 'px' : ''">{{ $tickerTexte }}</span>
+                    class="bp-ticker-fenetre min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs font-medium text-sky-900 dark:text-sky-100">
+                <span class="bp-ticker" style="--bp-ticker-duree: {{ max(8, (int) ceil(mb_strlen($tickerTexte) * 0.3)) }}s">
+                    <span class="bp-ticker-item">{{ $tickerTexte }}</span>
+                    <span class="bp-ticker-item bp-ticker-copie" aria-hidden="true">{{ $tickerTexte }}</span>
+                </span>
             </button>
             @if($canUnpinEvent)
                 <button type="button" wire:click="unpinEvent" data-action="unpin-event"
