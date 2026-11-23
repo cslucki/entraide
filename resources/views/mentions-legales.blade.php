@@ -50,6 +50,21 @@
                     </p>
                 </section>
 
+                {{-- TASK-1898 — donnees personnelles : les deux pages publiques. --}}
+                <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
+                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.privacy_title') }}</h2>
+                    <ul class="space-y-1">
+                        <li>
+                            <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}"
+                               class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ __('legal.privacy_link') }}</a>
+                        </li>
+                        <li>
+                            <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}"
+                               class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ __('legal.account_deletion_link') }}</a>
+                        </li>
+                    </ul>
+                </section>
+
                 <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
                     <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.opensource_title') }}</h2>
                     <p>

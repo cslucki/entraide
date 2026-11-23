@@ -11,6 +11,10 @@ return [
     'editor_text' => 'This site is published by:',
     'director_title' => 'Publication director',
     'host_title' => 'Hosting provider',
+    // TASK-1898
+    'privacy_title' => 'Personal data',
+    'privacy_link' => 'Privacy policy',
+    'account_deletion_link' => 'Delete my account and data',
     'opensource_title' => 'Open source project',
     'opensource_text' => 'BouclePro is an open source project by the AMT association. The source code is available on GitHub. Contributions are welcome — development, suggestions, or bug reports.',
     'partnership_title' => 'Partners',

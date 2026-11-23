@@ -80,6 +80,18 @@
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
                     {{ __('footer.mentions_legales') }}
                 </a>
+                {{-- TASK-1898 — pages exigees par Google Play, bornees a
+                     l'Organization courante comme les mentions legales. --}}
+                <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}"
+                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                   data-footer-privacy>
+                    {{ __('footer.privacy') }}
+                </a>
+                <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}"
+                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                   data-footer-account-deletion>
+                    {{ __('footer.account_deletion') }}
+                </a>
                 {{-- TASK-1692 / MICRO-11.2D — « Kit demo » sort de la garde
                      tenant, comme les mentions legales juste au-dessus.
 

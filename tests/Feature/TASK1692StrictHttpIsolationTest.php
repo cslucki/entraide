@@ -375,6 +375,8 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             // elle est plus forte qu'avant — `about()` ne regardait pas
             // `is_public`, voir `test_g_bis` ci-dessous.
             'GET org/{organization}/about',
+            // TASK-1898 — pages Google Play, montage des mentions legales.
+            'GET org/{organization}/confidentialite',
             'GET org/{organization}/flowchart',
             'GET org/{organization}/forgot-password',
             // TASK-1737 — l'ecran d'installation de l'application, vu depuis
@@ -417,6 +419,7 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             'GET org/{organization}/open-source',
             'GET org/{organization}/register',
             'GET org/{organization}/reset-password/{token}',
+            'GET org/{organization}/suppression-de-compte',
             'POST org/{organization}/forgot-password',
             'POST org/{organization}/login',
             'POST org/{organization}/newsletter/desinscription/{compte}',
