@@ -166,4 +166,12 @@ return [
     'registration_closed_everywhere' => 'No organization is accepting new registrations at the moment.',
     // TASK-1881 — membre non autorise a se connecter a cette Organization.
     'organization_closed' => ':organization is closed, please choose another organization.',
+    // TASK-1894 — "forgot password" email on behalf of the organisation.
+    'reset_mail_subject' => 'Reset your password',
+    'reset_mail_hello' => 'Hello :name,',
+    'reset_mail_intro' => 'You are receiving this email because a password reset was requested for your account.',
+    'reset_mail_button' => 'Choose a new password',
+    'reset_mail_expire' => 'This link is valid for :count minutes.',
+    'reset_mail_ignore' => 'If you did not request this, ignore this message: your password stays unchanged.',
+    'reset_mail_fallback' => 'If the button does not work, copy this address into your browser:',
 ];

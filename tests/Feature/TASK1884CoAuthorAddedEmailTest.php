@@ -89,7 +89,9 @@ class TASK1884CoAuthorAddedEmailTest extends TestCase
         $this->assertStringContainsString('Bonjour Lina', $fr['body']);
         $this->assertStringContainsString('Bien accueillir les nouveaux', $fr['body']);
         $this->assertStringContainsString('https://exemple.test/modifier', $fr['body']);
-        $this->assertStringContainsString('L’équipe Entraide du Port', $fr['body']);
+        // TASK-1894 — la signature n'est plus dans le corps du gabarit : le
+        // cadre commun signe « Prenom pour Organisation » au livreur.
+        $this->assertStringNotContainsString('L’équipe', $fr['body']);
         $this->assertStringNotContainsString('https://exemple.test/modifier', $fr['body_for_log'], 'Lien expurge dans la copie archivee.');
 
         $this->assertSame('Paul made you co-author of an article', $this->rendu($notification, 'en')['subject']);
@@ -102,12 +104,16 @@ class TASK1884CoAuthorAddedEmailTest extends TestCase
 
     public function test_migration_et_catalogue_portent_les_memes_textes(): void
     {
+        // TASK-1894 — le catalogue porte le texte REPRIS (signature et reglages
+        // dans le cadre, lien principal en bouton) : la migration d'origine,
+        // passee par la reprise de T1894, doit le redonner EXACTEMENT.
+        $reprise = require database_path('migrations/2026_11_24_100100_habillage_organisation_tous_les_gabarits.php');
         $migration = require database_path('migrations/2026_11_23_110000_add_blog_co_author_added_email_template.php');
         $gabarits = (fn () => $this->gabarits())->call($migration);
         $catalogue = SystemEmailTemplateSeeder::rowFor('blog_co_author_added', 'fr');
 
         $this->assertSame($gabarits['fr']['subject'], $catalogue['subject']);
-        $this->assertSame($gabarits['fr']['html'], $catalogue['content_html']);
-        $this->assertSame($gabarits['en']['html'], SystemEmailTemplateSeeder::rowFor('blog_co_author_added', 'en')['content_html']);
+        $this->assertSame($reprise::transformer($gabarits['fr']['html']), $catalogue['content_html']);
+        $this->assertSame($reprise::transformer($gabarits['en']['html']), SystemEmailTemplateSeeder::rowFor('blog_co_author_added', 'en')['content_html']);
     }
 }

@@ -41,7 +41,7 @@ class TransactionStatusChanged extends Notification
                 // qui declenche l'habillage et l'incorporation des styles.
                 ->markdown('emails.system-email', [
                     'html' => $emailer->interpolate($template->content_html, $vars, array_keys($extraVars)),
-                ]);
+                ] + \App\Support\Email\HabillageOrganisation::pour($this->transaction->organization, 'transaction_status_changed', $template->locale));
         }
 
         return (new MailMessage)

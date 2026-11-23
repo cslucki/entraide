@@ -13,6 +13,7 @@ use App\Models\LoopJoinRequest;
 use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
+use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\BlogPost;
 use App\Models\BlogTodo;
@@ -26,7 +27,9 @@ use App\Services\Feed\FeedMentionMailer;
 use App\Services\Loops\LoopEventMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
+use App\Support\Email\HabillageOrganisation;
 use App\Services\Transactions\TransactionProposalMailer;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
@@ -319,7 +322,7 @@ final class NotificationEmailDeliverer
         // TASK-1809 (micro-sequence B) — AVANT tout usage de `$contenu` :
         // `Mail::html()`, le hachage et le journal doivent tous voir le MEME
         // corps habille. Voir `habiller()`.
-        $contenu = $this->habiller($contenu);
+        $contenu = $this->habiller($contenu, $notification, $locale);
 
         try {
             Mail::html($contenu['body'], function ($message) use ($destinataire, $contenu) {
@@ -427,12 +430,36 @@ final class NotificationEmailDeliverer
      * @param  array{subject: string, body: string, body_for_log: string}  $contenu
      * @return array{subject: string, body: string, body_for_log: string}
      */
-    private function habiller(array $contenu): array
+    private function habiller(array $contenu, ?MemberNotification $notification = null, ?string $locale = null): array
     {
+        // TASK-1894 — habillage AU NOM DE L'ORGANISATION de la notification :
+        // en-tete, signature « Prenom pour Organisation », lien vers ses
+        // reglages (une notification se coupe toujours dans les reglages).
+        // Memorise par tenant et langue (meme memoire que TASK-1799) : une
+        // mention a N destinataires ne relit ni l'Organization ni son
+        // administrateur N fois. Affichage seul, aucune decision d'acces.
+        $habillage = $notification?->organization_id
+            ? app(ScopedReadCache::class)->souviens(
+                'habillage-organisation:'.$notification->organization_id.':'.($locale ?? app()->getLocale()),
+                fn (): array => HabillageOrganisation::pour(
+                    // Meme cle que NotificationTargetResolver : une seule lecture.
+                    app(ScopedReadCache::class)->souviens(
+                        'cible-organization:'.$notification->organization_id,
+                        fn (): ?Organization => Organization::query()
+                            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                            ->whereKey($notification->organization_id)
+                            ->first(),
+                    ),
+                    'notification',
+                    $locale,
+                ),
+            )
+            : [];
+
         return [
             'subject' => $contenu['subject'],
-            'body' => $this->envelopper($contenu['body']),
-            'body_for_log' => $this->envelopper($contenu['body_for_log']),
+            'body' => $this->envelopper($contenu['body'], $habillage),
+            'body_for_log' => $this->envelopper($contenu['body_for_log'], $habillage),
             // TASK-1884 #7 — facultatif : un sujet qui porte un texte ecrit par
             // un membre (titre de tache) est archive sous sa forme expurgee.
             'subject_for_log' => $contenu['subject_for_log'] ?? $contenu['subject'],
@@ -447,13 +474,13 @@ final class NotificationEmailDeliverer
      * seule chose qui empecherait un double habillage si un futur appelant
      * en produisait un.
      */
-    private function envelopper(string $html): string
+    private function envelopper(string $html, array $habillage = []): string
     {
         if (stripos($html, '<html') !== false) {
             return $html;
         }
 
-        return view('emails.notification-shell', [
+        return view('emails.notification-shell', $habillage + [
             'html' => $html,
             'themeCss' => file_get_contents(resource_path('views/vendor/mail/html/themes/bouclepro.css')) ?: '',
         ])->render();

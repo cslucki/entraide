@@ -180,4 +180,12 @@ return [
     'registration_closed_everywhere' => 'Aucune organisation n\'accepte de nouvelle inscription pour le moment.',
     // TASK-1881 — membre non autorise a se connecter a cette Organization.
     'organization_closed' => ':organization est fermé, merci de choisir une autre organisation.',
+    // TASK-1894 — email « mot de passe oublié » au nom de l'organisation.
+    'reset_mail_subject' => 'Réinitialisation de votre mot de passe',
+    'reset_mail_hello' => 'Bonjour :name,',
+    'reset_mail_intro' => 'Vous recevez cet email parce qu’une demande de réinitialisation du mot de passe a été faite pour votre compte.',
+    'reset_mail_button' => 'Choisir un nouveau mot de passe',
+    'reset_mail_expire' => 'Ce lien est valable :count minutes.',
+    'reset_mail_ignore' => 'Si vous n’êtes pas à l’origine de cette demande, ignorez ce message : votre mot de passe reste inchangé.',
+    'reset_mail_fallback' => 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
 ];

@@ -649,11 +649,13 @@ class BulkEmailSendService
         return [
             'subject' => $this->emailer->interpolateSubject(filled($send->subject) ? $send->subject : (string) $gabarit->subject, $vars, $cles),
             // TASK-1891 — en-tete et pied au nom de l'organisation du membre.
+            // TASK-1894 — + signature « Prenom pour Org » ; pas de mention de
+            // reglages : la newsletter porte son propre lien de desinscription.
             'body' => (string) app(Markdown::class)->render('emails.system-email', [
                 'html' => $html,
                 'marque' => (string) $org->name,
                 'marqueUrl' => $vars['explorer_url'],
-            ]),
+            ] + \App\Support\Email\HabillageOrganisation::pour($org, 'weekly_help_digest', $langue)),
             'unsubscribe_url' => $desinscription,
         ];
     }

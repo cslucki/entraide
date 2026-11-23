@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use App\Auth\AccountScopedPasswordBrokerManager;
 use App\Models\User;
+use App\Support\Email\HabillageOrganisation;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -93,6 +95,37 @@ class PasswordResetServiceProvider extends ServiceProvider
                 'token' => $token,
                 'email' => $email,
             ], false));
+        });
+
+        // TASK-1894 — l'email « mot de passe oublié » parle AU NOM DE
+        // L'ORGANISATION (en-tete, signature « Prenom pour Org »), plus avec
+        // l'en-tete « BouclePro » du gabarit du framework. Un bouton, et
+        // l'adresse en clair dessous pour les messageries qui le bloquent.
+        // Jamais de mention de reglages : cet email ne se coupe pas.
+        ResetPassword::toMailUsing(function (object $notifiable, string $token): MailMessage {
+            $langue = ($notifiable instanceof User && $notifiable->preferred_locale === 'en') ? 'en' : 'fr';
+            $url = call_user_func(ResetPassword::$createUrlCallback, $notifiable, $token);
+            $minutes = (int) config('auth.passwords.'.config('auth.defaults.passwords').'.expire', 60);
+            $nom = $notifiable instanceof User ? (string) ($notifiable->first_name ?: $notifiable->publicDisplayName()) : '';
+            $t = fn (string $cle, array $p = []) => (string) __('auth.'.$cle, $p, $langue);
+
+            $html = '<p>'.e($t('reset_mail_hello', ['name' => $nom])).'</p>'
+                .'<p>'.e($t('reset_mail_intro')).'</p>'
+                .'<p><a href="'.e($url).'" style="'.HabillageOrganisation::BOUTON.'">'.e($t('reset_mail_button')).'</a></p>'
+                .'<p>'.e($t('reset_mail_expire', ['count' => $minutes])).'</p>'
+                .'<p>'.e($t('reset_mail_ignore')).'</p>'
+                .'<p style="font-size:12px;color:#6b7280">'.e($t('reset_mail_fallback')).'<br>'.e($url).'</p>';
+
+            return (new MailMessage)
+                ->subject($t('reset_mail_subject'))
+                // L'adresse reste lisible par le code (journal, tests) comme
+                // avec le gabarit du framework ; la vue ne l'affiche pas en double.
+                ->action($t('reset_mail_button'), $url)
+                ->markdown('emails.system-email', ['html' => $html] + HabillageOrganisation::pour(
+                    $notifiable instanceof User ? $notifiable->organization : null,
+                    'password_reset',
+                    $langue,
+                ));
         });
     }
 }

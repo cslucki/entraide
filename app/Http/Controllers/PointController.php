@@ -123,6 +123,9 @@ class PointController extends Controller
             $subject = __('points.email_default_subject');
         }
 
+        // TASK-1894 — habille au nom de l'organisation du parrain.
+        $html = \App\Support\Email\HabillageOrganisation::envelopper($html, $user->organization, 'referral_invitation');
+
         try {
             Mail::html($html, function ($message) use ($data, $subject) {
                 $message->to($data['recipient_email'])

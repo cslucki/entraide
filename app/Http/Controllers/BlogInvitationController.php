@@ -128,6 +128,9 @@ class BlogInvitationController extends Controller
             ])->render();
         }
 
+        // TASK-1894 — habille au nom de l'organisation de l'article.
+        $html = \App\Support\Email\HabillageOrganisation::envelopper($html, $organization, 'blog_contribution_invitation');
+
         try {
             Mail::html($html, function ($message) use ($data, $subject) {
                 $message->to($data['recipient_email'])

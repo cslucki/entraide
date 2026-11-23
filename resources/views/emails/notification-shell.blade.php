@@ -28,7 +28,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-<title>{{ config('app.name') }}</title>
+<title>{{ $marque ?? config('app.name') }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <meta name="color-scheme" content="light">
@@ -61,7 +61,7 @@ width: 100% !important;
 <table class="content" width="100%" cellpadding="0" cellspacing="0" role="presentation">
 <tr>
 <td class="header">
-<a href="{{ config('app.url') }}" style="display: inline-block;">{{ config('app.name') }}</a>
+<a href="{{ $marqueUrl ?? config('app.url') }}" style="display: inline-block;">{{ $marque ?? config('app.name') }}</a>
 </td>
 </tr>
 
@@ -73,6 +73,10 @@ width: 100% !important;
 <tr>
 <td class="content-cell">
 {!! $html !!}
+{{-- TASK-1894 — fin commune au nom de l'organisation. --}}
+@isset($signature)
+@include('emails.partials.cloture')
+@endisset
 </td>
 </tr>
 </table>
@@ -84,7 +88,11 @@ width: 100% !important;
 <table class="footer" align="center" width="570" cellpadding="0" cellspacing="0" role="presentation">
 <tr>
 <td class="content-cell" align="center">
+@isset($marque)
+<p>&copy; {{ date('Y') }} {{ $marque }}</p>
+@else
 <p>&copy; {{ date('Y') }} {{ config('app.name') }}. {{ __('All rights reserved.') }}</p>
+@endisset
 </td>
 </tr>
 </table>

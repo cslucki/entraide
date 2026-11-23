@@ -568,6 +568,13 @@ class TASK1797MentionAllTest extends TestCase
             database_path('migrations/2026_11_09_170000_add_loop_mention_all_created_email_template.php')
         );
 
+        // TASK-1894 — le catalogue porte desormais le texte REPRIS (signature et
+        // mention de reglages portees par le cadre, lien principal en bouton).
+        // La garantie reste entiere : le texte de la migration d'origine, passe
+        // par la reprise de T1894, doit redonner EXACTEMENT le catalogue.
+        $reprise = require database_path('migrations/2026_11_24_100100_habillage_organisation_tous_les_gabarits.php');
+        $migration = $reprise::transformer($migration);
+
         foreach ([
             $definition['subject_fr'],
             $definition['subject_en'],
