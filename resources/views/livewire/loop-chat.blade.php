@@ -360,11 +360,20 @@
                             $dfIds = $dfMeta['file_ids'] ?? [];
                             $dfResolved = collect($dfIds)->map(fn ($id) => $projectedDossierFiles->get($id))->filter()->values();
                             $dfSingle = $dfResolved->count() === 1 ? $dfResolved->first() : null;
+                            // TASK-1889 — le texte de l'annonce fige le nom du depot ; un
+                            // fichier renomme depuis Dossiers doit s'y lire sous son nom
+                            // ACTUEL. Seul le nom change : rien d'autre n'est reecrit, et
+                            // le bouton vise l'identifiant, jamais le nom (pas de lien casse).
+                            $dfBody = $msg->body;
+                            $dfAncien = $dfMeta['files'][0] ?? null;
+                            if ($dfSingle && count($dfIds) === 1 && is_string($dfAncien) && $dfAncien !== $dfSingle->nomLisible()) {
+                                $dfBody = str_replace('« '.$dfAncien.' »', '« '.$dfSingle->nomLisible().' »', $dfBody);
+                            }
                         @endphp
                         <div data-dossier-file-event class="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 dark:border-emerald-800/50 dark:bg-emerald-900/20">
                             <svg class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
                             <span class="min-w-0 flex-1 text-xs leading-5 text-emerald-900 dark:text-emerald-100">
-                                {{ $msg->body }}
+                                {{ $dfBody }}
                                 @if($dfSingle)
                                     <span class="block text-[11px] text-emerald-700/80 dark:text-emerald-300/80">{{ $dfSingle->typeLisible() }} · {{ $dfSingle->tailleLisible() }}@if($dfSingle->dossier) · {{ $dfSingle->dossier->name }}@endif</span>
                                 @endif
