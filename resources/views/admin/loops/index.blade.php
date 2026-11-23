@@ -19,9 +19,12 @@
         <p class="text-sm text-gray-500 dark:text-gray-400">
             Boucles filtrées par organisation. Par défaut : votre organisation.
         </p>
-        <div class="flex flex-wrap items-center gap-3">
-            <form method="GET" class="flex flex-wrap items-center gap-3">
-                <select name="organization_id" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+        {{-- TASK-1885 C11 (demande Cyril, 23/11) — ecran responsive : sur
+             telephone, filtres et bouton en pleine largeur, lignes du tableau
+             empilees en cartes ; le tableau revient a partir de `md`. --}}
+        <div class="flex w-full flex-wrap items-center gap-3 lg:w-auto">
+            <form method="GET" class="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+                <select name="organization_id" class="w-full sm:w-auto px-3 pr-9 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                     <option value="all" {{ $selectedOrganizationId === 'all' ? 'selected' : '' }}>Toutes les organisations</option>
                     @foreach($organizations as $org)
                     <option value="{{ $org->id }}" {{ $selectedOrganizationId === $org->id ? 'selected' : '' }}>{{ $org->name }} {{ $org->is_default ? '(par défaut)' : '' }}</option>
@@ -31,19 +34,19 @@
                      options viennent du registre, jamais du fichier de
                      configuration : les types crees s'y trouvent, dans la
                      portee affichee seulement. --}}
-                <select name="type" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+                <select name="type" class="w-full sm:w-auto px-3 pr-9 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
                     <option value="">{{ __('loops.admin_loops_filter_all_types') }}</option>
                     @foreach($typeOptions as $typeKey => $typeLabel)
                     <option value="{{ $typeKey }}" @selected($selectedType === $typeKey)>{{ $typeLabel }}</option>
                     @endforeach
                 </select>
-                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
+                <button type="submit" class="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Filtrer</button>
                 @if(request()->has('organization_id') || request()->filled('type'))
-                <a href="{{ route('admin.loops') }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
+                <a href="{{ route('admin.loops') }}" class="flex-1 sm:flex-none text-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">Effacer</a>
                 @endif
             </form>
             <a href="{{ route('admin.loops.create') }}"
-               class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
+               class="w-full sm:w-auto text-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
                 + Créer une boucle
             </a>
         </div>
@@ -58,8 +61,8 @@
                                class="mb-6" />
 
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <table class="w-full text-sm">
-            <thead class="bg-gray-50 dark:bg-gray-700">
+        <table class="w-full text-sm max-md:block" data-admin-loops-table>
+            <thead class="bg-gray-50 dark:bg-gray-700 max-md:hidden">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Boucle</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">État</th>
@@ -67,14 +70,14 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700 max-md:block">
                 @forelse($loops as $orgLoop)
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 max-md:flex max-md:flex-col max-md:gap-3 max-md:p-4" data-admin-loop-row="{{ $orgLoop->id }}">
                     {{-- Secondary information is folded into this cell rather than
                          spread over eleven columns: the table was wider than the
                          viewport and the Actions column fell off the screen. --}}
-                    <td class="px-4 py-3">
-                        <div class="min-w-0 max-w-md">
+                    <td class="px-4 py-3 max-md:block max-md:p-0">
+                        <div class="min-w-0 max-w-md max-md:max-w-none">
                             <a href="{{ route('admin.loops.show', $orgLoop) }}"
                                class="block truncate font-medium text-gray-900 transition hover:text-indigo-600 hover:underline dark:text-gray-100 dark:hover:text-indigo-400"
                                title="Voir la Boucle">{{ $orgLoop->name }}</a>
@@ -167,16 +170,18 @@
                     </td>
 
                     {{-- Visibility and status share one column: two badges, not two. --}}
-                    <td class="px-4 py-3 whitespace-nowrap">
+                    <td class="px-4 py-3 whitespace-nowrap max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-2 max-md:p-0">
                         <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {{ $orgLoop->isPublic() ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
                             {{ $orgLoop->isPublic() ? 'Publique' : 'Privée' }}
                         </span>
-                        <span class="mt-1 block text-[11px] {{ $orgLoop->status === 'active' ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-gray-400' }}">
+                        <span class="mt-1 block max-md:mt-0 text-[11px] {{ $orgLoop->status === 'active' ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-gray-400' }}">
                             {{ $orgLoop->status === 'active' ? 'Active' : ($orgLoop->status === 'archived' ? 'Archivée' : $orgLoop->status) }}
                         </span>
                     </td>
 
-                    <td class="px-4 py-3 hidden md:table-cell">
+                    {{-- TASK-1885 C11 — le type reste modifiable sur telephone (il y etait masque). --}}
+                    <td class="px-4 py-3 max-md:flex max-md:items-center max-md:gap-2 max-md:p-0">
+                        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 md:hidden">{{ __('loops.type_label') }}</span>
                         {{-- Inline form: changing the type applies the preset, which
                              only ever adds missing cards. Nothing is removed. --}}
                         @php
@@ -190,7 +195,7 @@
                         <form method="POST" action="{{ route('admin.loops.type.update', $orgLoop) }}">
                             @csrf @method('PUT')
                             <select name="type" onchange="this.form.submit()"
-                                    class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+                                    class="rounded-lg border border-gray-300 bg-white px-2 pr-8 py-1 text-xs max-md:py-2 max-md:text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
                                 @foreach($choices as $key => $definition)
                                     <option value="{{ $key }}" @selected($currentType === $key)>
                                         {{-- label(), jamais la definition : un type cree n'a
@@ -202,8 +207,10 @@
                             </select>
                         </form>
                     </td>
-                    <td class="px-4 py-3">
-                        <div class="flex gap-2 items-center">
+                    <td class="px-4 py-3 max-md:block max-md:border-t max-md:border-gray-100 max-md:p-0 max-md:pt-3 dark:max-md:border-gray-700">
+                        {{-- TASK-1885 C11 — retour a la ligne : sur telephone la rangee
+                             d'actions debordait de l'ecran. Cibles plus hautes au doigt. --}}
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 max-md:gap-x-4 max-md:[&_a]:py-1 max-md:[&_button]:py-1" data-admin-loop-actions>
                             {{-- The name itself opens the overview; the Actions column
                                  keeps only what acts. TASK-1680 : « Voir la Boucle »
                                  revient — depuis T1679 la page tenant rend la
@@ -247,7 +254,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="4" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <td colspan="4" class="max-md:block px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                         Aucune boucle dans cette Organisation.
                     </td>
                 </tr>
