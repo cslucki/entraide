@@ -214,6 +214,44 @@ class AdminSystemEmailTemplatesController extends Controller
             'content_html' => 'required|string',
         ]);
 
+        return response()->json($this->rendre($systemEmailTemplate, $validated['subject'], $validated['content_html']));
+    }
+
+    /**
+     * TASK-1894 — TOUS les gabarits globaux d'une langue sur UNE page, chacun
+     * rendu comme dans l'apercu (meme `rendre()`), pour comparer leur mise en
+     * forme d'un coup d'oeil. Lecture seule : aucun envoi, aucune ecriture.
+     */
+    public function viewAll(Request $request): View
+    {
+        $locale = in_array($request->query('locale'), ['fr', 'en'], true)
+            ? (string) $request->query('locale')
+            : self::LOCALE_PAR_DEFAUT;
+
+        $langueAvant = app()->getLocale();
+
+        $gabarits = SystemEmailTemplate::query()
+            ->whereNull('organization_id')
+            ->where('locale', $locale)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (SystemEmailTemplate $gabarit) => ['gabarit' => $gabarit] + $this->rendre($gabarit, (string) $gabarit->subject, (string) $gabarit->content_html));
+
+        // `rendre()` bascule la langue de l'application : l'ecran d'admin
+        // autour reste dans celle de l'administrateur.
+        app()->setLocale($langueAvant);
+
+        return view('admin.system-email-templates.view-all', compact('gabarits', 'locale'));
+    }
+
+    /**
+     * Rendu REEL d'un gabarit (theme + variables de demonstration), partage par
+     * l'apercu de l'editeur et la page « Tout voir ». N'envoie rien.
+     *
+     * @return array{subject: string, html: string}
+     */
+    private function rendre(SystemEmailTemplate $systemEmailTemplate, string $sujet, string $contenu): array
+    {
         $locale = $systemEmailTemplate->locale ?: self::LOCALE_PAR_DEFAUT;
         app()->setLocale($locale);
 
@@ -221,10 +259,9 @@ class AdminSystemEmailTemplatesController extends Controller
         $demo = $this->variablesDeDemonstration($cles, $locale);
 
         $emailer = app(EmailerService::class);
-        $subject = $emailer->interpolateSubject($validated['subject'], $demo, $cles);
+        $subject = $emailer->interpolateSubject($sujet, $demo, $cles);
         // TASK-1883 — les blocs de la newsletter, avec les vraies demandes et
         // propositions de l'organisation par defaut (lecture seule, aucun envoi).
-        $contenu = $validated['content_html'];
         if (HelpDigestBlocks::contient($contenu)
             && ($org = Organization::query()->where('is_default', true)->first() ?? Organization::query()->where('is_active', true)->orderBy('name')->first())) {
             $contenu = app(HelpDigestBlocks::class)->developper($contenu, $org, $locale);
@@ -234,7 +271,7 @@ class AdminSystemEmailTemplatesController extends Controller
 
         $rendu = (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]);
 
-        return response()->json(['subject' => $subject, 'html' => $rendu]);
+        return ['subject' => $subject, 'html' => $rendu];
     }
 
     /**

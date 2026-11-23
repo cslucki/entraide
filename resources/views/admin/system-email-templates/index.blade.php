@@ -9,9 +9,18 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden">
                 <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ __('admin.system_email_desc') }}
-                    </p>
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 max-w-3xl">
+                            {{ __('admin.system_email_desc') }}
+                        </p>
+
+                        {{-- TASK-1894 — tous les gabarits d'une langue sur une page. --}}
+                        <a href="{{ route('admin.system-email-templates.view-all', ['locale' => in_array($localeSelectionnee, ['fr', 'en'], true) ? $localeSelectionnee : 'fr']) }}"
+                           data-system-email-view-all-link
+                           class="shrink-0 inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                            {{ __('admin.system_email_view_all') }}
+                        </a>
+                    </div>
 
                     {{-- TASK-1694 bug AD — DEUX nombres, pas un.
                          Le compte affiche seul laisserait croire que la base n'en
