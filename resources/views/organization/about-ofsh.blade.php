@@ -113,9 +113,8 @@ $rubriques = array_filter([
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ org_trans('ofsh.about_meta_title') }} — {{ $organization->name }}</title>
 <meta name="description" content="{{ org_trans('ofsh.about_s1_p1') }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.bunny.net">
+<link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/ofsh-about.css') }}?v={{ filemtime(public_path('css/ofsh-about.css')) }}">
 {{-- Le MÊME producteur de jetons que les layouts, et le même volet sombre
      système qu'à l'accueil : les deux pages d'OFSH se ressemblent dans les
