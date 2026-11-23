@@ -220,6 +220,13 @@ class HomeController extends Controller
                     // bio : deja affiche sur la carte et la fiche publique,
                     // aucune garde d'Organization puisqu'il n'en a pas.
                     $w->orWhere('slogan', $like, $motif);
+
+                    // TASK-1892 — la VILLE dans la saisie libre (demande Cyril,
+                    // 23/11). Le menu « Localisation » reste ; il demande une
+                    // ville exacte, la saisie trouve aussi « Mars » ou une
+                    // ville tapee en minuscules. Deja affichee sur la carte :
+                    // rien de nouveau n'est expose.
+                    $w->orWhere('city', $like, $motif);
                 });
             })
             // TASK-1762 point 10 — la comparaison ignore la casse, pour la
