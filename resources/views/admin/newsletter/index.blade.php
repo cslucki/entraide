@@ -63,7 +63,7 @@
                 <label class="block text-sm">
                     <span class="mb-1 block font-medium text-gray-700 dark:text-gray-200">Événements de l'agenda</span>
                     <input type="number" name="event_count" x-model.number="evenements" min="0" max="10" class="{{ $champ }}" data-admin-newsletter-event-count>
-                    <span class="mt-1 block text-xs text-gray-500">Les prochains, ouverts à toute l'organisation du membre (ceux réservés à une Boucle n'y figurent pas) ; 0 : aucun événement, ni titre de section. Code du modèle : <code>{evenements;3}</code>.</span>
+                    <span class="mt-1 block text-xs text-gray-500">Les prochains des Boucles publiques et ceux ouverts à toute l'organisation du membre (jamais ceux d'une Boucle privée) ; 0 : aucun événement, ni titre de section. Code du modèle : <code>{evenements;3}</code>.</span>
                 </label>
 
                 <div class="grid grid-cols-2 gap-3">

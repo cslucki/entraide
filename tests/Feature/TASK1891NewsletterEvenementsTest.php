@@ -37,7 +37,9 @@ class TASK1891NewsletterEvenementsTest extends TestCase
     private function evenement(Organization $org, string $titre, array $attributs = []): LoopEvent
     {
         $createur = User::factory()->create(['organization_id' => $org->id]);
-        $loop = Loop::factory()->create(['organization_id' => $org->id, 'created_by' => $createur->id]);
+        $boucle = $attributs['_boucle'] ?? 'private';
+        unset($attributs['_boucle']);
+        $loop = Loop::factory()->create(['organization_id' => $org->id, 'created_by' => $createur->id, 'visibility' => $boucle, 'name' => 'Boucle '.$titre]);
 
         $event = new LoopEvent;
         $event->forceFill($attributs + [
@@ -56,30 +58,34 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         return $event;
     }
 
-    public function test_les_prochains_evenements_ouverts_a_toute_l_organisation_seulement(): void
+    /** Demande Cyril : les evenements des Boucles, sauf des Boucles privees (sur invitation). */
+    public function test_les_prochains_evenements_des_boucles_publiques_et_de_l_organisation(): void
     {
         $blocs = new HelpDigestBlocks;
         $this->assertSame('<p>A</p><p>B</p>', $blocs->developper('<p>A</p>{evenements;3}<p>B</p>', $this->org, 'fr'), 'Sans evenement : rien, pas meme le titre.');
 
-        $this->evenement($this->org, 'Plus tard', ['starts_at' => now()->addDays(9)]);
-        $this->evenement($this->org, 'Bientot', ['starts_at' => now()->addHours(3)]);
-        $this->evenement($this->org, 'Visio', ['starts_at' => now()->addDays(4), 'format' => LoopEvent::FORMAT_ONLINE, 'location' => null]);
-        $this->evenement($this->org, 'En cours', ['starts_at' => now()->subHour(), 'ends_at' => now()->addHour()]);
-        $this->evenement($this->org, 'Passe', ['starts_at' => now()->subDays(2)]);
-        $this->evenement($this->org, 'Annule', ['status' => LoopEvent::STATUS_CANCELLED, 'cancelled_at' => now()]);
-        $this->evenement($this->org, 'Reserve a la Boucle', ['visibility' => LoopEvent::VISIBILITY_LOOP]);
-        $this->evenement($this->autre, 'Ailleurs');
+        $publique = $this->evenement($this->org, 'Atelier public', ['_boucle' => 'public', 'visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->addHours(3)]);
+        $this->evenement($this->org, 'Assemblee', ['starts_at' => now()->addDays(4), 'format' => LoopEvent::FORMAT_ONLINE, 'location' => null]);
+        $this->evenement($this->org, 'En cours', ['_boucle' => 'public', 'visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->subHour(), 'ends_at' => now()->addHour()]);
+        $this->evenement($this->org, 'Plus tard', ['_boucle' => 'public', 'starts_at' => now()->addDays(9)]);
+        $this->evenement($this->org, 'Boucle privee', ['visibility' => LoopEvent::VISIBILITY_LOOP, 'starts_at' => now()->addHours(2)]);
+        $this->evenement($this->org, 'Passe', ['_boucle' => 'public', 'starts_at' => now()->subDays(2)]);
+        $this->evenement($this->org, 'Annule', ['_boucle' => 'public', 'status' => LoopEvent::STATUS_CANCELLED, 'cancelled_at' => now()]);
+        $this->evenement($this->autre, 'Ailleurs', ['_boucle' => 'public']);
 
         $html = (new HelpDigestBlocks)->developper('{evenements;1}', $this->org, 'fr', null, null, null, 3);
 
         $this->assertStringContainsString('À l’agenda', $html);
         $this->assertSame(3, substr_count($html, '<li'), 'Le nombre de l ecran remplace celui du gabarit.');
-        $this->assertLessThan(strpos($html, 'Bientot'), strpos($html, 'En cours'));
-        $this->assertLessThan(strpos($html, 'Visio'), strpos($html, 'Bientot'));
+        $this->assertLessThan(strpos($html, 'Atelier public'), strpos($html, 'En cours'));
+        $this->assertLessThan(strpos($html, 'Assemblee'), strpos($html, 'Atelier public'));
         $this->assertStringContainsString('en ligne', $html);
         $this->assertStringContainsString('Salle A', $html);
+        $this->assertStringContainsString('— Boucle Atelier public', $html);
+        // Boucle publique : lien vers la Boucle ; remonte a l'organisation : l'agenda.
+        $this->assertStringContainsString(route('organization.loops.show', ['organization' => $this->org->slug, 'loop' => $publique->loop->slug]), $html);
         $this->assertStringContainsString(route('organization.events.agenda', ['organization' => $this->org->slug]), $html);
-        foreach (['Plus tard', 'Passe', 'Annule', 'Reserve a la Boucle', 'Ailleurs'] as $absent) {
+        foreach (['Plus tard', 'Boucle privee', 'Passe', 'Annule', 'Ailleurs'] as $absent) {
             $this->assertStringNotContainsString($absent, $html);
         }
 
@@ -87,6 +93,14 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         $this->assertStringContainsString('Coming up', (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'en'));
         $this->assertTrue((new HelpDigestBlocks)->aDuContenu($this->org, 0, 0, 0, 1));
         $this->assertFalse((new HelpDigestBlocks)->aDuContenu($this->autre, 0, 0, 0, 0));
+    }
+
+    public function test_une_organisation_qui_n_a_que_des_evenements_de_boucles_privees_ne_montre_rien(): void
+    {
+        $this->evenement($this->org, 'Entre nous', ['visibility' => LoopEvent::VISIBILITY_LOOP]);
+
+        $this->assertSame('', (new HelpDigestBlocks)->developper('{evenements;3}', $this->org, 'fr'));
+        $this->assertFalse((new HelpDigestBlocks)->aDuContenu($this->org, 0, 0, 0, 3));
     }
 
     public function test_le_titre_de_l_evenement_est_echappe(): void

@@ -35,11 +35,11 @@ final class HelpDigestBlocks
     public const BILLETS = 'billets_blog';
 
     /**
-     * TASK-1891 (demande Cyril, 23/11) — les prochains evenements de l'agenda,
-     * EN TETE de la newsletter. Seuls ceux remontes au niveau Organization
-     * (`visibility = organization`) : ce bloc est le meme pour tous les membres
-     * d'une organisation, il ne doit montrer que ce que TOUS voient deja dans
-     * l'agenda — jamais la rencontre d'une Boucle a qui n'en est pas membre.
+     * TASK-1891 (demande Cyril, 23/11) — les prochains evenements, EN TETE de
+     * la newsletter : ceux des Boucles, « sauf les Boucles privees, accessibles
+     * sur invitation ». Donc tout evenement d'une Boucle PUBLIQUE, plus ceux
+     * qu'un auteur a remontes a toute l'organisation. Le bloc est le meme pour
+     * tous les membres : rien d'une Boucle privee n'y entre autrement.
      */
     public const EVENEMENTS = 'evenements';
 
@@ -140,7 +140,9 @@ final class HelpDigestBlocks
             // Les plus proches d'abord ; ni annules, ni termines.
             self::EVENEMENTS => LoopEvent::query()
                 ->where('organization_id', $organization->id)
-                ->where('visibility', LoopEvent::VISIBILITY_ORGANIZATION)
+                ->where(fn ($q) => $q->where('visibility', LoopEvent::VISIBILITY_ORGANIZATION)
+                    ->orWhereHas('loop', fn ($boucle) => $boucle->where('visibility', 'public')))
+                ->with('loop:id,name,slug,visibility,organization_id')
                 ->where('status', '!=', LoopEvent::STATUS_CANCELLED)
                 ->where(fn ($q) => $q->where('ends_at', '>', now())
                     ->orWhere(fn ($q) => $q->whereNull('ends_at')->where('starts_at', '>', now())))
@@ -189,8 +191,8 @@ final class HelpDigestBlocks
     }
 
     /**
-     * TASK-1891 — « titre — date et heure (lieu) », un lien vers l'agenda de
-     * l'organisation. Titre de section COMPRIS : sans evenement, rien du tout.
+     * TASK-1891 — « titre — Boucle / date et heure — lieu », un lien vers
+     * l'agenda (evenement d'organisation) ou la Boucle publique. Titre de section COMPRIS : sans evenement, rien du tout.
      */
     private function blocEvenements(Organization $organization, Collection $evenements, string $langue): string
     {
@@ -203,14 +205,21 @@ final class HelpDigestBlocks
             ? route('events.agenda')
             : route('organization.events.agenda', ['organization' => $organization->slug]);
 
-        $lignes = $evenements->map(function (LoopEvent $evenement) use ($agenda, $langue, $fr) {
+        $lignes = $evenements->map(function (LoopEvent $evenement) use ($organization, $agenda, $langue, $fr) {
+            // Remonte a toute l'organisation : l'agenda le montre a chacun.
+            // Sinon (Boucle publique) : la Boucle, que tout membre peut ouvrir.
+            $boucle = $evenement->loop;
+            $lien = $evenement->visibility === LoopEvent::VISIBILITY_ORGANIZATION || $boucle === null
+                ? $agenda
+                : route('organization.loops.show', ['organization' => $organization->slug, 'loop' => $boucle->slug ?: $boucle->getKey()]);
             $quand = $evenement->startsAtLocal()->locale($langue)->isoFormat($fr ? 'dddd D MMMM, HH:mm' : 'dddd, MMMM D, h:mm A');
             $ou = $evenement->format === LoopEvent::FORMAT_ONLINE
                 ? ($fr ? 'en ligne' : 'online')
                 : trim((string) $evenement->location);
 
             return '<li style="margin:0 0 12px">'
-                .'<a href="'.e($agenda).'" style="font-weight:600">'.e((string) $evenement->title).'</a>'
+                .'<a href="'.e($lien).'" style="font-weight:600">'.e((string) $evenement->title).'</a>'
+                .($boucle?->name ? ' <span style="color:#6b7280">— '.e((string) $boucle->name).'</span>' : '')
                 .'<br><span style="color:#374151">'.e(\Illuminate\Support\Str::ucfirst($quand)).($ou !== '' ? ' — '.e($ou) : '').'</span>'
                 .'</li>';
         })->implode('');
