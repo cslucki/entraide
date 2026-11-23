@@ -84,6 +84,17 @@ class TASK1885FeedFilterSearchTest extends TestCase
         $this->assertSame(3, $composant->viewData('items')->total());
     }
 
+    /** TASK-1885 C3 bis — le NOM de l'auteur d'une annonce mene a son profil. */
+    public function test_announcement_author_name_links_to_the_profile(): void
+    {
+        $lien = \App\Support\Feed\FeedEventRenderer::lienProfil($this->auteur, $this->org->slug);
+        $this->assertNotNull($lien);
+
+        Livewire::actingAs($this->membre)->test(OrganizationFeed::class)
+            ->assertSeeHtml('data-feed-post-author=')
+            ->assertSeeHtml('href="'.e($lien).'" data-feed-post-author=');
+    }
+
     public function test_search_matches_title_content_and_author_case_insensitively(): void
     {
         $composant = Livewire::actingAs($this->membre)->test(OrganizationFeed::class);
