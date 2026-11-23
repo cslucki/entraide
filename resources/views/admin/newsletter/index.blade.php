@@ -115,7 +115,7 @@
                     <span>
                         Une newsletter est déjà partie le {{ $dernier->created_at->timezone('Europe/Paris')->format('d/m/Y à H:i') }}
                         vers {{ $dernier->organizations->isEmpty() ? 'toutes les organisations' : $dernier->organizations->pluck('name')->join(', ') }}
-                        @if($dernier->subject) — « {{ $dernier->subject }} » @endif
+                        @if($dernier->subject) — « {{ $dernier->objetLisible() }} » @endif
                         — {{ (int) $dernier->event_count }} événement(s), {{ $dernier->demand_count }} demande(s), {{ $dernier->offer_count }} proposition(s), {{ (int) $dernier->blog_count }} billet(s) ;
                         {{ $dernier->sent_count }} envoyé(s) sur {{ $dernier->total_recipients }}@if($dernier->failed_count), {{ $dernier->failed_count }} échec(s)@endif.
                         <a href="{{ route('admin.newsletter.show', $dernier) }}" class="font-semibold underline" data-admin-newsletter-repeat-link>Voir cet envoi</a>

@@ -33,7 +33,7 @@
                 {{ $send->created_at->timezone('Europe/Paris')->format('d/m/Y à H:i') }} —
                 {{ $send->organizations->isEmpty() ? 'Toutes les organisations' : $send->organizations->pluck('name')->join(', ') }}
                 — {{ (int) $send->event_count }} événement(s), {{ $send->demand_count }} demande(s), {{ $send->offer_count }} proposition(s), {{ (int) $send->blog_count }} billet(s)
-                @if($send->subject) — « {{ $send->subject }} » @endif
+                @if($send->subject) — « {{ $send->objetLisible() }} » @endif
             </p>
 
             <div class="mt-4 flex items-center justify-between text-sm">

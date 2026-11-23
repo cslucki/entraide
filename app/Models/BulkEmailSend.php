@@ -137,6 +137,24 @@ class BulkEmailSend extends Model
         return $this->content_source === self::CONTENT_SOURCE_NEWSLETTER;
     }
 
+    /**
+     * TASK-1891 (Cyril, 23/11) — l'objet tel que l'administrateur le relit :
+     * `{{ organization_name }}` remplace par le VRAI nom (« sinon on ne
+     * comprend rien »). Plusieurs organisations : leurs noms, separes par
+     * « / » ; toutes : une mention explicite. Charger `organizations` avant.
+     */
+    public function objetLisible(): ?string
+    {
+        if (blank($this->subject)) {
+            return null;
+        }
+
+        $noms = $this->organizations->pluck('name')->filter()->values();
+        $nom = $noms->isEmpty() ? 'nom de chaque organisation' : $noms->join(' / ');
+
+        return (string) preg_replace('/\{\{\s*organization_name\s*\}\}/', $nom, (string) $this->subject);
+    }
+
     public function template(): BelongsTo
     {
         return $this->belongsTo(EmailTemplate::class, 'email_template_id');

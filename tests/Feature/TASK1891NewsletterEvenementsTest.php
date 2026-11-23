@@ -180,6 +180,33 @@ class TASK1891NewsletterEvenementsTest extends TestCase
         $this->assertStringContainsString('BouclePro', $this->entete($autre));
     }
 
+    /** Correctif 3 — le rappel du dernier envoi montre l'objet avec le VRAI nom. */
+    public function test_le_rappel_du_dernier_envoi_montre_le_vrai_nom_de_l_organisation(): void
+    {
+        $this->evenement($this->org, 'Assemblee');
+        User::factory()->create(['organization_id' => $this->org->id]);
+        $superadmin = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => true]);
+
+        $envoi = app(BulkEmailSendService::class)->createNewsletterSend([
+            'organization_ids' => [$this->org->id], 'subject' => 'Recette — {{ organization_name }} cette semaine',
+            'demand_count' => 3, 'offer_count' => 3, 'blog_count' => 0, 'event_count' => 3,
+        ], $superadmin);
+
+        $page = $this->actingAs($superadmin)->get(route('admin.newsletter'))->assertOk()->getContent();
+        $debut = strpos($page, 'data-admin-newsletter-repeat');
+        $rappel = substr($page, $debut, strpos($page, '</label>', $debut) - $debut);
+
+        $this->assertStringContainsString('« Recette — Entraide Test cette semaine »', html_entity_decode($rappel));
+        $this->assertStringNotContainsString('organization_name', $rappel);
+
+        $this->actingAs($superadmin)->get(route('admin.newsletter.show', $envoi))
+            ->assertOk()
+            ->assertSee('Recette — Entraide Test cette semaine');
+
+        $toutes = new \App\Models\BulkEmailSend(['subject' => '{{organization_name}} cette semaine']);
+        $this->assertSame('nom de chaque organisation cette semaine', $toutes->setRelation('organizations', collect())->objetLisible());
+    }
+
     private function entete(string $html): string
     {
         $debut = strpos($html, 'class="header"');
