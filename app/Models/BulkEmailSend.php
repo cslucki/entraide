@@ -100,6 +100,7 @@ class BulkEmailSend extends Model
         'demand_count',
         'offer_count',
         'blog_count',
+        'event_count',
     ];
 
     // TASK-1803 — sans ce cast, le pilote de base de donnees peut rendre ces
@@ -112,6 +113,7 @@ class BulkEmailSend extends Model
         'demand_count' => 'integer',
         'offer_count' => 'integer',
         'blog_count' => 'integer',
+        'event_count' => 'integer',
     ];
 
     public function recipients(): HasMany

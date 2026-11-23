@@ -3,6 +3,7 @@
 namespace App\Support\Email;
 
 use App\Models\BlogPost;
+use App\Models\LoopEvent;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -33,9 +34,18 @@ final class HelpDigestBlocks
     /** Demande Cyril (22/11) : les derniers billets de blog, en option. */
     public const BILLETS = 'billets_blog';
 
+    /**
+     * TASK-1891 (demande Cyril, 23/11) — les prochains evenements de l'agenda,
+     * EN TETE de la newsletter. Seuls ceux remontes au niveau Organization
+     * (`visibility = organization`) : ce bloc est le meme pour tous les membres
+     * d'une organisation, il ne doit montrer que ce que TOUS voient deja dans
+     * l'agenda — jamais la rencontre d'une Boucle a qui n'en est pas membre.
+     */
+    public const EVENEMENTS = 'evenements';
+
     public const MAX = 10;
 
-    public const MOTIF = '/\{(demande_aide|proposition_aide|billets_blog);(\d{1,2})\}/';
+    public const MOTIF = '/\{(demande_aide|proposition_aide|billets_blog|evenements);(\d{1,2})\}/';
 
     /** @var array<string, Collection> */
     private array $elements = [];
@@ -50,18 +60,19 @@ final class HelpDigestBlocks
      * donnes (ecran d'envoi), remplacent le N ecrit dans le gabarit. Un N hors
      * de 1..MAX laisse le bloc tel quel.
      */
-    public function developper(string $html, Organization $organization, string $langue, ?int $nDemandes = null, ?int $nPropositions = null, ?int $nBillets = null): string
+    public function developper(string $html, Organization $organization, string $langue, ?int $nDemandes = null, ?int $nPropositions = null, ?int $nBillets = null, ?int $nEvenements = null): string
     {
-        return preg_replace_callback(self::MOTIF, function (array $m) use ($organization, $langue, $nDemandes, $nPropositions, $nBillets) {
+        return preg_replace_callback(self::MOTIF, function (array $m) use ($organization, $langue, $nDemandes, $nPropositions, $nBillets, $nEvenements) {
             $type = $m[1];
             $n = match ($type) {
                 self::DEMANDES => $nDemandes,
                 self::PROPOSITIONS => $nPropositions,
+                self::EVENEMENTS => $nEvenements,
                 default => $nBillets,
             } ?? (int) $m[2];
 
-            // Billets : 0 demande « rien », titre de section compris.
-            if ($type === self::BILLETS && $n === 0) {
+            // Billets, evenements : 0 demande « rien », titre de section compris.
+            if (in_array($type, [self::BILLETS, self::EVENEMENTS], true) && $n === 0) {
                 return '';
             }
 
@@ -74,11 +85,12 @@ final class HelpDigestBlocks
     }
 
     /** Vrai si l'organisation a au moins une demande ouverte ou une proposition active a montrer. */
-    public function aDuContenu(Organization $organization, int $nDemandes, int $nPropositions, int $nBillets = 0): bool
+    public function aDuContenu(Organization $organization, int $nDemandes, int $nPropositions, int $nBillets = 0, int $nEvenements = 0): bool
     {
         return ($nDemandes > 0 && $this->elements($organization, self::DEMANDES, $nDemandes)->isNotEmpty())
             || ($nPropositions > 0 && $this->elements($organization, self::PROPOSITIONS, $nPropositions)->isNotEmpty())
-            || ($nBillets > 0 && $this->elements($organization, self::BILLETS, $nBillets)->isNotEmpty());
+            || ($nBillets > 0 && $this->elements($organization, self::BILLETS, $nBillets)->isNotEmpty())
+            || ($nEvenements > 0 && $this->elements($organization, self::EVENEMENTS, $nEvenements)->isNotEmpty());
     }
 
     private function bloc(Organization $organization, string $langue, string $type, int $n): string
@@ -88,6 +100,10 @@ final class HelpDigestBlocks
 
         if ($type === self::BILLETS) {
             return $this->blocBillets($organization, $elements, $fr);
+        }
+
+        if ($type === self::EVENEMENTS) {
+            return $this->blocEvenements($organization, $elements, $langue);
         }
 
         if ($elements->isEmpty()) {
@@ -121,6 +137,16 @@ final class HelpDigestBlocks
         $cle = $organization->id.'|'.$type.'|'.$n;
 
         return $this->elements[$cle] ??= $this->dans($organization, fn () => match ($type) {
+            // Les plus proches d'abord ; ni annules, ni termines.
+            self::EVENEMENTS => LoopEvent::query()
+                ->where('organization_id', $organization->id)
+                ->where('visibility', LoopEvent::VISIBILITY_ORGANIZATION)
+                ->where('status', '!=', LoopEvent::STATUS_CANCELLED)
+                ->where(fn ($q) => $q->where('ends_at', '>', now())
+                    ->orWhere(fn ($q) => $q->whereNull('ends_at')->where('starts_at', '>', now())))
+                ->orderBy('starts_at')
+                ->limit($n)
+                ->get(['id', 'title', 'starts_at', 'ends_at', 'timezone', 'format', 'location', 'organization_id', 'loop_id', 'status', 'visibility']),
             // Billets publies et listes dans le blog, les plus recents d'abord.
             self::BILLETS => BlogPost::query()->published()
                 ->where('organization_id', $organization->id)
@@ -159,6 +185,37 @@ final class HelpDigestBlocks
         })->implode('');
 
         return '<h2 style="font-size:18px;margin:24px 0 8px">'.e($fr ? 'À lire sur le blog' : 'On the blog').'</h2>'
+            .'<ul style="padding-left:18px;margin:8px 0 16px">'.$lignes.'</ul>';
+    }
+
+    /**
+     * TASK-1891 — « titre — date et heure (lieu) », un lien vers l'agenda de
+     * l'organisation. Titre de section COMPRIS : sans evenement, rien du tout.
+     */
+    private function blocEvenements(Organization $organization, Collection $evenements, string $langue): string
+    {
+        if ($evenements->isEmpty()) {
+            return '';
+        }
+
+        $fr = $langue !== 'en';
+        $agenda = $organization->is_default
+            ? route('events.agenda')
+            : route('organization.events.agenda', ['organization' => $organization->slug]);
+
+        $lignes = $evenements->map(function (LoopEvent $evenement) use ($agenda, $langue, $fr) {
+            $quand = $evenement->startsAtLocal()->locale($langue)->isoFormat($fr ? 'dddd D MMMM, HH:mm' : 'dddd, MMMM D, h:mm A');
+            $ou = $evenement->format === LoopEvent::FORMAT_ONLINE
+                ? ($fr ? 'en ligne' : 'online')
+                : trim((string) $evenement->location);
+
+            return '<li style="margin:0 0 12px">'
+                .'<a href="'.e($agenda).'" style="font-weight:600">'.e((string) $evenement->title).'</a>'
+                .'<br><span style="color:#374151">'.e(\Illuminate\Support\Str::ucfirst($quand)).($ou !== '' ? ' — '.e($ou) : '').'</span>'
+                .'</li>';
+        })->implode('');
+
+        return '<h2 style="font-size:18px;margin:24px 0 8px">'.e($fr ? 'À l’agenda' : 'Coming up').'</h2>'
             .'<ul style="padding-left:18px;margin:8px 0 16px">'.$lignes.'</ul>';
     }
 
