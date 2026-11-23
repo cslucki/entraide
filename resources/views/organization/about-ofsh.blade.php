@@ -315,6 +315,9 @@ $rubriques = array_filter([
       <a href="{{ route('organization.mycelium', ['organization' => $organization->slug]) }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
       <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
       <a href="{{ route('organization.mentions-legales', ['organization' => $organization->slug]) }}">{{ __('footer.mentions_legales') }}</a>
+      {{-- TASK-1899 — pages exigees par Google Play (T1898), bornees a l'Organization. --}}
+      <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
+      <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
       <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
       <a href="{{ route('organization.bug-reports.index', ['organization' => $organization->slug]) }}" data-footer-bug>{{ __('footer.bug') }}</a>
       <span>{{ config('app.version') }}</span>
