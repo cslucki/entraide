@@ -14,6 +14,35 @@
         :can-unpin="$isMember"
     />
 
+    {{-- TASK-1890 (Cyril, 23/11) — l'evenement epingle : UNE ligne, « titre —
+         date et heure », relue en direct (un evenement deplace se lit a sa
+         nouvelle date ; annule ou passe, le bandeau disparait). Trop long pour
+         l'ecran, le texte defile ; mouvement reduit demande : il est tronque. --}}
+    @if($pinnedEvent)
+        @php
+            $tickerEvent = $pinnedEvent['event'];
+            $tickerTexte = $tickerEvent->title.' — '.$tickerEvent->startsAtLocal()->locale(app()->getLocale())->isoFormat('ddd D MMM, HH:mm');
+        @endphp
+        <div data-pinned-event-ticker
+             class="sticky top-0 z-20 mx-3 mt-2 flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50/95 px-3 py-1.5 shadow-sm backdrop-blur dark:border-sky-800/50 dark:bg-sky-900/90">
+            <svg class="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0V11.25A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+            <button type="button"
+                    x-on:click="$dispatch('bp-open-loop-card', { card: 'core.events' })"
+                    x-data="{ ecart: 0 }"
+                    x-init="$nextTick(() => { ecart = Math.max(0, $refs.texte.scrollWidth - $el.clientWidth) })"
+                    title="{{ $tickerTexte }}"
+                    class="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs font-medium text-sky-900 dark:text-sky-100">
+                <span x-ref="texte" class="bp-ticker inline-block" x-bind:class="ecart > 0 && 'bp-ticker-defile'" x-bind:style="ecart > 0 ? '--bp-ticker-ecart: -' + ecart + 'px' : ''">{{ $tickerTexte }}</span>
+            </button>
+            @if($canUnpinEvent)
+                <button type="button" wire:click="unpinEvent" data-action="unpin-event"
+                        class="shrink-0 text-xs text-gray-500 transition hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400">
+                    {{ __('messages.unpin') }}
+                </button>
+            @endif
+        </div>
+    @endif
+
     <x-conversation.message-list :has-messages="$messages->isNotEmpty()">
         <x-slot:messages>
             @if($hasOlderMessages)
@@ -323,6 +352,14 @@
                                     class="shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-white transition {{ $evCancelled ? 'bg-gray-500 hover:bg-gray-600' : 'bg-sky-600 hover:bg-sky-700' }}">
                                 {{ __('events.chat_open_card') }}
                             </button>
+                            {{-- TASK-1890 — l'auteur de l'evenement (ou qui peut le gerer)
+                                 l'epingle en bandeau ; meme bouton pour le retirer. --}}
+                            @if(in_array($msg->id, $pinnableEventMessageIds, true))
+                                <button type="button" wire:click="toggleEventPin('{{ $msg->id }}')" data-action="pin-event"
+                                        class="shrink-0 rounded-lg border border-sky-300 px-2.5 py-1 text-[11px] font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-700 dark:text-sky-200 dark:hover:bg-sky-800/40">
+                                    {{ $msg->isPinned() ? __('events.chat_unpin') : __('events.chat_pin') }}
+                                </button>
+                            @endif
                             @if($evLienConnexion !== '')
                                 <a href="{{ $evLienConnexion }}" target="_blank" rel="noopener noreferrer"
                                    data-event-chat-meeting-link

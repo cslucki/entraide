@@ -9,6 +9,7 @@ use App\Models\DerivedKnowledgeNote;
 use App\Models\Dossier;
 use App\Models\DossierFile;
 use App\Models\Loop;
+use App\Models\LoopEvent;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
 use App\Models\LoopPermissionSetting;
@@ -29,6 +30,7 @@ use App\Services\LoopMessageService;
 use App\Services\Loops\LoopAiAssistants;
 use App\Services\Loops\LoopAnswerCapitalizationService;
 use App\Services\Loops\LoopDossierAnswerService;
+use App\Services\Loops\LoopEventService;
 use App\Services\Loops\LoopLifecycleService;
 use App\Services\Loops\LoopMultiAiPublisher;
 use App\Services\Loops\LoopPluginActivation;
@@ -3344,6 +3346,7 @@ class LoopChat extends Component
         return $this->loop->messages()
             ->pinned()
             ->notDeleted()
+            ->where('type', '!=', 'loop_event')
             ->with('sender')
             ->first();
     }
@@ -3363,12 +3366,15 @@ class LoopChat extends Component
             return;
         }
 
-        if ($message->isDeleted()) {
+        // TASK-1890 — un evenement s'epingle par `toggleEventPin()`, sous la
+        // regle de l'evenement ; jamais par cette porte ouverte a tous.
+        if ($message->isDeleted() || $message->type === 'loop_event') {
             return;
         }
 
         LoopMessage::where('loop_id', $this->loop->id)
             ->whereNotNull('pinned_at')
+            ->where('type', '!=', 'loop_event')
             ->update(['pinned_at' => null, 'pinned_by_id' => null]);
 
         $message->pin($user);
@@ -3576,7 +3582,149 @@ class LoopChat extends Component
 
         LoopMessage::where('loop_id', $this->loop->id)
             ->whereNotNull('pinned_at')
+            ->where('type', '!=', 'loop_event')
             ->update(['pinned_at' => null, 'pinned_by_id' => null]);
+    }
+
+    /**
+     * TASK-1890 (Cyril, 23/11) — epingler la tuile d'un evenement : elle devient
+     * un bandeau d'une ligne en tete du chat (« titre — date et heure »).
+     *
+     * Un emplacement A PART du message epingle : les deux coexistent. Un seul
+     * evenement epingle par Boucle ; en epingler un autre remplace le premier.
+     * Peut epingler/desepingler qui peut GERER l'evenement
+     * (`LoopEventService::canManageEvent()`) : son auteur, et qui a
+     * `events.manage` — pas seulement le proprietaire de la Boucle.
+     */
+    public function toggleEventPin(string $messageId): void
+    {
+        $user = auth()->user();
+        if (! $this->canContribute($user)) {
+            return;
+        }
+
+        $message = LoopMessage::where('id', $messageId)
+            ->where('loop_id', $this->loop->id)
+            ->where('type', 'loop_event')
+            ->first();
+
+        if (! $message || $message->isDeleted()) {
+            return;
+        }
+
+        $event = $this->evenementDuMessage($message);
+        if (! $event || ! app(LoopEventService::class)->canManageEvent($user, $event, $this->loop)) {
+            return;
+        }
+
+        $dejaEpingle = $message->isPinned();
+        $this->desepinglerLesEvenements();
+
+        if (! $dejaEpingle && $this->evenementAVenir($event)) {
+            $message->pin($user);
+        }
+    }
+
+    public function unpinEvent(): void
+    {
+        $user = auth()->user();
+        $epingle = $this->messageEvenementEpingle();
+        if (! $epingle || ! $this->canContribute($user)) {
+            return;
+        }
+
+        $event = $this->evenementDuMessage($epingle);
+        // Un evenement disparu ne retient plus personne : tout membre peut
+        // nettoyer un bandeau devenu orphelin.
+        if ($event && ! app(LoopEventService::class)->canManageEvent($user, $event, $this->loop)) {
+            return;
+        }
+
+        $this->desepinglerLesEvenements();
+    }
+
+    /**
+     * TASK-1890 — l'evenement du bandeau, relu EN DIRECT : titre et date sont
+     * ceux d'AUJOURD'HUI. Rien a afficher s'il est annule, supprime ou passe.
+     *
+     * @return array{message: LoopMessage, event: LoopEvent}|null
+     */
+    public function pinnedEvent(): ?array
+    {
+        $message = $this->messageEvenementEpingle();
+        $event = $message ? $this->evenementDuMessage($message) : null;
+
+        if (! $message || ! $event || ! $this->evenementAVenir($event)) {
+            return null;
+        }
+
+        return ['message' => $message, 'event' => $event];
+    }
+
+    private function messageEvenementEpingle(): ?LoopMessage
+    {
+        return $this->loop->messages()
+            ->pinned()
+            ->notDeleted()
+            ->where('type', 'loop_event')
+            ->latest('pinned_at')
+            ->first();
+    }
+
+    private function desepinglerLesEvenements(): void
+    {
+        LoopMessage::where('loop_id', $this->loop->id)
+            ->whereNotNull('pinned_at')
+            ->where('type', 'loop_event')
+            ->update(['pinned_at' => null, 'pinned_by_id' => null]);
+    }
+
+    private function evenementDuMessage(LoopMessage $message): ?LoopEvent
+    {
+        $id = $message->metadata['event_id'] ?? null;
+
+        return is_string($id)
+            ? LoopEvent::query()->where('loop_id', $this->loop->id)->whereKey($id)->first()
+            : null;
+    }
+
+    private function evenementAVenir(LoopEvent $event): bool
+    {
+        $fin = $event->ends_at ?? $event->starts_at;
+
+        return ! $event->isCancelled() && $fin !== null && $fin->isFuture();
+    }
+
+    /**
+     * TASK-1890 — les tuiles d'evenement que la personne connectee peut
+     * epingler : evenement de CETTE Boucle, a venir, et qu'elle peut gerer.
+     * Une seule lecture des evenements pour toute la page.
+     *
+     * @return list<string> identifiants de messages
+     */
+    private function epinglablesEvenements(Collection $messages, ?User $user): array
+    {
+        $tuiles = $messages->filter(fn (LoopMessage $m) => $m->type === 'loop_event' && ! $m->isDeleted());
+        if (! $user || $tuiles->isEmpty() || ! $this->canContribute($user)) {
+            return [];
+        }
+
+        $evenements = LoopEvent::query()
+            ->where('loop_id', $this->loop->id)
+            ->whereIn('id', $tuiles->map(fn (LoopMessage $m) => $m->metadata['event_id'] ?? null)->filter()->unique()->values())
+            ->get()
+            ->keyBy('id');
+        $service = app(LoopEventService::class);
+
+        return $tuiles
+            ->filter(function (LoopMessage $m) use ($evenements, $service, $user) {
+                $event = $evenements->get($m->metadata['event_id'] ?? '');
+
+                return $event && $this->evenementAVenir($event) && $service->canManageEvent($user, $event, $this->loop);
+            })
+            ->map(fn (LoopMessage $m) => $m->id)
+            ->values()
+            ->all();
     }
 
     public function toggleReaction(string $messageId, string $reactionType): void
@@ -3715,6 +3863,10 @@ class LoopChat extends Component
             ->get();
 
         $pinnedMessage = $this->pinnedMessage();
+        $pinnedEvent = $this->pinnedEvent();
+        $pinnableEventMessageIds = $this->epinglablesEvenements($messages, auth()->user());
+        $canUnpinEvent = $pinnedEvent !== null && auth()->user() !== null && $this->canContribute(auth()->user())
+            && app(LoopEventService::class)->canManageEvent(auth()->user(), $pinnedEvent['event'], $this->loop);
 
         $reactionData = [];
         $myReactions = [];
@@ -3809,6 +3961,9 @@ class LoopChat extends Component
             'messages',
             'viewLoop',
             'pinnedMessage',
+            'pinnedEvent',
+            'pinnableEventMessageIds',
+            'canUnpinEvent',
             'reactionData',
             'myReactions',
             'requestedByNames',

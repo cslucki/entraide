@@ -543,3 +543,15 @@
         40% { opacity: 0.9; }
     }
 }
+
+/* TASK-1890 — bandeau de l'evenement epingle dans ChatLoop : le texte trop
+   long pour l'ecran defile d'un bord a l'autre. */
+@keyframes bp-ticker {
+    0%, 15% { transform: translateX(0); }
+    85%, 100% { transform: translateX(var(--bp-ticker-ecart, 0)); }
+}
+.bp-ticker-defile { animation: bp-ticker 10s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) {
+    .bp-ticker-defile { animation: none; }
+    .bp-ticker { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+}
