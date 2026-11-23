@@ -29,6 +29,7 @@ use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
 use App\Support\Email\HabillageOrganisation;
 use App\Services\Transactions\TransactionProposalMailer;
+use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Support\ScopedReadCache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Lang;
@@ -434,11 +435,24 @@ final class NotificationEmailDeliverer
         // TASK-1894 — habillage AU NOM DE L'ORGANISATION de la notification :
         // en-tete, signature « Prenom pour Organisation », lien vers ses
         // reglages (une notification se coupe toujours dans les reglages).
+        // Memorise par tenant et langue (meme memoire que TASK-1799) : une
+        // mention a N destinataires ne relit ni l'Organization ni son
+        // administrateur N fois. Affichage seul, aucune decision d'acces.
         $habillage = $notification?->organization_id
-            ? HabillageOrganisation::pour(
-                Organization::query()->find($notification->organization_id),
-                'notification',
-                $locale,
+            ? app(ScopedReadCache::class)->souviens(
+                'habillage-organisation:'.$notification->organization_id.':'.($locale ?? app()->getLocale()),
+                fn (): array => HabillageOrganisation::pour(
+                    // Meme cle que NotificationTargetResolver : une seule lecture.
+                    app(ScopedReadCache::class)->souviens(
+                        'cible-organization:'.$notification->organization_id,
+                        fn (): ?Organization => Organization::query()
+                            ->withoutGlobalScope(BelongsToOrganizationScope::class)
+                            ->whereKey($notification->organization_id)
+                            ->first(),
+                    ),
+                    'notification',
+                    $locale,
+                ),
             )
             : [];
 
