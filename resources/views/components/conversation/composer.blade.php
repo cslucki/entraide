@@ -381,9 +381,16 @@
              A partir de `md` le conteneur redevient transparent et le
              `<textarea>` reprend sa bordure : le bureau ne bouge pas d'un
              pixel, la Messagerie et le chat agent non plus (ils n'ont pas
-             `$leading`). --}}
+             `$leading`).
+             TASK-1886 (capture Cyril, 23/11) — `md:dark:bg-transparent`.
+             En mode sombre, `dark:bg-gray-900` se compile en
+             `.dark .dark\:bg-gray-900` (deux classes) et battait
+             `md:bg-transparent` (une seule) : au bureau, ce conteneur gardait
+             son fond, et ses angles DROITS (`md:rounded-none`) depassaient en
+             noir derriere le champ arrondi. La variante combinee a la meme
+             specificite que `dark:` et vient apres : elle gagne. --}}
         <div class="relative min-w-0 flex-1 {{ isset($leading)
-            ? 'flex items-end gap-1 rounded-[23px] border border-gray-300 bg-white px-[5px] py-[4px] shadow-sm transition focus-within:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:focus-within:border-transparent'
+            ? 'flex items-end gap-1 rounded-[23px] border border-gray-300 bg-white px-[5px] py-[4px] shadow-sm transition focus-within:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:focus-within:border-transparent md:dark:bg-transparent'
             : '' }}">
             @if($mentionables !== [])
             {{-- TASK-1772 — LE MENU PREDICTIF.
