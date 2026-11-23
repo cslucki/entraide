@@ -18,6 +18,11 @@ use Illuminate\View\View;
 
 class HomeController extends Controller
 {
+    /** TASK-1893 — lettres accentuees et leur equivalent sans accent (meme longueur, pour `translate()`). */
+    private const ACCENTS = 'àáâãäåāçćčèéêëēėęìíîïīñńòóôõöøōùúûüūýÿžźżśšłÀÁÂÃÄÅĀÇĆČÈÉÊËĒĖĘÌÍÎÏĪÑŃÒÓÔÕÖØŌÙÚÛÜŪÝŸŽŹŻŚŠŁ';
+
+    private const SANS_ACCENTS = 'aaaaaaaccceeeeeeeiiiiinnooooooouuuuuyyzzzsslAAAAAAACCCEEEEEEEIIIIINNOOOOOOOUUUUUYYZZZSSL';
+
     public function index(): RedirectResponse|View
     {
         // TASK-1782 — un membre d'une Organization scopee qui demande la racine
@@ -177,8 +182,25 @@ class HomeController extends Controller
         $members = User::where('organization_id', $organizationId)
             ->activeAccount()
             ->when($recherche !== '', function ($q) use ($recherche, $organization) {
-                $like = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
                 $motif = '%'.$recherche.'%';
+
+                // TASK-1893 — les ACCENTS ne comptent plus (arbitrage Cyril
+                // 23/11) : « fonde » trouve « fondé », « Referent » trouve
+                // « Référent ». En PostgreSQL, `translate()` retire les accents
+                // des DEUX cotes avant `lower()` — fonction native, aucune
+                // extension (`unaccent`) ni migration a poser en PROD. Les
+                // majuscules accentuees sont dans la table : `lower()` ne les
+                // abaisse pas sous un collationnement « C ».
+                //
+                // SQLite (tests) garde l'ancien `like`, deja insensible a la
+                // casse ASCII et sans `translate()`.
+                $pgsql = DB::connection()->getDriverName() === 'pgsql';
+                $sansAccent = static fn (string $sql) => "lower(translate({$sql}, '".self::ACCENTS."', '".self::SANS_ACCENTS."'))";
+                $champ = static function ($w, string $sql) use ($pgsql, $sansAccent, $motif): void {
+                    $pgsql
+                        ? $w->orWhereRaw($sansAccent($sql).' like '.$sansAccent('?'), [$motif])
+                        : $w->orWhereRaw($sql.' like ?', [$motif]);
+                };
 
                 // TASK-1762 point 9 — la structure entre dans la recherche,
                 // mais SEULEMENT si l'Organization a ouvert le champ.
@@ -190,13 +212,13 @@ class HomeController extends Controller
                 // trouvables alors qu'elles ne s'affichent plus nulle part.
                 $chercheLaStructure = structureIsShown($organization);
 
-                $q->where(function ($w) use ($like, $motif, $chercheLaStructure) {
-                    $w->where('first_name', $like, $motif)
-                        ->orWhere('name', $like, $motif)
-                        ->orWhereRaw("COALESCE(first_name, '') || ' ' || COALESCE(name, '') ".$like.' ?', [$motif]);
+                $q->where(function ($w) use ($champ, $chercheLaStructure) {
+                    $champ($w, 'first_name');
+                    $champ($w, 'name');
+                    $champ($w, "COALESCE(first_name, '') || ' ' || COALESCE(name, '')");
 
                     if ($chercheLaStructure) {
-                        $w->orWhere('structure', $like, $motif);
+                        $champ($w, 'structure');
                     }
 
                     // TASK-1762 point 13 — le CONTENU de la presentation.
@@ -214,19 +236,19 @@ class HomeController extends Controller
                     // Pas de garde d'Organization ici, contrairement a la
                     // structure : la bio n'a pas de drapeau, elle fait partie
                     // du profil depuis toujours.
-                    $w->orWhere('bio', $like, $motif);
+                    $champ($w, 'bio');
 
                     // TASK-1762 point 17 — le slogan, meme raisonnement que la
                     // bio : deja affiche sur la carte et la fiche publique,
                     // aucune garde d'Organization puisqu'il n'en a pas.
-                    $w->orWhere('slogan', $like, $motif);
+                    $champ($w, 'slogan');
 
                     // TASK-1892 — la VILLE dans la saisie libre (demande Cyril,
                     // 23/11). Le menu « Localisation » reste ; il demande une
                     // ville exacte, la saisie trouve aussi « Mars » ou une
                     // ville tapee en minuscules. Deja affichee sur la carte :
                     // rien de nouveau n'est expose.
-                    $w->orWhere('city', $like, $motif);
+                    $champ($w, 'city');
                 });
             })
             // TASK-1762 point 10 — la comparaison ignore la casse, pour la
