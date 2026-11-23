@@ -159,8 +159,14 @@ class TASK1086CardRegistryAndPresetsTest extends TestCase
 
     public function test_the_administration_and_the_workspace_share_one_catalogue(): void
     {
+        // TASK-1879 — une Card de PLUGIN est rendue mais jamais composee a la
+        // main : elle suit l'activation de son plugin. Hors elles, le
+        // catalogue d'administration et celui du workspace restent le meme.
         $this->assertSame(
-            $this->registry()->renderableKeys(),
+            array_values(array_diff(
+                $this->registry()->renderableKeys(),
+                array_keys($this->registry()->pluginCards()),
+            )),
             array_keys($this->registry()->manageableCatalogue()),
         );
 

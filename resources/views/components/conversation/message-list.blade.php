@@ -35,7 +35,7 @@
              dependent. On ajuste donc UNIQUEMENT `$el.scrollTop` (ce
              conteneur, connu et deja borne) plutot que de laisser le
              navigateur remonter toute la chaine de conteneurs defilants. --}}
-        x-on:scroll-to-message.window="requestAnimationFrame(() => { const target = document.getElementById('loop-message-' + $event.detail.messageId); if (target) { const conteneur = $el.getBoundingClientRect(); const cible = target.getBoundingClientRect(); $el.scrollTop += (cible.top - conteneur.top) - 16; target.classList.add('ring-2', 'ring-violet-400', 'rounded-xl'); setTimeout(() => target.classList.remove('ring-2', 'ring-violet-400', 'rounded-xl'), 1800) } })"
+        x-on:scroll-to-message.window="requestAnimationFrame(() => { const target = document.getElementById('loop-message-' + $event.detail.messageId); if (target) { const conteneur = $el.getBoundingClientRect(); const cible = target.getBoundingClientRect(); $el.scrollTop += (cible.top - conteneur.top) - 16; window.bpSurlignerMessage($event.detail.messageId) } })"
     @endif
     {{-- TASK-1772 (recette Cyril, telephone) — `overflow-x-hidden` : le fil
          se laissait faire defiler HORIZONTALEMENT. Mesure a 390 px : le
@@ -59,3 +59,32 @@
         {{ $after }}
     @endif
 </div>
+
+@once
+    {{-- TASK-1879 (demande Cyril, 22/11) — le message cible reste surligne tant
+         que le membre ne clique / n'appuie pas AILLEURS (un clic sur le message
+         lui-meme le garde). Regle CSS dans <head> plutot qu'une classe : le
+         rafraichissement de ChatLoop (wire:poll) re-rend la liste et effacerait
+         une classe posee a la main. `click` et non `pointerdown` : faire defiler
+         au doigt n'efface pas le surlignage. --}}
+    <script>
+        window.bpSurlignerMessage = window.bpSurlignerMessage || function (id) {
+            document.getElementById('bp-message-cible')?.remove();
+            if (window.__bpFinSurlignage) document.removeEventListener('click', window.__bpFinSurlignage, true);
+
+            const style = document.createElement('style');
+            style.id = 'bp-message-cible';
+            style.textContent = '#loop-message-' + CSS.escape(String(id)) + '{box-shadow:0 0 0 2px #a78bfa;border-radius:.75rem}';
+            document.head.appendChild(style);
+
+            window.__bpFinSurlignage = (e) => {
+                if (e.target.closest && e.target.closest('#loop-message-' + CSS.escape(String(id)))) return;
+                document.getElementById('bp-message-cible')?.remove();
+                document.removeEventListener('click', window.__bpFinSurlignage, true);
+                window.__bpFinSurlignage = null;
+            };
+            // Le clic qui a demande le saut (citation, etc.) ne doit pas l'effacer.
+            setTimeout(() => document.addEventListener('click', window.__bpFinSurlignage, true), 0);
+        };
+    </script>
+@endonce

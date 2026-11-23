@@ -84,7 +84,7 @@
 
         @if($dernier)
             <p class="text-xs truncate mt-0.5 {{ $gras ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400' }}">
-                {{ Str::limit(\App\Support\Entraide\MessageSysteme::rendre($dernier), 40) }}
+                {{ Str::limit($dernier->voiceSummary() ?? \App\Support\Entraide\MessageSysteme::rendre($dernier), 40) }}
             </p>
         @endif
     </div>

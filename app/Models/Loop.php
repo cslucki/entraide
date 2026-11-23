@@ -32,6 +32,28 @@ class Loop extends Model
     /** A Loop carries at most 3 domains (Annuaire referential) — TASK-1076. */
     public const MAX_DOMAINS = 3;
 
+    /** TASK-1885 C7 — longueur maximale du Pitch (decision Cyril, 22/11). */
+    public const PITCH_MAX = 12;
+
+    /**
+     * TASK-1885 C7 — la regle de validation du Pitch, partagee par les trois
+     * ecrans d'edition (proprietaire, admin d'Organization, SuperAdmin).
+     *
+     * @return list<string>
+     */
+    public static function pitchRules(): array
+    {
+        return ['nullable', 'string', 'max:'.self::PITCH_MAX];
+    }
+
+    /** Pitch nettoye : chaine vide ou blancs = aucun pitch. */
+    public static function normaliserPitch(?string $pitch): ?string
+    {
+        $pitch = trim((string) $pitch);
+
+        return $pitch === '' ? null : $pitch;
+    }
+
     /*
      * TASK-1717 — PAS de `resolveRouteBinding()` ni de `getRouteKey()` ici,
      * et c'est une decision prise APRES les avoir ecrits puis mesures.
@@ -121,6 +143,8 @@ class Loop extends Model
         'slug',
         'description',
         'tagline',
+        // TASK-1885 C7 — mot court en surimpression de la couverture.
+        'pitch',
         'cover_image_path',
         'type',
         'status',

@@ -1,5 +1,7 @@
 {{-- Single Roadmap action card (mini-kanban). Clicking anywhere on the card opens
-     the detail modal; interactive controls stop propagation. Drag via the handle only.
+     the detail modal; interactive controls stop propagation.
+     TASK-1879 (demande Cyril, 22/11) — la carte ENTIERE se deplace (plus de poignee) ;
+     les actions passent par le menu ⋮ (plus de bouton « marquer comme fait »).
      $item, $members, $canManage, $canModify inherited from the parent view. --}}
 @php
     $overdue = $item->due_at && ! $item->isDone() && $item->due_at->isPast();
@@ -20,7 +22,7 @@
     @if($canManage) wire:click="openDetail('{{ $item->id }}')" role="button" tabindex="0"
         wire:keydown.enter="openDetail('{{ $item->id }}')" @endif
     title="{{ __('loops.roadmap_open_detail') }}"
-    class="group/card relative cursor-pointer rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm transition hover:border-violet-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-900 dark:hover:border-violet-700 {{ $item->isDone() ? 'opacity-70' : '' }}">
+    class="group/card relative {{ $canManage ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer' }} select-none rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm transition hover:border-violet-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-900 dark:hover:border-violet-700 {{ $item->isDone() ? 'opacity-70' : '' }}">
 
     {{-- Labels --}}
     @if($item->labels->isNotEmpty())
@@ -35,15 +37,6 @@
     @endif
 
     <div class="flex items-start gap-2">
-        {{-- Drag handle (does not open the detail) --}}
-        @if($canManage)
-            <button type="button" x-on:click.stop wire:ignore
-                    class="drag-handle mt-0.5 flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center text-gray-300 transition hover:text-gray-500 focus:text-violet-500 focus:outline-none active:cursor-grabbing dark:text-gray-600 dark:hover:text-gray-400"
-                    aria-label="{{ __('loops.roadmap_drag_handle') }}">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
-            </button>
-        @endif
-
         {{-- Title --}}
         {{-- TASK-1718 volet 1 — le titre se modifie SUR PLACE.
 
@@ -57,7 +50,7 @@
              `wire:click="openDetail"`, et sans cela taper dans le champ
              ouvrirait le panneau de detail par-dessus le formulaire. --}}
         @if($editingId === $item->id)
-            <form wire:submit="saveEdit" x-on:click.stop class="min-w-0 flex-1" data-marqueur="roadmap-edition-titre">
+            <form wire:submit="saveEdit" x-on:click.stop data-no-drag class="min-w-0 flex-1" data-marqueur="roadmap-edition-titre">
                 <input type="text" wire:model="editingTitle" maxlength="255" autofocus
                        x-on:click.stop x-on:keydown.escape.stop="$wire.cancelEdit()"
                        class="w-full rounded-lg border border-violet-300 bg-white px-2 py-1 text-sm text-gray-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-violet-700 dark:bg-gray-800 dark:text-gray-100">
@@ -80,20 +73,12 @@
             </p>
         @endif
 
-        {{-- Hover: mark done (top-right). Precise target, stops propagation. --}}
-        @if($canManage && ! $item->isDone())
-            <button type="button" wire:click.stop="setStatus('{{ $item->id }}', 'done')"
-                    title="{{ __('loops.roadmap_mark_done') }}" aria-label="{{ __('loops.roadmap_mark_done') }}"
-                    class="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-300 transition hover:bg-emerald-50 hover:text-emerald-600 group-hover/card:flex dark:hover:bg-emerald-900/30 dark:hover:text-emerald-300">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-            </button>
-        @endif
     </div>
 
     {{-- Footer: due + comments (left), avatars + menu (right) --}}
     @php $footer = $item->assignees->isNotEmpty() || $item->due_at || ($item->messages_count ?? 0) > 0 || $canManage; @endphp
     @if($footer)
-        <div class="mt-2 flex items-center justify-between gap-2 pl-7">
+        <div class="mt-2 flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
                 @if($item->due_at)
                     <span @class(['inline-flex items-center gap-1', 'text-red-600 dark:text-red-400 font-semibold' => $overdue])>
@@ -125,7 +110,7 @@
 
                 {{-- Actions menu (flips to stay on screen) --}}
                 @if($canManage)
-                    <div x-data="roadmapMenu()" class="relative" x-on:click.stop>
+                    <div x-data="roadmapMenu()" class="relative" x-on:click.stop data-no-drag>
                         <button type="button" x-ref="btn" x-on:click="toggle()" x-bind:aria-expanded="open" aria-haspopup="true"
                                 class="flex h-6 w-6 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                                 aria-label="{{ __('loops.roadmap_actions_menu') }}">

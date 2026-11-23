@@ -397,6 +397,12 @@ class UserDataLifecycleRegistry
             ['key' => 'loop_events_cancelled_by', 'type' => 'sql', 'table' => 'loop_events', 'column' => 'cancelled_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Cancellation audit can be detached.'],
             ['key' => 'loop_event_responses_user_id', 'type' => 'sql', 'table' => 'loop_event_responses', 'column' => 'user_id', 'policy' => self::POLICY_DELETE, 'org_scope' => 'through_loop', 'justification' => 'An RSVP is user-specific participation.'],
 
+            // TASK-1879 — la Veille : la publication survit, son auteur est anonymise
+            // comme celui d'un Sondage ; les traces de gestion se detachent.
+            ['key' => 'loop_watch_categories_created_by', 'type' => 'sql', 'table' => 'loop_watch_categories', 'column' => 'created_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'A watch category belongs to the Loop; its creator can be detached.'],
+            ['key' => 'loop_watch_items_created_by', 'type' => 'sql', 'table' => 'loop_watch_items', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The watch item survives; its author is anonymized.'],
+            ['key' => 'loop_watch_items_updated_by', 'type' => 'sql', 'table' => 'loop_watch_items', 'column' => 'updated_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Edit audit can be detached.'],
+
             ['key' => 'loop_polls_created_by', 'type' => 'sql', 'table' => 'loop_polls', 'column' => 'created_by', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_loop', 'justification' => 'The poll survives; its author is anonymized.'],
             ['key' => 'loop_polls_closed_by', 'type' => 'sql', 'table' => 'loop_polls', 'column' => 'closed_by', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_loop', 'justification' => 'Closure audit can be detached.'],
             /*

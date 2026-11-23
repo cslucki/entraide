@@ -31,13 +31,15 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><a href="{{ url }}">Confirmer mon adresse</a></p>
 <p>Si le lien ci-dessus ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>{{ url }}</p>
 <p>Ce lien est valable <strong>24 heures</strong>. Passé ce délai, vous pourrez en demander un nouveau depuis la page d\'attente.</p>
-<p>Si vous n\'êtes pas à l\'origine de cette inscription, vous pouvez ignorer ce message.</p>',
+<p>Si vous n\'êtes pas à l\'origine de cette inscription, vous pouvez ignorer ce message.</p>
+<p>Pour recevoir nos prochains messages, vérifiez que les emails envoyés par « relai-smtp.net » n\'arrivent pas dans vos indésirables (spam).</p>',
             'content_html_en' => '<h1>Hello {{ name }},</h1>
 <p>One last step: confirm your email address.</p>
 <p><a href="{{ url }}">Confirm my address</a></p>
 <p>If the link above does not work, copy this address into your browser:<br>{{ url }}</p>
 <p>This link is valid for <strong>24 hours</strong>. After that, you can request a new one from the waiting page.</p>
-<p>If you did not create this account, you can ignore this message.</p>',
+<p>If you did not create this account, you can ignore this message.</p>
+<p>To receive our next messages, make sure emails sent by “relai-smtp.net” do not end up in your junk (spam) folder.</p>',
             'variables' => ['name', 'url'],
         ],
         // TASK-1694 bug H — renomme : l'email annonce l'AFFECTATION DES POINTS.
@@ -442,6 +444,58 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1880 (demande Cyril, 22/11) — « Prenom vous a identifie sur le
+        // Flux ». Pose AUSSI par la migration jumelle
+        // `2026_11_22_200000_add_feed_post_mention_created_email_template` ;
+        // les deux textes sont IDENTIQUES. `post_message` porte la TOTALITE du
+        // message de l'annonce.
+        'feed_post_mention_created' => [
+            'name_fr' => 'Mention dans une annonce du Flux',
+            'name_en' => 'Mention in a Feed announcement',
+            'subject_fr' => '{{ author_first_name }} vous a identifié sur le Flux',
+            'subject_en' => '{{ author_first_name }} tagged you on the Feed',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a identifié dans une annonce du Flux :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ post_message }}</blockquote><p><a href="{{ post_url }}">Voir l\'annonce dans le Flux</a></p><p>À bientôt,<br>L’équipe {{ app_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> tagged you in a Feed announcement:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ post_message }}</blockquote><p><a href="{{ post_url }}">View the announcement in the Feed</a></p><p>See you soon,<br>The {{ app_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_first_name',
+                    'organization_name', 'post_message', 'post_url',
+                    'preferences_url', 'app_name',
+            ],
+        ],
+
+        // TASK-1884 #1 (demande Cyril, 22/11) — « Prenom vous a nomme co-auteur
+        // d'un article ». Pose AUSSI par la migration jumelle
+        // `2026_11_23_110000_add_blog_co_author_added_email_template` ; les deux
+        // textes sont IDENTIQUES.
+        'blog_co_author_added' => [
+            'name_fr' => 'Nomination comme co-auteur d’un article',
+            'name_en' => 'Named co-author of an article',
+            'subject_fr' => '{{ author_first_name }} vous a nommé co-auteur d’un article',
+            'subject_en' => '{{ author_first_name }} made you co-author of an article',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a nommé co-auteur d’un article : <strong>{{ post_title }}</strong>.</p><p>Vous pouvez désormais le modifier vous aussi. Voici le lien de cet article :</p><p><a href="{{ post_url }}">Ouvrir l’article</a></p><p>À bientôt,<br>L’équipe {{ organization_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> made you co-author of an article: <strong>{{ post_title }}</strong>.</p><p>You can now edit it together. Here is the link to this article:</p><p><a href="{{ post_url }}">Open the article</a></p><p>See you soon,<br>The {{ organization_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_first_name',
+                'organization_name', 'post_title', 'post_url',
+                'preferences_url', 'app_name',
+            ],
+        ],
+
+        // TASK-1884 #7 (demande Cyril, 22/11) — « {tache} sur « {titre court}… » ».
+        // Pose AUSSI par la migration jumelle
+        // `2026_11_23_120000_add_blog_todo_assigned_email_template` ; textes IDENTIQUES.
+        'blog_todo_assigned' => [
+            'name_fr' => 'Tâche confiée sur un article',
+            'name_en' => 'Task assigned on an article',
+            'subject_fr' => '{{ todo_title }} sur « {{ post_title_short }} »',
+            'subject_en' => '{{ todo_title }} on “{{ post_title_short }}”',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> vous a confié une tâche sur l’article <strong>{{ post_title }}</strong> :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ todo_title }}</blockquote><p>Tâche saisie le {{ todo_date }}.</p><p><a href="{{ post_url }}">Ouvrir l’article</a></p><p>À bientôt,<br>L’équipe {{ organization_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href="{{ preferences_url }}">Réglages des notifications</a>.</p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p><strong>{{ author_first_name }}</strong> assigned you a task on the article <strong>{{ post_title }}</strong>:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">{{ todo_title }}</blockquote><p>Task created on {{ todo_date }}.</p><p><a href="{{ post_url }}">Open the article</a></p><p>See you soon,<br>The {{ organization_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href="{{ preferences_url }}">Notification settings</a>.</p>',
+            'variables' => [
+                'recipient_name', 'recipient_email', 'author_first_name', 'organization_name', 'todo_title', 'todo_date', 'post_title', 'post_title_short', 'post_url', 'preferences_url', 'app_name',
+            ],
+        ],
+
         'loop_mention_created' => [
             'name_fr' => 'Mention dans une Boucle',
             'name_en' => 'Mention in a Loop',
@@ -638,6 +692,21 @@ class SystemEmailTemplateSeeder extends Seeder
 <p><a href="{{ url }}">Manage my linked accounts</a></p>
 <p>If you did not create this link, revoke it and change your password.</p>',
             'variables' => ['name', 'url', 'other_organization'],
+        ],
+
+        // TASK-1883 (demande Cyril, 22/11) — newsletter hebdomadaire des demandes et
+        // propositions d'aide. Memes textes que la migration
+        // `2026_11_23_100100_add_weekly_help_digest_email_template`. Les blocs
+        // `{demande_aide;N}` / `{proposition_aide;N}` / `{billets_blog;N}` ne sont PAS des variables : ils
+        // sont developpes par `HelpDigestBlocks` avant l'interpolation.
+        'weekly_help_digest' => [
+            'name_fr' => 'Newsletter hebdomadaire — demandes et propositions d’aide',
+            'name_en' => 'Weekly newsletter — help requests and offers',
+            'subject_fr' => 'Les dernières demandes et propositions d’aide — {{ organization_name }}',
+            'subject_en' => 'Latest help requests and offers — {{ organization_name }}',
+            'content_html_fr' => '<p>Bonjour {{ recipient_name }},</p><p>Voici les dernières demandes et propositions d’aide de <strong>{{ organization_name }}</strong>. Un coup de main, même petit, fait souvent la différence.</p><h2 style="font-size:18px;margin:24px 0 8px">Ils ont besoin d’aide</h2>{demande_aide;3}<h2 style="font-size:18px;margin:24px 0 8px">Ils proposent leur aide</h2>{proposition_aide;3}{billets_blog;3}<p><a href="{{ explorer_url }}">Voir toutes les demandes et propositions</a></p><p>À bientôt,<br>L’équipe {{ organization_name }}</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Vous recevez cette lettre parce que vous êtes membre de {{ organization_name }}. <a href="{{ unsubscribe_url }}">Se désinscrire de la newsletter</a></p>',
+            'content_html_en' => '<p>Hello {{ recipient_name }},</p><p>Here are the latest help requests and offers from <strong>{{ organization_name }}</strong>. A helping hand, however small, often makes the difference.</p><h2 style="font-size:18px;margin:24px 0 8px">They need help</h2>{demande_aide;3}<h2 style="font-size:18px;margin:24px 0 8px">They offer their help</h2>{proposition_aide;3}{billets_blog;3}<p><a href="{{ explorer_url }}">See all requests and offers</a></p><p>See you soon,<br>The {{ organization_name }} team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">You receive this letter because you are a member of {{ organization_name }}. <a href="{{ unsubscribe_url }}">Unsubscribe from the newsletter</a></p>',
+            'variables' => ['recipient_name', 'organization_name', 'explorer_url', 'unsubscribe_url', 'app_name'],
         ],
     ];
 

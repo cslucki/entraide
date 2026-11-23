@@ -64,6 +64,7 @@ class LoopPluginController extends Controller
     {
         [$loop, $plugin, $adminScope] = $this->depuisLaRoute($request);
 
+        $this->assertHasAssistants($plugin);
         $this->assertScope($request, $loop, $adminScope);
         $this->assertConfigurable($request, $plugin, $loop);
 
@@ -89,6 +90,7 @@ class LoopPluginController extends Controller
     {
         [$loop, $plugin, $adminScope] = $this->depuisLaRoute($request);
 
+        $this->assertHasAssistants($plugin);
         $this->assertScope($request, $loop, $adminScope);
         $this->assertConfigurable($request, $plugin, $loop);
 
@@ -192,6 +194,19 @@ class LoopPluginController extends Controller
     {
         abort_unless($this->plugins->exists($plugin), 404);
         abort_unless($this->activation->canConfigure($request->user(), $plugin, $loop), 403);
+    }
+
+    /**
+     * TASK-1879 — ces deux ecrans reglent des ASSISTANTS IA, et rien d'autre.
+     *
+     * `configure()` et `saveConfiguration()` ecrivent dans `loop_ai_assistants`
+     * via LoopAiAssistants, quel que soit le `{plugin}` de l'URL. Sans cette
+     * garde, `/plugins/veille/configurer` afficherait les postures Pour/Contre
+     * et les enregistrerait. 404 AVANT toute lecture de portee ou ecriture.
+     */
+    private function assertHasAssistants(string $plugin): void
+    {
+        abort_unless($this->plugins->hasAssistants($plugin), 404);
     }
 
     private function backUrl(Request $request, Loop $loop, bool $adminScope): string

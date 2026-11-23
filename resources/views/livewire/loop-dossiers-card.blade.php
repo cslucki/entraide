@@ -68,12 +68,21 @@
                 {!! $detailArticle->content !!}
             </div>
 
-            @if($detailArticleUrl)
-                <a href="{{ $detailArticleUrl }}" class="{{ $quiet }}">
-                    {{ __('loops.cards.dossiers.detail_read_full_article') }}
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
-                </a>
-            @endif
+            <div class="flex flex-wrap gap-2">
+                {{-- TASK-1879 (recette Cyril) — revenir aux Articles de la Card. --}}
+                <button type="button" data-action="dossier-back-to-articles"
+                        x-on:click="$wire.closeDetail().then(() => $nextTick(() => document.querySelector('[data-marqueur=dossier-articles]')?.scrollIntoView({ block: 'start' })))"
+                        class="{{ $quiet }}">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
+                    {{ __('loops.cards.dossiers.detail_back_to_articles') }}
+                </button>
+                @if($detailArticleUrl)
+                    <a href="{{ $detailArticleUrl }}" class="{{ $quiet }}">
+                        {{ __('loops.cards.dossiers.detail_read_full_article') }}
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+                    </a>
+                @endif
+            </div>
         </div>
 
     @elseif($detailFile || $highlightedFiles->isNotEmpty())
@@ -128,6 +137,11 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2">
+                    {{-- TASK-1879 (recette Cyril) — revenir a la Card Dossiers. --}}
+                    <button type="button" wire:click="closeDetail" data-action="dossier-back-to-dossiers" class="{{ $quiet }}">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
+                        {{ __('loops.cards.dossiers.detail_back_to_dossiers') }}
+                    </button>
                     @if($highlightedFiles->count() > 1)
                         <button type="button" wire:click="backToSelection" class="{{ $quiet }}">
                             {{ __('loops.cards.dossiers.detail_back_to_selection') }}
@@ -287,15 +301,15 @@
 
         {{-- ── Articles recents ───────────────────────────────────────────── --}}
         @if($articles->isNotEmpty())
-            <div class="{{ $tile }} p-3">
+            <div data-marqueur="dossier-articles" class="{{ $tile }} scroll-mt-3 p-3">
                 <p class="{{ $sectionTitle }}">{{ __('loops.cards.dossiers.recent_articles') }}</p>
                 <ul class="divide-y divide-[var(--bp-border)]">
                     @foreach($articles as $article)
-                        <li wire:key="article-{{ $article->id }}">
+                        <li wire:key="article-{{ $article->id }}" class="flex items-center gap-1.5">
                             {{-- L'adresse **dans l'Organization de la Boucle** : la route nue retombe
                                  sur l'Organization par défaut. --}}
                             <a href="{{ $articleUrls[$article->id] }}"
-                               class="flex items-center gap-2.5 rounded-xl px-1.5 py-2 transition hover:bg-[var(--bp-surface)]">
+                               class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-2 transition hover:bg-[var(--bp-surface)]">
                                 <x-user-avatar :user="$article->user" size="xs" />
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate text-sm font-medium text-[var(--bp-text)]">{{ $article->title }}</span>
@@ -309,6 +323,14 @@
                                     </span>
                                 @endif
                             </a>
+                            {{-- TASK-1884 #3 — a COTE du lien de lecture, jamais dedans
+                                 (pas de lien dans un lien). --}}
+                            @isset($modifyUrls[$article->id])
+                                <a href="{{ $modifyUrls[$article->id] }}" data-dossier-card-modify
+                                   class="shrink-0 rounded-lg border border-[var(--bp-border)] px-2 py-0.5 text-[11px] font-semibold text-[var(--bp-primary)] transition hover:bg-[var(--bp-surface)]">
+                                    {{ __('blog.btn_edit') }}
+                                </a>
+                            @endisset
                         </li>
                     @endforeach
                 </ul>

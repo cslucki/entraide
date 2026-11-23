@@ -226,6 +226,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'show_email' => 'boolean',
             'show_phone' => 'boolean',
             'banned_at' => 'datetime',
+            'login_blocked_at' => 'datetime',
+            'newsletter_unsubscribed_at' => 'datetime',
             // TASK-1716 — deliberement HORS `$fillable`, comme `approved_at`
             // (T1714) et `must_set_password` (T1659). Ce sont des drapeaux de
             // cycle de vie : seul `ProfileController::close()` les pose, et
@@ -706,9 +708,13 @@ class User extends Authenticatable implements MustVerifyEmail
             ], absolute: false);
         }
 
-        // Regular user → canonical home (loops for default org, org home for scoped org)
+        // TASK-1880 (demande Cyril, 22/11) — un membre arrive sur le Flux de son
+        // Organization (il arrivait sur ses Boucles). Administrateur
+        // d'Organization et superadmin gardent leur tableau de bord (arbitrage).
         if ($this->organization_id && $this->organization?->is_active) {
-            return canonicalHome($this->organization);
+            return $this->organization->is_default
+                ? route('flux', absolute: false)
+                : route('organization.flux', ['organization' => $this->organization->slug], absolute: false);
         }
 
         return '/dashboard';
@@ -737,6 +743,21 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return $this->organization?->requires_account_approval === true;
+    }
+
+    /**
+     * TASK-1881 (demande Cyril, 22/11) — « Membres autorises a se connecter ».
+     *
+     * Bloque si le superadmin a decoche ce compte, SAUF l'administrateur de
+     * son Organization et le superadmin, toujours autorises (arbitrage).
+     */
+    public function estBloqueALaConnexion(): bool
+    {
+        if ($this->login_blocked_at === null || $this->is_admin) {
+            return false;
+        }
+
+        return $this->organization?->admin_id !== $this->id;
     }
 
     /**

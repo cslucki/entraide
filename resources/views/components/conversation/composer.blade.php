@@ -44,6 +44,12 @@
     // qu'une OPTION d'affichage ; l'autorisation reelle est re-controlee au
     // serveur, a l'envoi.
     'canMentionAll' => false,
+    // TASK-1886 — le MESSAGE VOCAL, OPT-IN. Seule la Messagerie privee le
+    // passe : c'est le seul serveur qui sait recevoir un vocal (`$voice`) et
+    // le faire expirer. Le ChatLoop et le chat agent gardent leur bouton
+    // d'envoi a l'octet. Meme discipline que `uploadAccept` et `mentionables`.
+    'voice' => false,
+    'voiceMaxSeconds' => 300,
 ])
 
 @php
@@ -54,7 +60,23 @@
 {{-- Le gabarit compact mobile est SCOPE au ChatLoop (seul appelant qui
      fournit `$leading`) : Message Thread et le chat agent gardent leur
      gabarit historique a l'identique. --}}
-<div class="border-t border-gray-200 dark:border-gray-700 {{ isset($leading) ? 'px-3 py-2.5 md:px-5 md:py-4' : 'px-5 py-4' }}">
+{{-- TASK-1886 — l'enregistreur vit sur la RACINE, au-dessus du `<form>` :
+     ses etats (`etat`, `vocalActif`) sont lus par le formulaire, dont la
+     portee Alpine herite. Sans `voice`, la racine reste celle d'avant. --}}
+<div class="border-t border-gray-200 dark:border-gray-700 {{ isset($leading) ? 'px-3 py-2.5 md:px-5 md:py-4' : 'px-5 py-4' }}"
+    @if($voice)
+    x-data="voiceRecorder({
+        maxSeconds: {{ (int) $voiceMaxSeconds }},
+        i18n: {
+            denied: @js(__('messages.voice_mic_denied')),
+            unavailable: @js(__('messages.voice_mic_unavailable')),
+            unsupported: @js(__('messages.voice_unsupported')),
+            failed: @js(__('messages.voice_send_failed')),
+        },
+    })"
+    data-composer-voice
+    @endif
+>
     @if($replyingTo)
     <div class="flex items-center justify-between mb-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-xs">
         <span class="text-gray-600 dark:text-gray-300 truncate">
@@ -128,7 +150,13 @@
          Les evenements d'upload de Livewire remontent (`bubbles: true`) : les
          poser sur le `<form>` couvre les DEUX saisies de fichier (galerie et
          appareil photo) sans ecouteur par input. --}}
-    <form wire:submit="sendMessage" class="flex items-end {{ isset($leading) ? 'gap-2 md:gap-3' : 'gap-3' }}"
+    {{-- TASK-1886 (copie conforme WhatsApp, captures Cyril 23/11) — avec
+         `voice`, le FORMULAIRE est la pilule : trombone, champ, micro ou
+         envoi vivent DANS le meme cadre, et l'enregistrement s'y deroule
+         aussi. Sans `voice`, le gabarit d'avant, a l'octet. --}}
+    <form wire:submit="sendMessage" class="{{ $voice
+        ? 'flex items-end gap-0.5 rounded-[26px] border border-gray-300 bg-white p-1 shadow-sm transition focus-within:border-[color:var(--bp-primary)] dark:border-gray-600 dark:bg-gray-900'
+        : 'flex items-end '.(isset($leading) ? 'gap-2 md:gap-3' : 'gap-3') }}"
         {{-- TASK-1872 correctif 06 — emis par `LoopChat` quand repondre pose
              une mention. Borne aux appelants qui ont des mentionnables, donc
              au seul ChatLoop : la Messagerie et le chat agent n'ont pas de
@@ -306,12 +334,22 @@
         {{-- TASK-1693 bug AC — ce bouton n'avait aucun intitule : ni infobulle,
              ni libelle accessible. On ne devinait pas ce qu'il faisait. --}}
         <label data-composer-upload
+               @if($voice) x-show="! vocalActif" @endif
                aria-label="{{ $uploadLabel }}"
                title="{{ $uploadLabel }}"
+               @if($voice)
+               class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} h-10 w-10 flex-shrink-0 cursor-pointer items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white">
+            {{-- TASK-1886 — le trombone de WhatsApp : ce bouton joint TOUT
+                 (images, documents, audio, video), pas seulement une image. --}}
+            <svg class="h-5 w-5 -rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m18.4 10.6-7.07 7.07a4.5 4.5 0 0 1-6.36-6.36l7.78-7.78a3 3 0 0 1 4.24 4.24l-7.43 7.43a1.5 1.5 0 0 1-2.12-2.12l6.72-6.72"/>
+            </svg>
+               @else
                class="{{ isset($leading) ? 'hidden md:flex' : 'flex' }} mb-1 flex-shrink-0 w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 items-center justify-center cursor-pointer transition disabled:opacity-50">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
+               @endif
             <input type="file" x-ref="uploadInput" wire:model.live="photo" accept="{{ $uploadAccept }}" class="hidden">
         </label>
         {{-- TASK-1329 : second declencheur du MEME upload (`photo`), avec
@@ -381,10 +419,19 @@
              A partir de `md` le conteneur redevient transparent et le
              `<textarea>` reprend sa bordure : le bureau ne bouge pas d'un
              pixel, la Messagerie et le chat agent non plus (ils n'ont pas
-             `$leading`). --}}
-        <div class="relative min-w-0 flex-1 {{ isset($leading)
-            ? 'flex items-end gap-1 rounded-[23px] border border-gray-300 bg-white px-[5px] py-[4px] shadow-sm transition focus-within:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:focus-within:border-transparent'
-            : '' }}">
+             `$leading`).
+             TASK-1886 (capture Cyril, 23/11) — `md:dark:bg-transparent`.
+             En mode sombre, `dark:bg-gray-900` se compile en
+             `.dark .dark\:bg-gray-900` (deux classes) et battait
+             `md:bg-transparent` (une seule) : au bureau, ce conteneur gardait
+             son fond, et ses angles DROITS (`md:rounded-none`) depassaient en
+             noir derriere le champ arrondi. La variante combinee a la meme
+             specificite que `dark:` et vient apres : elle gagne. --}}
+        <div @if($voice) x-show="! vocalActif" @endif class="relative min-w-0 flex-1 {{ $voice
+            ? 'flex items-end gap-1'
+            : (isset($leading)
+            ? 'flex items-end gap-1 rounded-[23px] border border-gray-300 bg-white px-[5px] py-[4px] shadow-sm transition focus-within:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:focus-within:border-transparent md:dark:bg-transparent'
+            : '') }}">
             @if($mentionables !== [])
             {{-- TASK-1772 — LE MENU PREDICTIF.
                  Pose dans le conteneur du champ, en ABSOLU au-dessus : il doit
@@ -505,9 +552,11 @@
                      des `md:` greffes : la liste de droite est celle d'avant,
                      octet pour octet, donc la Messagerie et le chat agent sont
                      prouves inchanges par simple lecture du diff. --}}
-                class="{{ isset($leading)
+                class="{{ $voice
+                    ? 'block max-h-44 min-h-10 w-full resize-none overflow-y-hidden border-0 bg-transparent px-2 py-2.5 text-[15px] leading-5 text-gray-900 placeholder-gray-400 shadow-none [scrollbar-width:none] focus:outline-none focus:ring-0 dark:text-gray-100 md:text-sm [&::-webkit-scrollbar]:hidden'
+                    : (isset($leading)
                     ? 'block max-h-44 min-h-9 w-full resize-none overflow-y-hidden border-0 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 shadow-none transition [scrollbar-width:none] focus:outline-none focus:ring-0 dark:text-gray-100 [&::-webkit-scrollbar]:hidden md:min-h-11 md:rounded-2xl md:border md:border-gray-300 md:bg-white md:px-4 md:py-3 md:shadow-sm md:focus:border-indigo-500 md:focus:ring-2 md:focus:ring-indigo-500/20 md:dark:border-gray-600 md:dark:bg-gray-900'
-                    : 'block max-h-44 min-h-11 w-full resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden' }}"
+                    : 'block max-h-44 min-h-11 w-full resize-none overflow-y-hidden rounded-2xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition [scrollbar-width:none] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 [&::-webkit-scrollbar]:hidden') }}"
                 placeholder="{{ $placeholder }}"
                 @if($disabled || $loading) disabled @endif
             ></textarea>
@@ -522,6 +571,121 @@
             @endisset
         </div>
 
+        @if($voice)
+        {{-- ================================================================
+             TASK-1886 — LA BARRE D'ENREGISTREMENT, facon WhatsApp Web
+             (captures Cyril, 23/11).
+             ================================================================
+             Elle prend la place EXACTE du champ (meme pilule, meme hauteur) :
+             rien ne saute quand on appuie sur le micro. Ses commandes se
+             rangent A DROITE, pres du pouce et du bouton envoyer :
+
+               enregistre : 🗑  ● 0:02  ┄┄▎▍▌┄  ⏸        (➤)
+               pause      : 🗑  ▶  ●━━▍▌▎┄┄┄  0:28  🎤   (➤)
+               envoi      :        0:28  ┄▍▌▎┄  Envoi…   (◔) ← la mire
+
+             La pause SUSPEND : on reecoute, puis le micro rouge reprend a la
+             suite, dans le meme vocal. --}}
+        <div x-show="vocalActif"
+             x-cloak
+             data-voice-recorder
+             role="status"
+             aria-live="polite"
+             class="flex min-h-10 flex-1 min-w-0 items-center justify-end gap-1.5 pl-1 sm:gap-2">
+
+            <span x-show="etat === 'demande'" class="mr-auto min-w-0 truncate pl-2 text-sm text-gray-500 dark:text-gray-400">{{ __('messages.voice_mic_asking') }}</span>
+            <span x-show="etat === 'erreur'" x-text="erreur" data-voice-error class="mr-auto min-w-0 pl-2 text-sm text-red-600 dark:text-red-400"></span>
+            <span x-show="etat === 'envoye'" class="mr-auto flex min-w-0 items-center gap-2 pl-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                {{ __('messages.voice_sent') }}
+            </span>
+
+            {{-- Corbeille : abandonne sans rien envoyer. --}}
+            <button type="button"
+                    x-show="etat === 'enregistre' || etat === 'pause' || etat === 'demande'"
+                    x-on:click="annuler()"
+                    data-voice-cancel
+                    aria-label="{{ __('messages.voice_cancel') }}"
+                    title="{{ __('messages.voice_cancel') }}"
+                    class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-gray-600 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-gray-300 dark:hover:bg-red-900/30 dark:hover:text-red-400">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.21c.34.05.68.1 1.02.16m-1.02-.16L18.16 19.67A2.25 2.25 0 0 1 15.92 21.75H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79m14.46 0a48.1 48.1 0 0 0-3.48-.4m-12 .56c.34-.06.68-.11 1.02-.16m0 0a48.1 48.1 0 0 1 3.48-.4m7.5 0v-.92c0-1.18-.91-2.16-2.09-2.2a51.96 51.96 0 0 0-3.32 0c-1.18.04-2.09 1.02-2.09 2.2v.92m7.5 0a48.67 48.67 0 0 0-7.5 0"/></svg>
+            </button>
+
+            {{-- ── ENREGISTREMENT ─────────────────────────────────────── --}}
+            <template x-if="etat === 'enregistre' || etat === 'envoi'">
+                <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                    {{-- Le point qui respire : on SAIT que le micro ecoute. --}}
+                    <span x-show="etat === 'enregistre'" class="relative ml-1 flex h-2.5 w-2.5 flex-shrink-0" aria-hidden="true">
+                        <span class="absolute inset-0 rounded-full bg-[#E5484D] opacity-60 motion-safe:animate-ping"></span>
+                        <span class="relative h-2.5 w-2.5 rounded-full bg-[#E5484D]"></span>
+                    </span>
+                    <span x-text="dureeLisible" data-voice-timer class="w-10 flex-shrink-0 text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100"></span>
+                    {{-- La voix en direct : les barres recentes entrent a
+                         droite et poussent les anciennes. Figee et adoucie
+                         pendant l'envoi, elle devient le fond de la mire. --}}
+                    <div aria-hidden="true"
+                         class="flex h-6 w-24 flex-shrink-0 items-center justify-end gap-[2px] overflow-hidden transition-opacity duration-300 sm:w-32"
+                         x-bind:class="etat === 'envoi' ? 'opacity-35' : ''">
+                        <template x-for="(hauteur, index) in direct" :key="index">
+                            <span class="block w-[2px] flex-shrink-0 rounded-full bg-gray-500 dark:bg-gray-400"
+                                  x-bind:style="`height: ${hauteur}%`"></span>
+                        </template>
+                    </div>
+                    <span x-show="etat === 'envoi'" data-voice-sending class="flex-shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('messages.voice_sending') }}</span>
+                    {{-- PAUSE, en rouge comme le point : c'est l'enregistrement
+                         qu'on suspend. --}}
+                    <button type="button"
+                            x-show="etat === 'enregistre'"
+                            x-on:click="suspendre()"
+                            data-voice-pause
+                            aria-label="{{ __('messages.voice_pause_recording') }}"
+                            title="{{ __('messages.voice_pause_recording') }}"
+                            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[#E5484D] transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 dark:hover:bg-red-900/30">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="3.5" height="14" rx="1.2"/><rect x="14" y="5" width="3.5" height="14" rx="1.2"/></svg>
+                    </button>
+                </div>
+            </template>
+
+            {{-- ── PAUSE : ECOUTER AVANT D'ENVOYER ───────────────────── --}}
+            <template x-if="etat === 'pause'">
+                <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                    <button type="button"
+                            x-on:click="basculerLApercu()"
+                            data-voice-preview
+                            x-bind:aria-label="apercuLecture ? @js(__('messages.voice_pause')) : @js(__('messages.voice_play'))"
+                            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-gray-800 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bp-primary)] dark:text-gray-100 dark:hover:bg-gray-800">
+                        <svg x-show="! apercuLecture" class="ml-0.5 h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.9v14.2a1 1 0 0 0 1.5.86l11.6-7.1a1 1 0 0 0 0-1.72L8.5 4.04A1 1 0 0 0 7 4.9Z"/></svg>
+                        <svg x-show="apercuLecture" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1.3"/><rect x="14" y="4.5" width="4" height="15" rx="1.3"/></svg>
+                    </button>
+                    <div x-on:click="chercherDansLApercu($event)"
+                         aria-hidden="true"
+                         class="relative flex h-6 w-24 flex-shrink-0 cursor-pointer items-center gap-[2px] sm:w-36">
+                        <template x-for="(hauteur, index) in apercuBarres" :key="index">
+                            <span class="block min-w-[2px] flex-1 rounded-full"
+                                  x-bind:class="apercuBarreJouee(index) ? 'bg-gray-800 dark:bg-gray-100' : 'bg-gray-300 dark:bg-gray-600'"
+                                  x-bind:style="`height: ${Math.max(14, hauteur)}%`"></span>
+                        </template>
+                        <span class="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-900 shadow dark:bg-white"
+                              x-bind:style="`left: ${apercuRatio * 100}%`"></span>
+                    </div>
+                    <span x-text="apercuCompteur" class="w-10 flex-shrink-0 text-right text-sm font-medium tabular-nums text-gray-700 dark:text-gray-200"></span>
+                    {{-- Le micro ROUGE : reprendre a la suite. --}}
+                    <button type="button"
+                            x-on:click="reprendre()"
+                            data-voice-resume
+                            aria-label="{{ __('messages.voice_resume') }}"
+                            title="{{ __('messages.voice_resume') }}"
+                            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[#E5484D] transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 dark:hover:bg-red-900/30">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 2.75a3.25 3.25 0 0 0-3.25 3.25v5.5a3.25 3.25 0 0 0 6.5 0V6A3.25 3.25 0 0 0 12 2.75Z"/>
+                            <path d="M6.5 10.75a.75.75 0 0 0-1.5 0v.75a7 7 0 0 0 6.25 6.96v2.04a.75.75 0 0 0 1.5 0v-2.04A7 7 0 0 0 19 11.5v-.75a.75.75 0 0 0-1.5 0v.75a5.5 5.5 0 0 1-11 0v-.75Z"/>
+                        </svg>
+                    </button>
+                </div>
+            </template>
+        </div>
+        @endif
+
         {{-- TASK-1329 : `mb-1` cale le bouton (36px) sur l'axe du champ
              (44px min) — il etait pose sur la ligne de base du flex, en
              dessous du cadre. La couleur et l'echelle suivent CAN_SEND —
@@ -533,6 +697,11 @@
              cliquable, le serveur valide. --}}
         <button
             type="submit"
+            @if($voice)
+            {{-- TASK-1886 — WhatsApp : la fleche n'existe que s'il y a
+                 quelque chose a envoyer. A vide, le micro prend sa place. --}}
+            x-show="! vocalActif && (hasText || {{ ($showUpload && $photo) ? 'true' : 'false' }})"
+            @endif
             @if($canMentionAll)
             {{-- TASK-1797 — `preventDefault()` sur le CLIC d'un bouton
                  `type="submit"` annule sa soumission par defaut, exactement
@@ -549,7 +718,7 @@
                  (46 px aussi), donc `mb-0` : `mb-1` servait a caler un bouton
                  de 36 px sur un champ de 44. Au-dessus de `md`, les cotes
                  d'avant reviennent. --}}
-            class="{{ isset($leading) ? 'mb-0 h-[46px] w-[46px] md:mb-1 md:h-9 md:w-9' : 'mb-1 h-9 w-9' }} flex flex-shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out active:scale-90 disabled:opacity-50"
+            class="{{ $voice ? 'h-10 w-10' : (isset($leading) ? 'mb-0 h-[46px] w-[46px] md:mb-1 md:h-9 md:w-9' : 'mb-1 h-9 w-9') }} flex flex-shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out active:scale-90 disabled:opacity-50"
             {{-- TASK-1365 : la couleur active vient du THEME (--bp-primary, « Action
                  principale » de /admin/themes) et non plus d'un indigo en dur. Le Shell
                  utilise exactement le meme token : les deux composers changent ensemble
@@ -589,11 +758,68 @@
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
+                @if($voice)
+                {{-- TASK-1886 — l'avion en papier de WhatsApp. --}}
+                <svg x-show="!uploading" class="h-5 w-5 translate-x-px" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 20.85 12.92a1 1 0 0 0 0-1.84L3.4 3.6a1 1 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91Z"/></svg>
+                @else
                 <svg x-show="!uploading" class="{{ isset($leading) ? 'h-5 w-5 md:h-4 md:w-4' : 'w-4 h-4' }} rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5m0 0l-7 7m7-7l7 7"/>
                 </svg>
+                @endif
             @endif
         </button>
+
+        @if($voice)
+        {{-- TASK-1886 — LE MICRO, a la place exacte de la fleche (memes cotes).
+             Comme sur WhatsApp, c'est une simple icone au repos : le disque
+             plein de couleur est reserve a l'action qui ENVOIE. Un appui demarre l'enregistrement —
+             pas d'appui maintenu : au bureau, une souris ne « maintient » pas
+             confortablement, et le geste doit etre le meme partout. --}}
+        <button type="button"
+                x-show="! vocalActif && ! (hasText || {{ ($showUpload && $photo) ? 'true' : 'false' }})"
+                x-on:click="demarrer()"
+                data-composer-mic
+                aria-label="{{ __('messages.voice_record') }}"
+                title="{{ __('messages.voice_record') }}"
+                class="h-10 w-10 flex flex-shrink-0 items-center justify-center rounded-full text-gray-600 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:scale-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--bp-primary)] dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                >
+            <svg class="{{ isset($leading) ? 'h-[22px] w-[22px] md:h-[18px] md:w-[18px]' : 'h-[18px] w-[18px]' }}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2.75a3.25 3.25 0 0 0-3.25 3.25v5.5a3.25 3.25 0 0 0 6.5 0V6A3.25 3.25 0 0 0 12 2.75Z"/>
+                <path d="M6.5 10.75a.75.75 0 0 0-1.5 0v.75a7 7 0 0 0 6.25 6.96v2.04a.75.75 0 0 0 1.5 0v-2.04A7 7 0 0 0 19 11.5v-.75a.75.75 0 0 0-1.5 0v.75a5.5 5.5 0 0 1-11 0v-.75Z"/>
+            </svg>
+        </button>
+
+        {{-- TASK-1886 — envoyer le vocal, ET la mire de l'envoi.
+             L'anneau autour du bouton se remplit avec la progression REELLE
+             de l'upload ; sur une liaison trop rapide pour en mesurer une, un
+             arc court tourne (meme regle que `depot-mire` : un 0 % fige dit le
+             contraire de la verite). A l'arrivee, la fleche devient une
+             coche. --}}
+        <button type="button"
+                x-show="vocalActif && etat !== 'erreur' && etat !== 'demande'"
+                x-cloak
+                x-on:click="envoyer()"
+                x-bind:disabled="etat !== 'enregistre' && etat !== 'pause'"
+                data-voice-send
+                aria-label="{{ __('messages.voice_send') }}"
+                title="{{ __('messages.voice_send') }}"
+                class="h-10 w-10 relative flex flex-shrink-0 items-center justify-center rounded-full text-white shadow-sm transition-all duration-200 ease-out active:scale-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--bp-primary)] disabled:cursor-default dark:focus-visible:ring-offset-gray-800"
+                x-bind:class="etat === 'envoye' ? 'bg-emerald-500' : ''"
+                x-bind:style="etat === 'envoye' ? '' : 'background-color: var(--bp-primary)'">
+            <svg x-show="etat === 'envoi'" class="pointer-events-none absolute -inset-[5px] h-[calc(100%+10px)] w-[calc(100%+10px)] -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
+                <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="5" class="text-gray-200 dark:text-gray-700"></circle>
+                <circle x-show="progressionMesurable" cx="50" cy="50" r="46" fill="none" stroke-width="5" stroke-linecap="round"
+                        class="text-[color:var(--bp-primary)] transition-[stroke-dashoffset] duration-200"
+                        stroke="currentColor" stroke-dasharray="289"
+                        x-bind:stroke-dashoffset="289 - (289 * progression / 100)"></circle>
+                <circle x-show="! progressionMesurable" cx="50" cy="50" r="46" fill="none" stroke-width="5" stroke-linecap="round"
+                        class="origin-center text-[color:var(--bp-primary)] motion-safe:animate-spin"
+                        stroke="currentColor" stroke-dasharray="70 219"></circle>
+            </svg>
+            <svg x-show="etat !== 'envoye'" class="h-5 w-5 translate-x-px" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 20.85 12.92a1 1 0 0 0 0-1.84L3.4 3.6a1 1 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91Z"/></svg>
+            <svg x-show="etat === 'envoye'" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+        </button>
+        @endif
 
         @if($canMentionAll)
         {{-- TASK-1797 — la confirmation avant une mention collective.

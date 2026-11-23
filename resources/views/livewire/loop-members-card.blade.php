@@ -172,6 +172,8 @@
                 :creator-id="$currentLoop->created_by"
                 :current-user-id="auth()->id()"
                 :highlight-ids="$addedIds"
+                :join-reasons="$joinReasons"
+                :profile-links="true"
                 :sections="false" />
         @endif
     </div>

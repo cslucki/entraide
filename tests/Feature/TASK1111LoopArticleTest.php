@@ -302,15 +302,23 @@ class TASK1111LoopArticleTest extends TestCase
         // On dit qu'un texte existe, pas ce qu'il raconte.
         $sien = $this->article('Le brouillon de l’autre', 'draft', $this->autre);
         $sien->update(['content' => 'SECRET-A-NE-PAS-MONTRER']);
+        $edition = route('organization.blog.edit', ['organization' => $this->org->slug, 'post' => $sien->slug]);
 
-        $html = $this->card()->html();
+        // Un SIMPLE membre : annonce, jamais ouvert.
+        $lecteur = User::factory()->create(['organization_id' => $this->org->id]);
+        $this->loops->addMember($this->loop, $lecteur, 'member');
+        $html = $this->card($lecteur)->html();
 
         $this->assertStringContainsString('Le brouillon de l’autre', $html);
         $this->assertStringNotContainsString('SECRET-A-NE-PAS-MONTRER', $html);
-        $this->assertStringNotContainsString(
-            route('organization.blog.edit', ['organization' => $this->org->slug, 'post' => $sien->slug]),
-            $html,
-        );
+        $this->assertStringNotContainsString($edition, $html);
+
+        // TASK-1884 #3 (decision Cyril, 22/11) — le PROPRIETAIRE de la Boucle
+        // (`$this->auteur` l'a creee) modifie les articles de sa Boucle : il a
+        // « Modifier », mais le contenu n'est toujours pas expose dans la Card.
+        $html = $this->card()->html();
+        $this->assertStringNotContainsString('SECRET-A-NE-PAS-MONTRER', $html);
+        $this->assertStringContainsString($edition, $html);
     }
 
     public function test_a_deactivated_author_is_not_named(): void

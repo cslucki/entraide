@@ -148,6 +148,10 @@ class LoopPluginAvailabilityService
             throw new \InvalidArgumentException("Plugin inconnu au catalogue : {$pluginKey}");
         }
 
+        // TASK-1879 — la Card d'un plugin suit sa disponibilite : le memo des
+        // plugins actifs ne doit pas survivre a ce geste dans la meme requete.
+        app(LoopPluginActivation::class)->forgetEnabledMemo();
+
         return OrganizationLoopPlugin::query()->updateOrCreate(
             [
                 'organization_id' => $organization->id,

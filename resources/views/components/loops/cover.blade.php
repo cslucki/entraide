@@ -74,9 +74,15 @@
     ];
     $variant = $coverVariants[abs(crc32((string) $loop->id)) % count($coverVariants)];
     $uid = substr(md5((string) $loop->id), 0, 8);
+    // TASK-1885 C7 — le Pitch, calcule avec le reste en tete de composant
+    // (un second bloc PHP en ligne plus bas, apres celui de l'image, est
+    // mal compile par Blade). Ne JAMAIS ecrire de directive Blade dans ce
+    // commentaire : elle serait compilee.
+    $_pitch = mb_strtoupper(trim((string) ($loop->pitch ?? '')));
+    $_pitchTaille = min(24, round(86 / (0.66 * max(mb_strlen($_pitch), 3)), 1));
 @endphp
 <div {{ $attributes->merge(['class' => $rounded.' relative w-full overflow-hidden bg-gray-100 dark:bg-gray-800']) }}
-     style="aspect-ratio: {{ $ratio }};">
+     style="aspect-ratio: {{ $ratio }}; container-type: inline-size;">
     @if($loop->cover_image_url)
         @php($coverSrcset = $loop->cover_image_srcset)
         <img src="{{ $loop->cover_image_url }}"
@@ -118,6 +124,19 @@
                     <circle cx="314" cy="338" r="136" stroke-width="20" opacity="0.34"></circle>
                 </g>
             </svg>
+        </div>
+    @endif
+
+    {{-- TASK-1885 C7 (demande Cyril, 22/11) — le Pitch en surimpression, en
+         grand, de la COULEUR DU FOND de page (`--bp-page`) : le mot semble
+         decoupe dans l'image. La taille suit la LARGEUR de la couverture
+         (`cqw`, conteneur pose sur ce bloc) et la longueur du mot, pour qu'un
+         pitch de 12 caracteres tienne sur une tuile de grille comme sur le
+         bandeau d'une page. Decoratif : le nom de la Boucle est rendu a cote. --}}
+    @if($_pitch !== '')
+        <div class="pointer-events-none absolute inset-0 flex items-center justify-center px-[4%]" aria-hidden="true" data-loop-pitch>
+            <span class="block max-w-full truncate text-center leading-none tracking-tight"
+                  style="color: var(--bp-page, #ffffff); font-weight: 900; font-size: {{ $_pitchTaille }}cqw; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);">{{ $_pitch }}</span>
         </div>
     @endif
 </div>

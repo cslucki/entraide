@@ -51,7 +51,11 @@ return [
     'chat_article_unavailable' => 'This article is no longer available.',
     // TASK-1826 — premium Roadmap Action card.
     'chat_roadmap_action_created' => ':name created an action: « :title »',
+    'chat_roadmap_action_moved' => ':name moved the action « :title » to « :status »',
     'chat_roadmap_open' => 'View action',
+    'chat_journal_entry_created' => ':name wrote in the Journal',
+    'chat_journal_open' => 'Open the Journal',
+    'chat_journal_unavailable' => 'This Journal entry is no longer available.',
     'chat_roadmap_unavailable' => 'This action is no longer available.',
     // TASK-1772 — la mire de televersement, quand plusieurs pieces partent.
     'composer_file_uploading_many' => 'Uploading :count files…',
@@ -295,6 +299,14 @@ return [
     'ai_not_configured_for_organization' => 'AI is not configured for this organization. An organization administrator must set the provider, model and API key first.',
     'ai_summary_temporarily_unavailable' => 'AI summaries are temporarily unavailable for this organization.',
     'cards' => [
+        // TASK-1879 — the Watch plugin Card.
+        'veille' => [
+            'label' => 'Watch',
+            'description' => 'Watch items shared by members, with their impact and source.',
+            'empty_title' => 'No watch item',
+            'empty_body' => 'Share something you spotted, its impact for the Loop and its source.',
+            'action' => 'Add a watch item',
+        ],
         'events' => [
             'label' => 'Events',
             'description' => 'Organise the Loop\'s meetings and know who is coming.',
@@ -666,6 +678,8 @@ return [
             'detail_read_full_article' => 'Read the full article',
             'detail_select_file' => 'Several files were uploaded, pick one:',
             'detail_back_to_selection' => 'Back to selection',
+            'detail_back_to_dossiers' => 'Back to Dossiers',
+            'detail_back_to_articles' => 'Back to Articles',
             'detail_download' => 'Download',
             'detail_preview_unavailable' => 'No preview available for this file type.',
         ],
@@ -767,6 +781,9 @@ return [
     'search_no_results' => 'No Loop matches your search.',
     'tagline_label' => 'Short tagline',
     'tagline_placeholder' => 'In one sentence, who is this Loop for?',
+    'pitch_label' => 'Pitch',
+    'pitch_placeholder' => 'E.g. TOGETHER',
+    'pitch_help' => 'One strong word, :max characters max, shown large on the Loop image. Leave empty to show nothing.',
     'access_mode_label' => 'Access mode',
     'access_mode_open' => 'Open',
     'access_mode_open_desc' => 'Anyone in the organization can join immediately.',
@@ -1237,6 +1254,7 @@ return [
     'permissions_invariants_intro' => 'These are not permissions: they always apply and can neither be configured nor disabled.',
     'permissions_module_loops' => 'Loop',
     'permissions_module_polls' => 'Polls',
+    'permissions_module_veille' => 'Watch', // TASK-1879
     'permissions_module_events' => 'Events',
     'permissions_module_dossiers' => 'Folders',
     'permissions_module_journal' => 'Journal',
@@ -1470,7 +1488,15 @@ return [
     'plugins_admin_last_decision_anonymous' => 'Changed on :date',
     'plugins_admin_experimental_notice' => 'Experimental capability: it can be withdrawn at any time, and is off by default wherever nobody allowed it.',
 
+    // TASK-1879
+    'plugins_admin_open' => 'Open',
+
     'plugins' => [
+        // TASK-1879 — la Veille collaborative.
+        'veille' => [
+            'label' => 'Watch',
+            'description' => "Loop members share a dated watch item, its impact and its source. Each new item is announced in ChatLoop and notified in-app and via PWA, never by email.",
+        ],
         'multi_ai_assistants' => [
             // TASK-1621: the module is called « For / Against » everywhere a
             // human reads it. Technical keys stay put.
@@ -1605,7 +1631,27 @@ return [
 
     // TASK-1801 correctif 05 — the "Latest messages" button on the inventory.
     'latest_messages_button' => 'Latest messages',
+    // TASK-1880 (demande Cyril, 22/11) — libelle court du bouton, sur smartphone.
+    'latest_messages_button_short' => 'History',
     'latest_messages_title' => 'Latest messages',
+    'search_title' => 'Search my loops',
+    'search_open' => 'Search my loops',
+    'search_label' => 'Search my loops',
+    'search_in_loops_placeholder' => 'A word, a name, a file, an event…',
+    'search_placeholder_short' => 'Search my loops…',
+    'search_intro' => 'Search the messages, articles, folders and events of the loops you belong to.',
+    'search_too_short' => 'Type at least :min characters.',
+    'search_empty' => 'No result for “:q” in your loops.',
+    'search_count' => ':count result in :loops|:count results in :loops',
+    'search_count_loops' => ':count loop|:count loops',
+    'search_family_messages' => 'Messages',
+    'search_family_articles' => 'Articles',
+    'search_family_dossiers' => 'Folders and files',
+    'search_family_events' => 'Events',
+    'search_no_loop' => 'Search covers the loops you belong to, and you have not joined any yet.',
+    'search_no_loop_link' => 'Discover loops',
+    'search_nudge_title' => 'Nothing to search yet',
+    'search_nudge_body' => 'Search covers the messages, articles, folders and events of your loops. Join one to use it.',
     'latest_messages_empty_before' => 'You are not a member of any Loop yet, you can join one by clicking',
     'latest_messages_empty_link' => 'here',
     'latest_messages_empty_after' => '.',

@@ -65,6 +65,24 @@ class EnsureUserIsNotBanned
             return redirect()->route('login')->with('error', $message);
         }
 
+        // TASK-1881 (arbitrage Cyril, 22/11) — decocher prend effet tout de suite :
+        // une session ouverte est fermee a la page suivante, meme sortie que ci-dessus.
+        if ($user && method_exists($user, 'estBloqueALaConnexion') && $user->estBloqueALaConnexion()) {
+            $message = trans('auth.organization_closed', ['organization' => $user->organization?->name ?? '']);
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 403);
+            }
+
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            // Erreur du champ `email` : c'est ce que la page de connexion affiche
+            // (le flash `error` n'y est pas rendu).
+            return redirect()->route('login')->withErrors(['email' => $message]);
+        }
+
         return $next($request);
     }
 }

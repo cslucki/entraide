@@ -148,13 +148,23 @@
                 <ul class="flex flex-col gap-2">
                     @foreach($members as $member)
                         @continue(! $member->user)
-                        <li class="flex items-center gap-3 text-sm" data-loop-preview-member="{{ $member->user_id }}">
+                        {{-- TASK-1885 C4 — lien simple vers le profil public, et la
+                             phrase « pourquoi rejoindre » quand le membre en a ecrit une. --}}
+                        @php($_raison = ($joinReasons ?? [])[(string) $member->user_id] ?? null)
+                        <li class="flex items-start gap-3 text-sm" data-loop-preview-member="{{ $member->user_id }}">
                             <img src="{{ $member->user->avatar_url }}" alt=""
                                  class="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-600">
-                            <span class="min-w-0 flex-1 truncate">{{ $member->user->publicDisplayName() }}</span>
-                            @if($member->role === 'owner')
-                                <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">{{ __('loops.role_owner') }}</span>
-                            @endif
+                            <span class="min-w-0 flex-1">
+                                <span class="flex items-center gap-2">
+                                    <x-user-profile-link :user="$member->user" class="min-w-0 truncate">{{ $member->user->publicDisplayName() }}</x-user-profile-link>
+                                    @if($member->role === 'owner')
+                                        <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">{{ __('loops.role_owner') }}</span>
+                                    @endif
+                                </span>
+                                @if($_raison)
+                                    <span class="mt-0.5 block text-xs italic leading-snug text-gray-500 dark:text-gray-400" data-loop-preview-member-reason>« {{ \Illuminate\Support\Str::limit($_raison, 160) }} »</span>
+                                @endif
+                            </span>
                         </li>
                     @endforeach
                 </ul>

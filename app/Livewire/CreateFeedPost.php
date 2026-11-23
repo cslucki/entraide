@@ -2,11 +2,14 @@
 
 namespace App\Livewire;
 
+use App\Http\Middleware\EnsureProfileComplete;
 use App\Models\FeedPost;
 use App\Models\Loop;
+use App\Models\User;
 use App\Models\Organization;
 use App\Services\LoopMessageService;
 use App\Services\UrlPreviewService;
+use App\Support\Feed\FeedMentions;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -58,8 +61,32 @@ class CreateFeedPost extends Component
     #[Locked]
     public ?string $orgId = null;
 
-    public function mount(): void
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — la page a-t-elle ete ouverte par une
+     * URL prefixee /org/{slug} ? La redirection finale y reste (une requete
+     * Livewire n'a plus le parametre de route).
+     */
+    #[Locked]
+    public bool $urlPrefixee = false;
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — composeur pose SUR le Flux (feuille
+     * Alpine sur smartphone) plutot qu'en page `/flux/creer`.
+     */
+    #[Locked]
+    public bool $integre = false;
+
+    /** TASK-1879 — « Le champ Message », pas « Le champ content ». */
+    protected function validationAttributes(): array
     {
+        return ['content' => __('feed-post.message'), 'title' => __('feed-post.title_optional')];
+    }
+
+    public function mount(bool $integre = false): void
+    {
+        $this->integre = $integre;
+        $this->urlPrefixee = (bool) request()->route('organization');
+
         $org = currentOrganization();
 
         if (! $org) {
@@ -70,6 +97,17 @@ class CreateFeedPost extends Component
 
         if (! auth()->user() || ! auth()->user()->can('create', FeedPost::class)) {
             abort(403);
+        }
+
+        // TASK-1879 (demande Cyril, 22/11) — un membre a deja une Boucle cochee :
+        // la premiere de la liste proposee (meme ordre, par nom). Il en change
+        // s'il en a plusieurs.
+        if (! $this->peutPublierATous()) {
+            $premiere = $this->bouclesDiffusables($org->id, auth()->user())->orderBy('name')->value('id');
+
+            if ($premiere !== null) {
+                $this->selectedLoops = [(string) $premiere];
+            }
         }
     }
 
@@ -103,6 +141,14 @@ class CreateFeedPost extends Component
 
     public function submit(LoopMessageService $loopMessageService): void
     {
+        // TASK-1880 (demande Cyril, 22/11) — pas d'annonce sans presentation :
+        // une requete Livewire ne passe pas par la garde de route.
+        if (auth()->user() !== null && EnsureProfileComplete::estIncomplet(auth()->user())) {
+            $this->redirect($this->urlCreer());
+
+            return;
+        }
+
         $scheduledAtUtc = null;
 
         if ($this->mode === 'schedule' && $this->scheduledAt) {
@@ -112,7 +158,7 @@ class CreateFeedPost extends Component
 
         $this->validate([
             'title' => 'nullable|string|max:255',
-            'content' => 'required|string|max:10000',
+            'content' => 'required|string|max:50000',
             'image' => 'nullable|image|max:10240',
             'pin' => 'boolean',
             'mode' => 'required|in:publish,draft,schedule',
@@ -122,6 +168,16 @@ class CreateFeedPost extends Component
             'selectedLoops.*' => 'string|uuid',
             'allLoops' => 'boolean',
         ]);
+
+        // TASK-1879 (demande Cyril, 22/11) — HTML de TipTap, nettoye comme celui
+        // du blog. Un message fait seulement de balises vides est vide.
+        $this->content = FeedPost::nettoyerContenu($this->content);
+
+        if (trim(html_entity_decode(strip_tags($this->content))) === '') {
+            $this->addError('content', __('validation.required', ['attribute' => __('feed-post.message')]));
+
+            return;
+        }
 
         $org = $this->org();
 
@@ -143,7 +199,38 @@ class CreateFeedPost extends Component
             abort(403);
         }
 
-        DB::transaction(function () use ($org, $user, $loopMessageService, $scheduledAtUtc) {
+        // TASK-1879 (decision Cyril, 22/11) — hors administrateur, l'annonce vise
+        // au moins une Boucle de l'auteur, et n'est visible que de leurs membres.
+        $aTous = $this->peutPublierATous();
+        $ciblesAutorisees = $this->bouclesDiffusables($org->id, $user)
+            ->when(! $this->allLoops, fn ($q) => $q->whereIn('id', $this->selectedLoops ?: []))
+            ->exists();
+
+        if (! $aTous && ! $ciblesAutorisees) {
+            $this->addError('selectedLoops', __('feed-post.loops_required'));
+
+            return;
+        }
+
+        // TASK-1880 — un seul mode de mention par message : 1 a 5 personnes,
+        // OU `@tous` (Boucles choisies dont on est proprietaire/animateur), OU
+        // `@membres` (administrateur de l'Organization).
+        $boucleIds = $this->bouclesDiffusables($org->id, $user)
+            ->when(! $this->allLoops, fn ($q) => $q->whereIn('id', $this->selectedLoops ?: []))
+            ->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $analyse = app(FeedMentions::class)->analyser($this->content, $org, $user, $boucleIds, $aTous, $aTous);
+
+        if ($analyse['erreur'] !== null) {
+            $this->addError('content', $analyse['erreur']);
+
+            return;
+        }
+
+        // TASK-1879 (signale par Cyril, 22/11) — la diffusion vers les Boucles se fait
+        // APRES le commit : dans la transaction, l'echec de la diffusion temps reel
+        // (Reverb injoignable) surgissait au commit, hors de tout try -> erreur 500,
+        // alors que la garde de `sendUserMessage()` (TASK-1839) le gere tres bien seule.
+        $post = DB::transaction(function () use ($org, $user, $scheduledAtUtc, $aTous) {
             $imagePath = $this->image ? $this->storeImage($org->id) : null;
             $url = UrlPreviewService::extractFirstUrl($this->content);
             $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
@@ -168,15 +255,21 @@ class CreateFeedPost extends Component
                 'loop_message' => $this->loopMessage ?: null,
                 'pinned_at' => $this->pin ? now() : null,
                 'pinned_by_id' => $this->pin ? $user->id : null,
+                // TASK-1879 — `loops` : visible des seuls membres de ses Boucles
+                // (pivot `feed_post_loop`), cf. `FeedPost::scopeVisibleTo()`.
+                'visibility' => $aTous ? 'organization' : FeedPost::VISIBILITE_BOUCLES,
             ]);
 
             $targetLoops = collect();
 
+            // TASK-1879 (signale par Cyril, 22/11) — seulement les Boucles dont
+            // l'auteur est membre actif : la diffusion poste EN SON NOM dans le
+            // ChatLoop, ce qu'il ne peut pas faire ailleurs.
             if ($this->allLoops) {
-                $targetLoops = Loop::where('organization_id', $org->id)->get();
+                $targetLoops = $this->bouclesDiffusables($org->id, $user)->get();
             } elseif (! empty($this->selectedLoops)) {
-                $targetLoops = Loop::whereIn('id', $this->selectedLoops)
-                    ->where('organization_id', $org->id)
+                $targetLoops = $this->bouclesDiffusables($org->id, $user)
+                    ->whereIn('id', $this->selectedLoops)
                     ->get();
             }
 
@@ -184,10 +277,13 @@ class CreateFeedPost extends Component
                 $post->loops()->syncWithoutDetaching([$loop->id]);
             }
 
-            if ($this->mode === 'publish') {
-                $post->broadcastToAssociatedLoops($loopMessageService, $user);
-            }
+            return $post;
         });
+
+        if ($this->mode === 'publish') {
+            $post->broadcastToAssociatedLoops($loopMessageService, $user);
+            $post->notifierLesMentions();
+        }
 
         $this->image = null;
         $this->dispatch('announcement-created');
@@ -198,10 +294,20 @@ class CreateFeedPost extends Component
             default => 'Annonce publiée.',
         });
 
-        $route = $org->is_default ? 'flux' : 'organization.flux';
+        $route = $org->is_default && ! $this->urlPrefixee ? 'flux' : 'organization.flux';
         $parameters = $route === 'organization.flux' ? ['organization' => $org->slug] : [];
 
         $this->redirectRoute($route, $parameters);
+    }
+
+    /** TASK-1880 — /flux/creer, prefixee comme la page d'origine. */
+    private function urlCreer(): string
+    {
+        $org = $this->org();
+
+        return $org !== null && (! $org->is_default || $this->urlPrefixee)
+            ? route('organization.flux.create', ['organization' => $org->slug])
+            : route('flux.create');
     }
 
     public function removeImage(): void
@@ -223,11 +329,40 @@ class CreateFeedPost extends Component
         return $relativePath;
     }
 
+    /**
+     * TASK-1879 (decision Cyril, 22/11) — publier a TOUTE l'Organization est
+     * reserve a son administrateur (et au superadmin). Les autres membres
+     * publient dans leurs Boucles seulement.
+     */
+    public function peutPublierATous(): bool
+    {
+        $org = $this->org();
+        $user = auth()->user();
+
+        return $org !== null && $user !== null && ($org->admin_id === $user->id || $user->is_admin);
+    }
+
+    /**
+     * TASK-1879 (signale par Cyril, 22/11) — les Boucles ou l'on peut diffuser :
+     * celles de l'Organization dont l'auteur est membre ACTIF (meme regle que
+     * `LoopMessageService::assertCanSend()`).
+     */
+    private function bouclesDiffusables(string $organizationId, User $user): \Illuminate\Database\Eloquent\Builder
+    {
+        return Loop::query()
+            ->where('organization_id', $organizationId)
+            ->whereIn('id', \App\Models\LoopMember::query()
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->select('loop_id'));
+    }
+
     public function render()
     {
         $org = $this->org();
-        $loops = $org
-            ? Loop::where('organization_id', $org->id)->orderBy('name')->get(['id', 'name', 'slug', 'description'])->map(fn (Loop $loop) => [
+        $user = auth()->user();
+        $loops = $org && $user
+            ? $this->bouclesDiffusables($org->id, $user)->orderBy('name')->get(['id', 'name', 'slug', 'description'])->map(fn (Loop $loop) => [
                 'id' => $loop->id,
                 'name' => $loop->name,
                 'slug' => $loop->slug,
@@ -235,6 +370,24 @@ class CreateFeedPost extends Component
             ])
             : collect();
 
-        return view('livewire.create-feed-post', compact('loops'));
+        $peutPublierATous = $this->peutPublierATous();
+
+        // TASK-1880 — le menu `@` : personnes des Boucles proposees (toute
+        // l'Organization pour l'administrateur), `@tous`, `@membres`.
+        $mentions = $org && $user
+            ? app(FeedMentions::class)->configurationDuMenu(
+                $org,
+                $user,
+                $loops->pluck('id')->map(fn ($id) => (string) $id)->all(),
+                $peutPublierATous,
+                $peutPublierATous,
+            )
+            : null;
+
+        // TASK-1880 — presentation non faite : l'invite du Flux mene a la garde.
+        $presentationAFaire = $user !== null && EnsureProfileComplete::estIncomplet($user);
+        $urlCreer = $this->urlCreer();
+
+        return view('livewire.create-feed-post', compact('loops', 'peutPublierATous', 'mentions', 'presentationAFaire', 'urlCreer'));
     }
 }

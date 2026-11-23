@@ -5,6 +5,7 @@ namespace App\Support\Notifications;
 use App\Models\BlogComment;
 use App\Models\EmailLog;
 use App\Models\EntraideComment;
+use App\Models\FeedPost;
 use App\Models\FeedPostComment;
 use App\Models\Loop;
 use App\Models\LoopInvitation;
@@ -13,10 +14,15 @@ use App\Models\LoopMessage;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\Transaction;
+use App\Models\BlogPost;
+use App\Models\BlogTodo;
 use App\Models\User;
 use App\Services\Blog\BlogCommentMailer;
 use App\Services\Entraide\EntraideCommentMailer;
 use App\Services\Feed\FeedCommentMailer;
+use App\Services\Blog\BlogCoAuthorMailer;
+use App\Services\Blog\BlogTodoAssignedMailer;
+use App\Services\Feed\FeedMentionMailer;
 use App\Services\Loops\LoopEventMailer;
 use App\Services\Loops\LoopInvitationMailer;
 use App\Services\Loops\LoopMentionMailer;
@@ -427,6 +433,9 @@ final class NotificationEmailDeliverer
             'subject' => $contenu['subject'],
             'body' => $this->envelopper($contenu['body']),
             'body_for_log' => $this->envelopper($contenu['body_for_log']),
+            // TASK-1884 #7 — facultatif : un sujet qui porte un texte ecrit par
+            // un membre (titre de tache) est archive sous sa forme expurgee.
+            'subject_for_log' => $contenu['subject_for_log'] ?? $contenu['subject'],
         ];
     }
 
@@ -750,6 +759,94 @@ final class NotificationEmailDeliverer
             ];
         }
 
+        // TASK-1884 #7 — « {tache} sur « {15 premiers caracteres du titre}… » ».
+        // La copie archivee expurge le TITRE DE LA TACHE (ecrit par un membre).
+        if ($cle === NotificationCatalogue::BLOG_TODO_ASSIGNED) {
+            $todo = BlogTodo::query()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            $post = $todo === null ? null : BlogPost::query()
+                ->withoutGlobalScopes()
+                ->whereKey($todo->blog_post_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($post === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $mailer = app(BlogTodoAssignedMailer::class);
+            $reel = $mailer->compose($todo, $post, $destinataire, $acteur, $cible, $locale);
+            $journal = $mailer->compose($todo, $post, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $journal['body'],
+                'subject_for_log' => $journal['subject'],
+            ];
+        }
+
+        // TASK-1884 #1 — « {Prenom} vous a nomme co-auteur d'un article ». Sans
+        // cette branche, le courriel partirait par le repli de langue, sans nom.
+        // Frontiere de tenant posee a la main (job hors requete).
+        if ($cle === NotificationCatalogue::BLOG_CO_AUTHOR_ADDED) {
+            $post = BlogPost::query()
+                ->withoutGlobalScopes()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($post === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id ? User::find((string) $notification->actor_id) : null;
+
+            $mailer = app(BlogCoAuthorMailer::class);
+            $reel = $mailer->compose($post, $destinataire, $acteur, $cible, $locale);
+            $journal = $mailer->compose($post, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $journal['body'],
+            ];
+        }
+
+        // TASK-1880 — la mention dans une annonce du Flux. `FeedPost` ne porte
+        // aucune portee d'Organization : la frontiere de tenant est posee a la
+        // main. Sans cette branche, l'email partirait par le repli de langue.
+        if ($cle === NotificationCatalogue::FEED_POST_MENTION_CREATED) {
+            $post = FeedPost::query()
+                ->whereKey((string) $notification->object_id)
+                ->where('organization_id', $notification->organization_id)
+                ->first();
+
+            if ($post === null) {
+                return null;
+            }
+
+            $acteur = $notification->actor_id
+                ? User::find((string) $notification->actor_id)
+                : User::find((string) $post->user_id);
+
+            $mentionMailer = app(FeedMentionMailer::class);
+            $reel = $mentionMailer->compose($post, $destinataire, $acteur, $cible, $locale);
+            // Copie archivee : le message de l'annonce est expurge.
+            $expurge = $mentionMailer->compose($post, $destinataire, $acteur, self::LIEN_EXPURGE, $locale, pourJournal: true);
+
+            return [
+                'subject' => $reel['subject'],
+                'body' => $reel['body'],
+                'body_for_log' => $expurge['body'],
+            ];
+        }
+
         if ($cle === NotificationCatalogue::LOOP_MENTION_CREATED) {
             // TASK-1799 (B1) — le MESSAGE n'est volontairement PAS memorise
             // ici : voir le docblock de `NotificationTargetResolver::
@@ -1037,7 +1134,7 @@ final class NotificationEmailDeliverer
         $journal = new EmailLog([
             'user_id' => (string) $destinataire->id,
             'to_email' => (string) $destinataire->email,
-            'subject' => $contenu['subject'],
+            'subject' => $contenu['subject_for_log'] ?? $contenu['subject'],
             'status' => $status,
             'error_message' => $erreur === null ? null : mb_substr($erreur, 0, self::ERROR_MESSAGE_MAX),
             'organization_id' => (string) $notification->organization_id,

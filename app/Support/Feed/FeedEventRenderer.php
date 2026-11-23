@@ -2,10 +2,16 @@
 
 namespace App\Support\Feed;
 
+use App\Models\BlogPost;
 use App\Models\FeedPost;
 use App\Models\Loop;
 use App\Models\LoopEvent;
+use App\Models\LoopJournalEntry;
 use App\Models\LoopMember;
+use App\Models\LoopMessage;
+use App\Models\LoopPoll;
+use App\Models\LoopRoadmapItem;
+use App\Models\LoopWatchItem;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -96,7 +102,7 @@ final class FeedEventRenderer
      * cote PHP aurait fige l'ordre francais ; substituer les placeholders
      * APRES coup laisse chaque langue ecrire sa phrase.
      */
-    public static function ligneHtml(FeedPost $post, ?string $organizationSlug): ?string
+    public static function ligneHtml(FeedPost $post, ?string $organizationSlug, bool $sansBoucle = false): ?string
     {
         $type = (string) $post->type;
 
@@ -108,6 +114,13 @@ final class FeedEventRenderer
 
         if ($clef === null) {
             return null;
+        }
+
+        // TASK-1879 (demande Cyril, 22/11) — quand la carte affiche deja la
+        // tuile Boucle, la phrase ne repete pas « dans la Boucle X ».
+        $variante = str_replace('feed.events.', 'feed.events_sans_boucle.', $clef);
+        if ($sansBoucle && \Illuminate\Support\Facades\Lang::has($variante)) {
+            $clef = $variante;
         }
 
         $nom = $post->user?->publicDisplayName() ?? __('feed.member_fallback');
@@ -193,6 +206,14 @@ final class FeedEventRenderer
                 'organization' => $organizationSlug,
                 'loop' => $objet->slug ?: $objet->getKey(),
             ]),
+            // TASK-1879 (demande Cyril, 22/11) — tout ce qui vit dans une Boucle
+            // (sondage, depot, Roadmap, article, veille, evenement de Boucle)
+            // mene a SON MESSAGE dans ChatLoop (`?message=`, mecanisme T1772 :
+            // la conversation se charge autour du message et le surligne).
+            // Sans message retrouve : la Boucle seule, comme avant.
+            $objet instanceof LoopEvent && ($objet->isOrganizationWide() || $objet->loop_id === null) => self::lienAgenda($objet, $organizationSlug),
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem, $objet instanceof LoopJournalEntry,
+            $objet instanceof BlogPost, $objet instanceof LoopWatchItem, $objet instanceof LoopEvent => self::lienVersLeMessage($post, $objet, $organizationSlug),
             // Le parametre s'appelle `{request}` et non `{serviceRequest}` :
             // avec le mauvais nom, `route()` levait et le repli rendait
             // `null` — la pastille « Voir » disparaissait EN SILENCE.
@@ -211,6 +232,78 @@ final class FeedEventRenderer
             ]),
             default => null,
         };
+    }
+
+    /** TASK-1879 — la page d'une Boucle, lue sans scopes (comme `objet()`). */
+    /**
+     * TASK-1879 — l'annonce ChatLoop d'un objet de Boucle : son message, ou la
+     * Boucle seule si l'annonce est introuvable (anterieure, supprimee).
+     */
+    private static function lienVersLeMessage(FeedPost $post, mixed $objet, string $organizationSlug): ?string
+    {
+        $loopId = $objet instanceof BlogPost ? ($post->loop_id ?? $objet->loop_id) : $objet->loop_id;
+        $lien = self::lienDeBoucle($loopId, $organizationSlug);
+
+        if ($lien === null) {
+            return null;
+        }
+
+        $message = $objet instanceof LoopMessage ? $objet : self::annonceDe($objet, (string) $loopId);
+
+        return $message === null ? $lien : $lien.'?'.http_build_query(['message' => $message->getKey()]);
+    }
+
+    /** L'annonce ChatLoop d'un objet, dans SA Boucle (la plus ancienne : la creation). */
+    private static function annonceDe(mixed $objet, string $loopId): ?LoopMessage
+    {
+        [$type, $cle] = match (true) {
+            $objet instanceof LoopPoll => ['poll_event', 'poll_id'],
+            $objet instanceof LoopRoadmapItem => ['roadmap_action', 'roadmap_item_id'],
+            $objet instanceof LoopJournalEntry => ['journal_entry', 'journal_entry_id'],
+            $objet instanceof BlogPost => ['blog_post', 'blog_post_id'],
+            $objet instanceof LoopWatchItem => ['watch_item', 'watch_item_id'],
+            $objet instanceof LoopEvent => ['loop_event', 'event_id'],
+            default => [null, null],
+        };
+
+        if ($type === null) {
+            return null;
+        }
+
+        return LoopMessage::query()
+            ->where('loop_id', $loopId)
+            ->where('type', $type)
+            ->where('metadata->'.$cle, (string) $objet->getKey())
+            ->orderBy('created_at')
+            ->first();
+    }
+
+    /**
+     * TASK-1879 (demande Cyril) — un evenement ouvert a toute l'Organization
+     * mene a SA ligne de l'Agenda (ancre `agenda-event-{id}`), dans l'onglet
+     * « a venir » ou « passes » selon sa date.
+     */
+    private static function lienAgenda(LoopEvent $evenement, string $organizationSlug): ?string
+    {
+        $lien = self::route('organization.events.agenda', ['organization' => $organizationSlug]);
+
+        if ($lien === null) {
+            return null;
+        }
+
+        $passe = $evenement->isPast() || $evenement->status === LoopEvent::STATUS_CANCELLED;
+
+        return $lien.($passe ? '?when=past' : '').'#agenda-event-'.$evenement->getKey();
+    }
+
+    private static function lienDeBoucle(?string $loopId, string $organizationSlug): ?string
+    {
+        $boucle = $loopId !== null ? Loop::withoutGlobalScopes()->find($loopId) : null;
+
+        return $boucle === null ? null : self::route('organization.loops.show', [
+            'organization' => $organizationSlug,
+            'loop' => $boucle->slug ?: $boucle->getKey(),
+        ]);
     }
 
     private static function route(string $nom, array $parametres): ?string
@@ -243,6 +336,14 @@ final class FeedEventRenderer
      *
      * @return array{url: ?string, image: ?string, ronde: bool, titre: ?string, texte: ?string}|null
      */
+    /** L'icone « Kanban » de la Card Roadmap (demande Cyril, 22/11). */
+    private const ICONE_JOURNAL = 'M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25';
+
+    private const ICONE_ROADMAP = 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v12a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18V6ZM13.5 6A2.25 2.25 0 0 1 15.75 3.75H18A2.25 2.25 0 0 1 20.25 6v6A2.25 2.25 0 0 1 18 14.25h-2.25A2.25 2.25 0 0 1 13.5 12V6Z';
+
+    /** Le trace « Mon profil public » du menu avatar (app-side-nav). */
+    private const ICONE_PROFIL = 'M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z M4.5 20.25a8.25 8.25 0 1116.5 0';
+
     public static function apercu(FeedPost $post, ?string $organizationSlug): ?array
     {
         $type = (string) $post->type;
@@ -258,10 +359,14 @@ final class FeedEventRenderer
                 return null;
             }
 
+            // TASK-1879 (demande Cyril, 22/11) — l'icone « Mon profil public » du
+            // menu avatar (l'avatar, lui, est deja dans la gouttiere de la ligne).
             return [
                 'url' => self::lienProfil($personne, $organizationSlug),
-                'image' => filled($personne->avatar) ? $personne->avatar_url : null,
-                'ronde' => true,
+                'image' => null,
+                'icone' => self::ICONE_PROFIL,
+                'teinte' => 'indigo',
+                'ronde' => false,
                 'titre' => null,
                 'texte' => \Illuminate\Support\Str::limit(trim((string) $personne->bio), 180),
             ];
@@ -280,9 +385,12 @@ final class FeedEventRenderer
         };
 
         if ($boucle !== null) {
+            // TASK-1879 (demande Cyril) — sans couverture, l'icone « Boucles » du rail.
             return [
                 'url' => self::lien($post, $organizationSlug),
                 'image' => $boucle->cover_image_url,
+                'icone' => config('navigation_icons.loops'),
+                'teinte' => 'teal',
                 'ronde' => false,
                 'titre' => (string) $boucle->name,
                 'texte' => filled($boucle->tagline)
@@ -291,23 +399,164 @@ final class FeedEventRenderer
             ];
         }
 
+        // TASK-1879 (demande Cyril) — une moitie de l'icone « Entraide » du rail :
+        // fleche vers le haut = je veux recevoir (demande), vers le bas = je veux
+        // donner (proposition).
         if ($objet instanceof Service || $objet instanceof ServiceRequest) {
+            $demande = $objet instanceof ServiceRequest;
+
             return [
                 'url' => self::lien($post, $organizationSlug),
                 'image' => null,
+                'icone' => $demande ? 'M12 20V4m0 0-6 6m6-6 6 6' : 'M12 4v16m0 0-6-6m6 6 6-6',
+                'teinte' => $demande ? 'amber' : 'teal',
                 'ronde' => false,
                 'titre' => (string) $objet->title,
                 'texte' => \Illuminate\Support\Str::limit(trim((string) $objet->description), 160),
             ];
         }
 
-        if ($objet instanceof LoopEvent) {
+        // TASK-1879 — apercu d'une veille : seulement si elle existe encore et
+        // que le plugin est toujours actif dans la Boucle (sinon la ligne
+        // reste, sans contenu). `objet()` lit sans scopes : on ecarte ici la
+        // veille supprimee (soft delete).
+        if ($objet instanceof LoopWatchItem) {
+            $boucle = Loop::withoutGlobalScopes()->find($objet->loop_id);
+
+            if ($objet->trashed() || $boucle === null
+                || ! in_array('veille', app(\App\Services\Loops\LoopPluginActivation::class)->enabledPluginKeysFor($boucle), true)) {
+                return null;
+            }
+
             return [
-                'url' => null,
+                'url' => self::lien($post, $organizationSlug),
                 'image' => null,
+                // TASK-1879 (design) — l'oeil de la Card Veille, en sky, et la
+                // pastille de categorie (meme teinte que dans la Card).
+                'icone' => 'M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+                'teinte' => 'sky',
+                'categorie' => $objet->category,
+                'ronde' => false,
+                'titre' => filled($objet->subject) ? (string) $objet->subject : $objet->category?->name,
+                'texte' => \Illuminate\Support\Str::limit(trim((string) $objet->information), 160),
+            ];
+        }
+
+        // TASK-1879 (demande Cyril, 22/11) — Sondage, Article, depot : une carte
+        // dans la teinte de leur annonce ChatLoop (violet, rose, emeraude).
+        if ($objet instanceof LoopPoll) {
+            if (Loop::withoutGlobalScopes()->find($objet->loop_id) === null) {
+                return null;
+            }
+
+            $options = $objet->options()->orderBy('position')->limit(4)->pluck('label');
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z',
+                'teinte' => 'violet',
+                'ronde' => false,
+                'titre' => (string) $objet->question,
+                'texte' => $options->isEmpty() ? null : \Illuminate\Support\Str::limit($options->implode(' / '), 160),
+            ];
+        }
+
+        if ($objet instanceof BlogPost) {
+            if ($objet->status !== 'published') {
+                return null;
+            }
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => $objet->image_url,
+                'icone' => 'M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z',
+                'teinte' => 'rose',
                 'ronde' => false,
                 'titre' => (string) $objet->title,
-                'texte' => $objet->starts_at?->isoFormat('LLL'),
+                'texte' => \Illuminate\Support\Str::limit(trim(html_entity_decode(strip_tags((string) $objet->content))), 160),
+            ];
+        }
+
+        // TASK-1879 (demande Cyril, 22/11) — Journal : l'icone « livre » de la
+        // Card Journal, la date de l'entree en titre, un extrait en texte.
+        if ($objet instanceof LoopJournalEntry) {
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => self::ICONE_JOURNAL,
+                'teinte' => 'stone',
+                'ronde' => false,
+                'titre' => (string) ($objet->occurred_on?->isoFormat('LL') ?? ''),
+                'texte' => \Illuminate\Support\Str::limit($objet->displayBody(), 160),
+            ];
+        }
+
+        // TASK-1879 (demande Cyril, 22/11) — Roadmap : l'icone « Kanban » de la
+        // Card Roadmap, en teal comme son annonce ChatLoop.
+        if ($objet instanceof LoopRoadmapItem
+            || ($objet instanceof LoopMessage && $objet->type === 'roadmap_action')) {
+            $action = $objet instanceof LoopRoadmapItem
+                ? $objet
+                : LoopRoadmapItem::withoutGlobalScopes()->find($objet->metadata['roadmap_item_id'] ?? null);
+
+            if ($action === null || $action->trashed() || Loop::withoutGlobalScopes()->find($action->loop_id) === null) {
+                return null;
+            }
+
+            $statut = fn (?string $s) => $s !== null && LoopRoadmapItem::isValidStatus($s) ? __('loops.roadmap_status_'.$s) : null;
+            $texte = $objet instanceof LoopMessage
+                ? trim(($statut($objet->metadata['from'] ?? null) ?? '').' → '.($statut($objet->metadata['to'] ?? null) ?? ''), ' →')
+                : $statut($action->status);
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => self::ICONE_ROADMAP,
+                'teinte' => 'teal',
+                'ronde' => false,
+                'titre' => (string) $action->title,
+                'texte' => $texte !== '' ? $texte : null,
+            ];
+        }
+
+        if ($objet instanceof LoopMessage) {
+            $noms = array_values(array_filter((array) ($objet->metadata['files'] ?? []), 'is_string'));
+            $nombre = (int) ($objet->metadata['count'] ?? count($noms));
+
+            if ($objet->type !== 'dossier_file' || $nombre < 1 || Loop::withoutGlobalScopes()->find($objet->loop_id) === null) {
+                return null;
+            }
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'icone' => 'M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z',
+                'teinte' => 'emerald',
+                'ronde' => false,
+                'titre' => $nombre === 1 && $noms !== [] ? $noms[0] : trans_choice('feed.events.files_count', $nombre, ['count' => $nombre]),
+                'texte' => $nombre === 1 ? null : \Illuminate\Support\Str::limit(implode(', ', $noms), 160),
+            ];
+        }
+
+        // TASK-1879 (demande Cyril) — la tuile date de la Card Evenements
+        // (jour, quantieme, mois, heure), dans le fuseau de l'evenement.
+        if ($objet instanceof LoopEvent) {
+            $debut = $objet->startsAtLocal();
+
+            return [
+                'url' => self::lien($post, $organizationSlug),
+                'image' => null,
+                'date' => [
+                    'jour' => $debut->translatedFormat('D'),
+                    'quantieme' => $debut->translatedFormat('d'),
+                    'mois' => $debut->translatedFormat('M'),
+                    'heure' => $debut->format('H:i'),
+                    'annule' => $objet->status === LoopEvent::STATUS_CANCELLED,
+                ],
+                'ronde' => false,
+                'titre' => (string) $objet->title,
+                'texte' => $debut->isoFormat('LLL'),
             ];
         }
 
@@ -379,6 +628,11 @@ final class FeedEventRenderer
             $objet instanceof Loop => (string) $objet->name,
             $objet instanceof ServiceRequest, $objet instanceof Service => (string) $objet->title,
             $objet instanceof LoopEvent => (string) $objet->title,
+            $objet instanceof LoopWatchItem => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
+            // TASK-1879 — « dans la Boucle :object » : la Boucle du fait. Un
+            // Article n'a pas de Boucle propre : c'est celle de la LIGNE.
+            $objet instanceof LoopPoll, $objet instanceof LoopMessage, $objet instanceof LoopRoadmapItem, $objet instanceof LoopJournalEntry => (string) (Loop::withoutGlobalScopes()->find($objet->loop_id)?->name ?? __('feed.events.object_gone')),
+            $objet instanceof BlogPost => (string) (Loop::withoutGlobalScopes()->find($post->loop_id)?->name ?? __('feed.events.object_gone')),
             $objet instanceof User => $objet->publicDisplayName(),
             // TASK-1809 (correctif Cyril, 12/11) — l'objet d'une entraide est
             // desormais le TITRE de l'annonce. REMPLACE l'arbitrage du 05/11

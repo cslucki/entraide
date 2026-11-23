@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Loop;
+use App\Models\LoopMarketplaceLink;
+use App\Models\LoopMessage;
 use App\Models\MemberAiProfile;
 use App\Models\Service;
 use App\Models\ServiceRequest;
@@ -261,7 +264,64 @@ class DashboardController extends Controller
             ->latest()
             ->paginate(20);
 
-        return view('dashboard.requests', compact('serviceRequests', 'organization'));
+        // TASK-1885 C6 — distinguer les demandes posees dans une Boucle de
+        // celles qui s'adressent a tout le monde.
+        $bouclesParDemande = $this->bouclesDesDemandes($serviceRequests->getCollection()->pluck('id'), (string) $organization->id);
+
+        return view('dashboard.requests', compact('serviceRequests', 'organization', 'bouclesParDemande'));
+    }
+
+    /**
+     * TASK-1885 C6 (demande Cyril, 22/11) — les Boucles ACTIVES ou chaque
+     * demande a ete posee : relayee dans la ChatLoop a la creation (message
+     * `help_request`, `metadata.service_request_id`) ou mise en avant dans la
+     * Card Demande-Offre (`loop_marketplace_links`). Deux requetes pour la
+     * page, tenant explicite.
+     *
+     * @param  \Illuminate\Support\Collection<int, string>  $demandeIds
+     * @return array<string, \Illuminate\Support\Collection<int, Loop>>
+     */
+    private function bouclesDesDemandes($demandeIds, string $organizationId): array
+    {
+        $ids = $demandeIds->map(fn ($id) => (string) $id)->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $paires = LoopMessage::query()
+            ->withoutGlobalScopes()
+            ->where('organization_id', $organizationId)
+            ->where('type', 'help_request')
+            ->where('metadata->projection_type', 'service_request')
+            ->whereIn('metadata->service_request_id', $ids)
+            ->get(['loop_id', 'metadata'])
+            ->map(fn (LoopMessage $m) => [(string) ($m->metadata['service_request_id'] ?? ''), (string) $m->loop_id])
+            ->concat(
+                LoopMarketplaceLink::query()
+                    ->where('organization_id', $organizationId)
+                    ->whereIn('service_request_id', $ids)
+                    ->get(['loop_id', 'service_request_id'])
+                    ->map(fn (LoopMarketplaceLink $l) => [(string) $l->service_request_id, (string) $l->loop_id])
+            );
+
+        if ($paires->isEmpty()) {
+            return [];
+        }
+
+        $boucles = Loop::query()
+            ->withoutGlobalScopes()
+            ->where('organization_id', $organizationId)
+            ->where('status', 'active')
+            ->whereIn('id', $paires->pluck(1)->unique()->all())
+            ->get(['id', 'name', 'slug'])
+            ->keyBy(fn (Loop $l) => (string) $l->id);
+
+        return $paires
+            ->groupBy(0)
+            ->map(fn ($lignes) => $lignes->pluck(1)->unique()->map(fn ($loopId) => $boucles[$loopId] ?? null)->filter()->sortBy('name')->values())
+            ->filter(fn ($liste) => $liste->isNotEmpty())
+            ->all();
     }
 
     public function requestDetail(ServiceRequest $serviceRequest): View

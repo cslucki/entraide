@@ -193,6 +193,12 @@ class LoopCardCompositionService
         }
 
         // Mode derive : l'historique, dit a voix haute.
+        // TASK-1879 — une Card de plugin n'est jamais principale par defaut :
+        // activer la Veille ne prend la place d'aucun outil, et n'en ajoute pas
+        // un quatrieme. Elle reste parmi les autres outils.
+        $registry = app(LoopCardRegistry::class);
+        $actives = array_values(array_filter($actives, fn (string $k) => $registry->pluginOf($k) === null));
+
         return array_slice($actives, 0, self::MAX_PRIMARY);
     }
 

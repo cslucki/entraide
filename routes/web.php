@@ -116,6 +116,7 @@ use App\Http\Controllers\LoopEventAgendaController;
 use App\Http\Controllers\LoopInvitationController;
 use App\Http\Controllers\LoopPluginController;
 use App\Http\Controllers\LoopToolsController;
+use App\Http\Controllers\LoopWatchExportController;
 use App\Http\Controllers\MemberAiProfileConversationsController;
 use App\Http\Controllers\MemberAiProfileInteractionController;
 use App\Http\Controllers\MessageAttachmentController;
@@ -194,6 +195,10 @@ Route::post('/locale/{locale}', [LocaleController::class, 'switch'])->name('loca
 // villes, biographies et affiliations. `auth` ferme l'acces anonyme,
 // `organization.member` ferme le cross-tenant authentifie — les deux sont
 // necessaires, et un sabotage le prouve.
+// TASK-1883 — desinscription de la newsletter : lien SIGNE, sans connexion.
+Route::get('/newsletter/desinscription/{compte}', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'show'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe');
+Route::post('/newsletter/desinscription/{compte}', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'destroy'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe.confirm');
+Route::post('/newsletter/desinscription/{compte}/annuler', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'resubscribe'])->middleware(['signed', 'throttle:30,1'])->whereUuid('compte')->name('newsletter.unsubscribe.undo');
 Route::get('/explorer', [ExplorerController::class, 'index'])->middleware(['auth', 'organization.member'])->name('explorer');
 Route::view('/about', 'about')->name('about');
 
@@ -270,9 +275,9 @@ Route::get('/blog/tag/{slug}', [BlogController::class, 'byTag'])->name('blog.tag
 // `WorkshopRegistrationService:158`) sont intouchees : ce sont des gestes, pas
 // des pages.
 Route::middleware('auth')->group(function () {
-    Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->name('blog.create');
+    Route::get('/blog/rediger/nouveau', [BlogController::class, 'create'])->middleware('profile.complete')->name('blog.create');
     Route::get('/blog/mes-articles', [BlogController::class, 'myPosts'])->name('blog.my-posts');
-    Route::post('/blog', [BlogController::class, 'store'])->name('blog.store');
+    Route::post('/blog', [BlogController::class, 'store'])->middleware('profile.complete')->name('blog.store');
     Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'edit'])->name('blog.edit');
     Route::put('/blog/{post:slug}', [BlogController::class, 'update'])->name('blog.update');
     Route::patch('/blog/{post:slug}/publier', [BlogController::class, 'publish'])->name('blog.publish');
@@ -286,7 +291,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
     Route::post('/blog/ai-method-selection', [BlogController::class, 'aiMethodSelection'])->name('blog.ai-method-selection');
     Route::post('/blog/ai-remaining', [BlogController::class, 'aiRemaining'])->name('blog.ai-remaining');
-    Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->name('blog.create-draft');
+    Route::post('/blog/creer-brouillon', [BlogController::class, 'createDraft'])->middleware('profile.complete')->name('blog.create-draft');
 
     // Blog annotation endpoints (root)
     Route::get('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'index'])->name('blog.annotations.index');
@@ -426,7 +431,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
     Route::get('/dashboard/services/{service}', [DashboardController::class, 'serviceDetail'])->name('dashboard.services.detail')->whereUuid('service');
     Route::get('/flux', OrganizationFeed::class)->name('flux');
-    Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
+    Route::get('/flux/creer', CreateFeedPost::class)->middleware('profile.complete')->name('flux.create');
     Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
     Route::get('/flux/modifier/{feedPost}', EditFeedPost::class)->name('flux.edit');
     Route::get('/flux/{feedPost}', ViewFeedPost::class)->name('flux.show')->whereUuid('feedPost');
@@ -509,6 +514,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
     Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
     Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
+    // TASK-1883 — case « Newsletter hebdomadaire » des preferences.
+    Route::post('/notifications/preferences/newsletter', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.newsletter.update');
     Route::post('/notifications/preferences/loops', [NotificationPreferenceController::class, 'updateLoopPreferences'])->middleware('throttle:30,1')->name('notifications.preferences.loops.update');
     // TASK-1877 — « Notifications sur cet appareil », sur sa PROPRE page.
     // Declarees AVANT les routes `{notification}` par precaution d'ordre.
@@ -659,6 +666,8 @@ Route::middleware('auth')->group(function () {
         // TASK-1801 correctif 05 — avant `/loops/{loop}` : un segment litteral
         // ne doit jamais tomber derriere la capture d'un identifiant de Boucle.
         Route::get('/loops/derniers-messages', [LoopController::class, 'latestMessages'])->name('loops.latest-messages');
+        // TASK-1885 C9 — recherche dans mes Boucles ; segment litteral avant `{loop}`.
+        Route::get('/loops/recherche', [LoopController::class, 'search'])->middleware('throttle:60,1')->name('loops.search');
         Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
         // TASK-1827 — meme garde-fou qu'au-dessus : un segment litteral avant
         // le wildcard `{loop}`.
@@ -691,14 +700,14 @@ Route::middleware('auth')->group(function () {
             ->name('events.agenda.respond');
         Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
         Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
-        Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+        Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->middleware('profile.complete')->name('loops.join');
         Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
         // Archivage par le proprietaire (TASK-1086). Distinct de loops.update :
         // celle-ci refuse une Boucle archivee, ce qui rendrait la reactivation
         // inaccessible a la seule personne censee pouvoir la demander.
         Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
         Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
-        Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+        Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware(['throttle:5,1', 'profile.complete'])->name('loops.join-requests.store');
         Route::get('/loops/{loop}/invite', [LoopController::class, 'invite'])->name('loops.invite');
         Route::post('/loops/{loop}/invite/members', [LoopController::class, 'storeMembers'])->middleware('throttle:10,1')->name('loops.invite.members');
         // Flat route (not nested under /loops/{loop}/...): a join request id is
@@ -984,6 +993,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/organizations/create', [AdminOrganizationController::class, 'create'])->name('organizations.create');
     Route::post('/organizations', [AdminOrganizationController::class, 'store'])->name('organizations.store');
     Route::get('/organizations/{organization}/edit', [AdminOrganizationController::class, 'edit'])->name('organizations.edit');
+    // TASK-1881 — membres autorises a se connecter (outil temporaire de migration).
+    Route::get('/organizations/{organization}/authorized-members', [AdminOrganizationController::class, 'authorizedMembers'])->name('organizations.authorized-members');
+    Route::put('/organizations/{organization}/authorized-members', [AdminOrganizationController::class, 'updateAuthorizedMembers'])->name('organizations.authorized-members.update');
     Route::put('/organizations/{organization}', [AdminOrganizationController::class, 'update'])->name('organizations.update');
     Route::post('/organizations/{organization}/toggle-active', [AdminOrganizationController::class, 'toggleActive'])->name('organizations.toggle-active');
     Route::delete('/organizations/{organization}', [AdminOrganizationController::class, 'destroy'])->name('organizations.destroy');
@@ -1086,6 +1098,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/email-bulksending', [AdminEmailBulkSendingController::class, 'store'])->name('email-bulksending.store');
     Route::get('/email-bulksending/{bulkEmailSend}', [AdminEmailBulkSendingController::class, 'show'])->name('email-bulksending.show');
     Route::post('/email-bulksending/{bulkEmailSend}/batch', [AdminEmailBulkSendingController::class, 'sendBatch'])->name('email-bulksending.batch');
+    // TASK-1883 — newsletter des demandes et propositions d'aide (envoi manuel).
+    Route::get('/newsletter', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'index'])->name('newsletter');
+    Route::post('/newsletter/apercu', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'preview'])->name('newsletter.preview');
+    Route::post('/newsletter', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'store'])->name('newsletter.store');
+    Route::get('/newsletter/{send}', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'show'])->whereUuid('send')->name('newsletter.show');
+    Route::post('/newsletter/{send}/lot', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'batch'])->whereUuid('send')->name('newsletter.batch');
+    Route::get('/newsletter/{send}/progression', [\App\Http\Controllers\Admin\AdminNewsletterController::class, 'progress'])->whereUuid('send')->name('newsletter.progress');
 
     // Email logs
     // TASK-1380 — supervision des notifications. Il COMPTE, il ne lit pas :
@@ -1117,6 +1136,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // `is_admin`, le groupe admin ne suffit pas. Elle ne sert aucune donnee
     // metier d'une Organization — seulement son nom et son identifiant.
     Route::get('/loop-plugins', [AdminLoopPluginController::class, 'index'])->name('loop-plugins');
+    // TASK-1879 — l'ecran d'UN plugin, par son slug d'administration
+    // (`pour-contre`, `veille`). Le slug est confronte au catalogue par le
+    // controleur : un slug inconnu rend 404. Les routes d'ecriture gardent la
+    // CLE technique, inchangees.
+    Route::get('/loop-plugins/{slug}', [AdminLoopPluginController::class, 'show'])
+        ->where('slug', '[a-z0-9-]+')->name('loop-plugins.show');
     Route::put('/loop-plugins/{plugin}', [AdminLoopPluginController::class, 'update'])->name('loop-plugins.update');
     // TASK-1617 — la configuration IA PLATEFORME du plugin : quel modele
     // OpenRouter sert quel assistant. `refresh` est le SEUL chemin de cette
@@ -1424,6 +1449,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             ->middleware('throttle:10,1')
             ->name('outils.my-push-devices.destroy');
     });
+    // TASK-1882 — clonage d'un compte (et de ses billets) vers une autre Organization.
+    Route::get('/outils/clonage-de-comptes', [\App\Http\Controllers\Admin\AdminAccountCloneController::class, 'index'])->name('outils.clonage-de-comptes');
+    Route::post('/outils/clonage-de-comptes', [\App\Http\Controllers\Admin\AdminAccountCloneController::class, 'store'])->name('outils.clonage-de-comptes.store');
     Route::get('/outils/fix-categories', [AdminOutilsController::class, 'fixCategories'])->name('outils.fix-categories');
     Route::post('/outils/fix-categories', [AdminOutilsController::class, 'doFixCategories'])->name('outils.fix-categories.do');
 
@@ -1862,6 +1890,7 @@ Route::prefix('/org/{organization}')
             Route::post('/notifications/read-all', [NotificationCenterController::class, 'readAll'])->middleware('throttle:30,1')->name('notifications.read-all');
             Route::get('/notifications/preferences', [NotificationPreferenceController::class, 'edit'])->name('notifications.preferences.edit');
             Route::post('/notifications/preferences', [NotificationPreferenceController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.update');
+            Route::post('/notifications/preferences/newsletter', [\App\Http\Controllers\NewsletterSubscriptionController::class, 'update'])->middleware('throttle:30,1')->name('notifications.preferences.newsletter.update');
             Route::post('/notifications/preferences/loops', [NotificationPreferenceController::class, 'updateLoopPreferences'])->middleware('throttle:30,1')->name('notifications.preferences.loops.update');
             // TASK-1877 — meme page « cet appareil », forme Organization.
             Route::get('/notifications/appareil', [NotificationDeviceController::class, 'edit'])->name('notifications.device.edit');
@@ -1920,6 +1949,8 @@ Route::prefix('/org/{organization}')
                 // litteral ne doit jamais tomber derriere la capture d'un
                 // identifiant de Boucle.
                 Route::get('/loops/derniers-messages', [LoopController::class, 'latestMessages'])->name('loops.latest-messages');
+                // TASK-1885 C9 — recherche dans mes Boucles ; segment litteral avant `{loop}`.
+                Route::get('/loops/recherche', [LoopController::class, 'search'])->middleware('throttle:60,1')->name('loops.search');
                 Route::get('/loops/create', [LoopController::class, 'create'])->name('loops.create');
                 // TASK-1827 — meme garde-fou : un segment litteral avant le
                 // wildcard `{loop}`. Nom final : `organization.loops.articles`.
@@ -1927,6 +1958,11 @@ Route::prefix('/org/{organization}')
                 Route::post('/loops', [LoopController::class, 'store'])->middleware('throttle:5,1')->name('loops.store');
                 Route::get('/loops/{loop}', [LoopController::class, 'show'])->name('loops.show');
                 // TASK-1865 — voir la route courte `loops.preview`.
+                // TASK-1879 — export de la Veille (CSV, Excel, tableau imprimable/PDF).
+                Route::get('/loops/{loop}/veille/export/{format}', LoopWatchExportController::class)
+                    ->where('format', 'csv|xlsx|imprimer')
+                    ->middleware(['throttle:20,1', 'cache.headers:no_store'])
+                    ->name('loops.watch.export');
                 Route::get('/loops/{loop}/apercu', [LoopController::class, 'preview'])->middleware('cache.headers:no_store')->name('loops.preview');
                 // L'agenda de l'Organization. Voir la note sur la route courte :
                 // depuis TASK-1656 il porte le geste de REPONSE a une invitation.
@@ -1942,14 +1978,14 @@ Route::prefix('/org/{organization}')
                     ->name('events.agenda.respond');
                 Route::get('/loops/{loop}/edit', [LoopController::class, 'edit'])->name('loops.edit');
                 Route::put('/loops/{loop}', [LoopController::class, 'update'])->name('loops.update');
-                Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->name('loops.join');
+                Route::post('/loops/{loop}/join', [LoopController::class, 'join'])->middleware('profile.complete')->name('loops.join');
                 Route::post('/loops/{loop}/leave', [LoopController::class, 'leave'])->name('loops.leave');
                 // Archivage par le proprietaire (TASK-1086). Distinct de loops.update :
                 // celle-ci refuse une Boucle archivee, ce qui rendrait la reactivation
                 // inaccessible a la seule personne censee pouvoir la demander.
                 Route::post('/loops/{loop}/archive', [LoopController::class, 'archive'])->name('loops.archive');
                 Route::post('/loops/{loop}/reactivate', [LoopController::class, 'reactivate'])->name('loops.reactivate');
-                Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware('throttle:5,1')->name('loops.join-requests.store');
+                Route::post('/loops/{loop}/join-requests', [LoopController::class, 'storeJoinRequest'])->middleware(['throttle:5,1', 'profile.complete'])->name('loops.join-requests.store');
                 // TASK-1680 — versions org-scopees d'accepter/refuser une
                 // demande : le panneau du cockpit admin (/admin/loops/{loop})
                 // doit porter l'Organization de la Boucle dans l'URL, la ou
@@ -2120,9 +2156,9 @@ Route::prefix('/org/{organization}')
                 Route::patch('/dossiers/{dossier}/files/{file}/markdown', [DossierFileController::class, 'updateMarkdown'])->name('dossiers.files.markdown.update');
 
                 // Blog (org-scoped)
-                Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->name('blog.create');
+                Route::get('/blog/rediger/nouveau', [BlogController::class, 'orgCreate'])->middleware('profile.complete')->name('blog.create');
                 Route::get('/blog/mes-articles', [BlogController::class, 'orgMyPosts'])->name('blog.my-posts');
-                Route::post('/blog', [BlogController::class, 'orgStore'])->name('blog.store');
+                Route::post('/blog', [BlogController::class, 'orgStore'])->middleware('profile.complete')->name('blog.store');
                 Route::get('/blog/rediger/{post:slug}/modifier', [BlogController::class, 'orgEdit'])->name('blog.edit');
                 Route::put('/blog/{post:slug}', [BlogController::class, 'orgUpdate'])->name('blog.update');
                 Route::patch('/blog/{post:slug}/publier', [BlogController::class, 'orgPublish'])->name('blog.publish');
@@ -2134,7 +2170,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/ai-correct', [BlogController::class, 'orgAiCorrect'])->name('blog.ai-correct');
                 Route::post('/blog/ai-method-selection', [BlogController::class, 'orgAiMethodSelection'])->name('blog.ai-method-selection');
                 Route::post('/blog/ai-remaining', [BlogController::class, 'orgAiRemaining'])->name('blog.ai-remaining');
-                Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->name('blog.create-draft');
+                Route::post('/blog/creer-brouillon', [BlogController::class, 'orgCreateDraft'])->middleware('profile.complete')->name('blog.create-draft');
 
                 // Blog annotation endpoints (org-scoped)
                 Route::get('/blog/{post:slug}/annotations', [BlogAnnotationController::class, 'orgIndex'])->name('blog.annotations.index');
@@ -2200,7 +2236,7 @@ Route::prefix('/org/{organization}')
             });
 
             Route::get('/flux', OrganizationFeed::class)->name('flux');
-            Route::get('/flux/creer', CreateFeedPost::class)->name('flux.create');
+            Route::get('/flux/creer', CreateFeedPost::class)->middleware('profile.complete')->name('flux.create');
             Route::get('/flux/mes-annonces', MyFeedPosts::class)->name('flux.my');
             Route::get('/flux/modifier/{feedPost}', EditFeedPost::class)->name('flux.edit');
             Route::get('/flux/{feedPost}', ViewFeedPost::class)->name('flux.show')->whereUuid('feedPost');

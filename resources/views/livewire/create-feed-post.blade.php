@@ -1,6 +1,8 @@
 @php
     $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug;
-    $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default;
+    // TASK-1879 (demande Cyril, 22/11) — arrive par /org/{slug}/..., on y reste :
+    // les liens sans prefixe ne servent qu'a qui navigue deja sans prefixe.
+    $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default && ! request()->route('organization');
     $fluxUrl = $usesDefaultOrganizationRoute && Route::has('flux')
         ? route('flux')
         : route('organization.flux', ['organization' => $organizationRouteParam]);
@@ -9,11 +11,99 @@
         : route('organization.flux.my', ['organization' => $organizationRouteParam]);
 @endphp
 
+<div data-feed-create-root>
+{{-- TASK-1879 (demande Cyril, 22/11) — pour tout le monde SAUF l'administrateur
+     de l'Organization : un composeur epure, facon « Creer une publication » de
+     Facebook, mais en page (pas de pop-up). Une seule decision visible (dans
+     quelles Boucles ?), une grande zone d'ecriture, une photo, « Publier ».
+     Titre, brouillon, programmation, message de Boucle : reserves au formulaire
+     complet de l'administrateur. --}}
+@if($integre || ! $peutPublierATous)
+@php
+    $moi = auth()->user();
+    $prenom = $moi?->first_name ?: \Illuminate\Support\Str::before((string) $moi?->name, ' ');
+@endphp
+@if($integre && $presentationAFaire)
+{{-- TASK-1880 (demande Cyril, 22/11) — presentation non faite : l'invite mene
+     a /flux/creer, dont la garde `profile.complete` renvoie au formulaire de
+     profil (meme mecanisme que demandes et propositions d'aide). Les raccourcis
+     #ecrire (FAB, « Cooperer ») suivent le meme chemin. --}}
+<div class="mb-6" data-feed-composer data-feed-composer-inline data-feed-presentation-required
+     x-data
+     x-init="if (location.hash === '#ecrire') { location.replace(@js($urlCreer)); }">
+    <a href="{{ $urlCreer }}" data-feed-composer-trigger
+       class="flex w-full items-center gap-3 rounded-3xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-gray-300 active:scale-[0.99] sm:p-4 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600">
+        <x-user-avatar :user="$moi" size="md" variant="solid" class="shrink-0" />
+        <span class="min-w-0 flex-1 truncate rounded-full bg-gray-100 px-4 py-2.5 text-sm text-gray-500 transition sm:text-base dark:bg-gray-800 dark:text-gray-400">{{ __('feed-post.composer_placeholder', ['name' => $prenom]) }}</span>
+        <svg class="h-6 w-6 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg>
+    </a>
+</div>
+@elseif($integre)
+{{-- TASK-1879 (demande Cyril, 22/11) — sur le Flux. Bureau/tablette : le
+     composeur est pose en tete du fil. Smartphone : une invite « Quoi de neuf ? »
+     ouvre le composeur en feuille montante (Alpine), fond floute, Echap ou
+     clic dehors pour fermer, defilement de la page bloque pendant ce temps. --}}
+<div class="mb-6" data-feed-composer data-feed-composer-inline
+     x-data="{
+        ouvert: false,
+        // Le curseur dans la zone d'ecriture des que la fenetre est visible
+        // (quelques essais : la fenetre est encore en transition).
+        viser(essai = 0) {
+            const zone = this.$root.querySelector('.ProseMirror');
+            zone?.focus();
+            if (document.activeElement !== zone && essai < 12) { setTimeout(() => this.viser(essai + 1), 60); }
+        },
+     }"
+     x-init="
+        {{-- TASK-1879 — « Ecrire une annonce » (FAB, « Cooperer ») arrive par
+             #ecrire : le composeur s'ouvre directement. --}}
+        const ecrire = () => {
+            if (location.hash !== '#ecrire') return;
+            history.replaceState(null, '', location.pathname + location.search);
+            ouvert = true;
+            $nextTick(() => viser());
+        };
+        ecrire();
+        window.addEventListener('hashchange', ecrire);
+     "
+     x-effect="document.documentElement.classList.toggle('overflow-hidden', ouvert)"
+     x-on:keydown.escape.window="ouvert = false">
+    <button type="button" data-feed-composer-trigger
+            x-on:click="ouvert = true; $nextTick(() => viser())"
+            class="flex w-full items-center gap-3 rounded-3xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-gray-300 active:scale-[0.99] sm:p-4 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600">
+        <x-user-avatar :user="$moi" size="md" variant="solid" class="shrink-0" />
+        <span class="min-w-0 flex-1 truncate rounded-full bg-gray-100 px-4 py-2.5 text-sm text-gray-500 transition sm:text-base dark:bg-gray-800 dark:text-gray-400">{{ __('feed-post.composer_placeholder', ['name' => $prenom]) }}</span>
+        <svg class="h-6 w-6 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg>
+    </button>
+
+    <style>
+        @media (min-width: 640px) {
+            [data-feed-composer-inline] .bp-composeur .ProseMirror-wrapper .ProseMirror.ProseMirror { min-height: 9rem; }
+        }
+    </style>
+    <div x-cloak x-show="ouvert" x-transition.opacity.duration.250ms x-on:click="ouvert = false"
+         class="fixed inset-0 z-[60] bg-gray-950/60 backdrop-blur-sm" aria-hidden="true"></div>
+
+    <div role="dialog" aria-modal="true" aria-label="{{ __('feed-post.new_post') }}" data-feed-composer-sheet
+         {{-- TASK-1879 (demande Cyril, 22/11) — la meme invite partout ; elle ouvre
+              une feuille montante sur smartphone, une fenetre centree au-dela. --}}
+         x-bind:class="ouvert && '!visible !translate-y-0 sm:!opacity-100 sm:!scale-100'"
+         class="invisible fixed inset-x-0 bottom-0 z-[61] max-h-[92dvh] translate-y-full overflow-y-auto rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl transition-[transform,opacity,visibility] duration-300 ease-out dark:bg-gray-900 sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-[10vh] sm:max-h-[80vh] sm:w-[min(36rem,calc(100vw-2rem))] sm:-translate-x-1/2 sm:translate-y-4 sm:scale-95 sm:rounded-3xl sm:pb-0 sm:opacity-0 sm:ring-1 sm:ring-black/5 sm:duration-200 dark:sm:ring-white/10">
+        <div class="flex justify-center pt-2 sm:hidden" aria-hidden="true"><span class="h-1.5 w-10 rounded-full bg-gray-300 dark:bg-gray-700"></span></div>
+        @include('livewire.partials.feed-composer-form')
+    </div>
+</div>
+@else
+<div class="mx-auto max-w-xl px-4 py-6 sm:py-10" data-feed-composer>
+    @include('livewire.partials.feed-composer-form')
+</div>
+@endif
+@else
 <div class="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-6">
         <div class="flex items-center justify-between gap-4">
             <div>
-                <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← {{ __('feed-post.back_to_feed') }}</a>
+                <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed-post.back_to_feed') }}</a>
                 <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('feed-post.new_post') }}</h1>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('feed-post.new_subtitle') }}</p>
             </div>
@@ -25,22 +115,22 @@
         </div>
     </div>
 
-    <form wire:submit="submit" class="space-y-5 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:p-6">
+    <form wire:submit="submit" data-live-validation class="space-y-5 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:p-6">
         <div>
             <label for="title" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.title_optional') }}</label>
             <input id="title" type="text" wire:model="title" maxlength="255" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="{{ __('feed-post.title_placeholder') }}">
-            @error('title') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            @error('title') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
-        <div>
+        {{-- TASK-1879 (demande Cyril, 22/11) — le message s'ecrit avec TipTap, en HTML. --}}
+        <div data-champ wire:key="champ-message-formulaire" class="scroll-mt-24">
             <label for="content" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.message') }}</label>
-
             <div class="mt-2">
-                <x-markdown-toolbar target="content" />
+                <x-markdown-wysiwyg-editor name="content" format="html" wire-model="content" :value="$content" required rows="7" :invalid="$errors->has('content')" :mentions="$mentions" />
             </div>
-
-            <textarea id="content" wire:model="content" rows="7" class="mt-1 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="{{ __('feed-post.content_placeholder') }}"></textarea>
-            @error('content') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            {{-- Emplacement de l'alerte AVANT soumission (`x-form-live-validation`), sous l'editeur. --}}
+            <ul id="content-error" hidden class="mt-1 space-y-1 text-sm text-red-600 dark:text-red-400"></ul>
+            @error('content') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
         <div class="space-y-3 rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
@@ -68,7 +158,7 @@
                 <div>
                     <label for="scheduledAt" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.schedule_label') }}</label>
                     <input id="scheduledAt" type="datetime-local" wire:model="scheduledAt" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
-                    @error('scheduledAt') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                    @error('scheduledAt') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
                 </div>
             @endif
         </div>
@@ -83,26 +173,34 @@
                     <button type="button" wire:click="removeImage" class="w-full bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('feed-post.remove') }}</button>
                 </div>
             @endif
-            @error('image') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            @error('image') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-gray-800/70">
-            <label class="flex items-center gap-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                <input type="checkbox" wire:model="pin" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                {{ __('feed-post.pin') }}
-            </label>
-        </div>
+        {{-- TASK-1879 (demande Cyril, 22/11) — epingler est reserve a l'administrateur
+             de l'Organization (meme regle que `FeedPostPolicy::pin`, deja exigee
+             par `submit`) : les autres membres ne voient plus la case. --}}
+        @can('pin', App\Models\FeedPost::class)
+            <div class="rounded-2xl bg-gray-50 p-4 dark:bg-gray-800/70" data-feed-pin-field>
+                <label class="flex items-center gap-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    <input type="checkbox" wire:model="pin" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    {{ __('feed-post.pin') }}
+                </label>
+            </div>
+        @endcan
 
         <div>
             <label for="loopMessage" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.loop_message') }}</label>
             <textarea id="loopMessage" wire:model="loopMessage" rows="2" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="{{ __('feed-post.loop_message_placeholder') }}"></textarea>
-            @error('loopMessage') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            @error('loopMessage') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
-        <div class="space-y-3 rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+        <div data-champ class="scroll-mt-24 space-y-3 rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
             <div>
                 <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.loop_distribution') }}</h2>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('feed-post.loop_distribution_hint') }}</p>
+                @unless($peutPublierATous)
+                    <p class="mt-1 text-xs font-medium text-indigo-700 dark:text-indigo-300" data-feed-members-only-hint>{{ __('feed-post.members_only_hint') }}</p>
+                @endunless
             </div>
 
             <label class="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200">
@@ -113,12 +211,9 @@
             <div class="grid gap-2">
                 @forelse($loops as $feedLoop)
                     <label class="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 shadow-sm transition dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 {{ $allLoops ? 'opacity-75' : 'hover:border-indigo-200 dark:hover:border-indigo-700' }}">
-                        <input type="checkbox" wire:model="selectedLoops" value="{{ data_get($feedLoop, 'id') }}" @disabled($allLoops) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
+                        <input type="checkbox" wire:model.live="selectedLoops" value="{{ data_get($feedLoop, 'id') }}" @disabled($allLoops) class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
                         <span class="min-w-0">
                             <span class="block font-semibold leading-5">{{ data_get($feedLoop, 'name') }}</span>
-                            @if(data_get($feedLoop, 'slug'))
-                                <span class="block text-xs text-gray-500 dark:text-gray-400">#{{ data_get($feedLoop, 'slug') }}</span>
-                            @endif
                             @if(data_get($feedLoop, 'description'))
                                 <span class="mt-1 block line-clamp-2 text-xs text-gray-500 dark:text-gray-400">{{ data_get($feedLoop, 'description') }}</span>
                             @endif
@@ -129,9 +224,18 @@
                 @endforelse
             </div>
             @error('selectedLoops.*') <p class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            @error('selectedLoops') <p class="text-sm text-red-600 dark:text-red-400" data-feed-loops-required data-erreur-serveur>{{ $message }}</p> @enderror
+            @unless($peutPublierATous)
+                {{-- TASK-1879 — la regle « au moins une de vos Boucles », connue du
+                     navigateur : `x-form-live-validation` la lit par checkValidity(). --}}
+                <input type="text" name="boucles_choisies" tabindex="-1" aria-hidden="true" class="sr-only" data-feed-loops-sentinel
+                       x-data
+                       x-effect="$el.setCustomValidity(($wire.allLoops || ($wire.selectedLoops || []).length > 0) ? '' : @js(__('feed-post.loops_required')))">
+                <ul id="boucles_choisies-error" hidden class="space-y-1 text-sm text-red-600 dark:text-red-400"></ul>
+            @endunless
 
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {{ __('feed-post.scope_label') }}: @if($allLoops) {{ __('feed-post.scope_all') }} @elseif(count($selectedLoops) > 0) {{ __('feed-post.scope_selected', ['count' => count($selectedLoops)]) }} @else {{ __('feed-post.scope_org_only') }} @endif
+                {{ __('feed-post.scope_label') }}: @if($allLoops) {{ __('feed-post.scope_all') }} @elseif(count($selectedLoops) > 0) {{ trans_choice('feed-post.scope_selected', count($selectedLoops), ['count' => count($selectedLoops)]) }} @elseif($peutPublierATous) {{ __('feed-post.scope_org_only') }} @else {{ __('feed-post.scope_none') }} @endif
             </p>
         </div>
 
@@ -144,5 +248,8 @@
                 @endif
             </button>
         </div>
+        <x-form-live-validation />
     </form>
+</div>
+@endif
 </div>

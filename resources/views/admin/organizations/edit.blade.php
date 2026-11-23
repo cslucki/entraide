@@ -1,7 +1,11 @@
 <x-admin-layout title="Éditer l'organisation">
     <div class="max-w-2xl">
         <div class="mb-4 flex items-center justify-between">
-            <div></div>
+            {{-- TASK-1881 (demande Cyril, 22/11) — en haut de la page. --}}
+            <a href="{{ route('admin.organizations.authorized-members', $organization) }}" data-admin-org-authorized-members-link
+               class="inline-flex items-center gap-1.5 rounded-lg border border-indigo-600 px-3 py-1.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 dark:border-indigo-400 dark:text-indigo-400 dark:hover:bg-indigo-950">
+                Membres autorisés à se connecter
+            </a>
             <a href="{{ route('admin.organizations.homepage', $organization) }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
                 Page d'accueil &nearr;
             </a>

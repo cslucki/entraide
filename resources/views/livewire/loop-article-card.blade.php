@@ -73,6 +73,14 @@
                                 {{ __('loops.cards.article.by', ['name' => $ailleurs->user->publicDisplayName()]) }}
                             </span>
                         @endif
+                        {{-- TASK-1884 #3 — seulement pour qui peut le modifier (co-auteur,
+                             proprietaire, animateur) : pour les autres, il reste annonce, jamais ouvert. --}}
+                        @isset($modifyUrls[$ailleurs->id])
+                            <a href="{{ $modifyUrls[$ailleurs->id] }}" data-article-card-modify
+                               class="shrink-0 rounded-lg border border-indigo-200 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/30">
+                                {{ __('blog.btn_edit') }}
+                            </a>
+                        @endisset
                     </li>
                 @endforeach
             </ul>
@@ -96,6 +104,12 @@
                                class="min-w-0 flex-1 truncate text-sm font-medium text-indigo-700 underline hover:text-indigo-800 dark:text-indigo-300">
                                 {{ $article->title }}
                             </a>
+                            @isset($modifyUrls[$article->id])
+                                <a href="{{ $modifyUrls[$article->id] }}" data-article-card-modify
+                                   class="shrink-0 rounded-lg border border-indigo-200 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/30">
+                                    {{ __('blog.btn_edit') }}
+                                </a>
+                            @endisset
                         </div>
                         <p class="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
                             @if ($article->user)

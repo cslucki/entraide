@@ -63,6 +63,9 @@ class BulkEmailSendRecipient extends Model
 
     public const STATUS_AMBIGUOUS = 'ambiguous';
 
+    /** TASK-1883 — newsletter sans aucune demande ni proposition pour l'organisation, ou desabonne entre-temps : rien d'envoye. */
+    public const STATUS_SKIPPED = 'skipped';
+
     /** @var list<string> */
     public const STATUSES = [
         self::STATUS_PENDING,
@@ -71,6 +74,7 @@ class BulkEmailSendRecipient extends Model
         self::STATUS_SENT,
         self::STATUS_FAILED,
         self::STATUS_AMBIGUOUS,
+        self::STATUS_SKIPPED,
     ];
 
     protected static function booted(): void

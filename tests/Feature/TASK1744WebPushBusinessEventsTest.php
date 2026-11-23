@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Loop;
+use App\Models\LoopMember;
+use App\Models\LoopRoadmapItem;
+use App\Services\LoopMessageService;
 use App\Models\MemberNotification;
 use App\Models\MemberNotificationDelivery;
 use App\Models\MemberNotificationPreference;
@@ -316,8 +319,35 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
             // Boucle. Fait collectif de plus, meme regime que
             // LOOP_HELP_REQUEST_CREATED juste au-dessus.
             NotificationCatalogue::LOOP_EVENT_CREATED,
+            // TASK-1879 (demande Cyril, 22/11) — une veille publiee dans une
+            // Boucle : fait collectif, in-app + Web Push, AUCUN canal email.
+            NotificationCatalogue::LOOP_WATCH_ITEM_CREATED,
+            // TASK-1879 (meme demande) — Sondage pose, Article publie, depot
+            // de fichiers : memes canaux que la Veille, aucun e-mail.
+            NotificationCatalogue::LOOP_POLL_CREATED,
+            NotificationCatalogue::LOOP_ARTICLE_PUBLISHED,
+            NotificationCatalogue::LOOP_DOSSIER_FILE_UPLOADED,
+            // TASK-1879 (demande Cyril, 22/11) — Roadmap : action ajoutee / avancee.
+            NotificationCatalogue::LOOP_ROADMAP_ITEM_CREATED,
+            NotificationCatalogue::LOOP_ROADMAP_ITEM_MOVED,
+            NotificationCatalogue::LOOP_JOURNAL_ENTRY_CREATED,
             NotificationCatalogue::FEED_POST_COMMENT_CREATED,
             NotificationCatalogue::FEED_POST_REACTION_CREATED,
+            // TASK-1880 (demande Cyril, 22/11) — mention dans une annonce du
+            // Flux (`@Nom`, `@tous`, `@membres`) : « un email qui part et
+            // notification PWA et app ». Meme regime que LOOP_MENTION_CREATED :
+            // in-app ON non configurable, email et Web Push ON configurables.
+            NotificationCatalogue::FEED_POST_MENTION_CREATED,
+            // TASK-1884 #7 (demande Cyril, 22/11) — tache d'article confiee :
+            // in-app + email configurables, AUCUN Web Push (sobriete).
+            NotificationCatalogue::BLOG_TODO_ASSIGNED,
+            // TASK-1885 C5 (demande Cyril, 22/11) — message recu dans une
+            // DISCUSSION PRIVEE : « email, app, pwa actives par defaut », et un
+            // reglage. Les trois canaux ON et configurables. Le nom evite
+            // « message » (garde anti-bruit ci-dessous) : une discussion privee
+            // vise UNE personne. L'email n'est pas planifie (`planned => false`) :
+            // il part deja par `SendNewMessageReceivedEmail`.
+            NotificationCatalogue::CONVERSATION_PRIVATE_RECEIVED,
         ];
 
         sort($attendues);
@@ -503,6 +533,42 @@ class TASK1744WebPushBusinessEventsTest extends TestCase
         $this->assertSame(NotificationDeliveryStatus::SENT, $fraiche->status);
         $this->assertSame('devices:1', $fraiche->diagnostic);
         $this->assertNotNull($fraiche->sent_at);
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — « bien verifier qu'on recoit une
+     * notification PWA/App » : une action de Roadmap ajoutee puis passee
+     * « En cours » part VRAIMENT vers l'appareil du membre, SANS reglage
+     * prealable (Web Push actif par defaut sur ces cles).
+     */
+    public function test_la_roadmap_pousse_vraiment_l_ajout_et_l_avancee_d_une_action(): void
+    {
+        Http::fake(['*' => Http::response('', 201)]);
+        $appareil = $this->appareil();
+
+        foreach ([$this->expediteur, $this->membre] as $personne) {
+            LoopMember::create(['loop_id' => $this->loop->id, 'user_id' => $personne->id, 'organization_id' => $this->org->id, 'role' => 'member', 'status' => 'active']);
+        }
+        $action = LoopRoadmapItem::factory()->create(['organization_id' => $this->org->id, 'loop_id' => $this->loop->id, 'created_by' => $this->expediteur->id, 'status' => LoopRoadmapItem::STATUS_TODO]);
+
+        $service = app(LoopMessageService::class);
+        $service->sendRoadmapActionMessage($this->loop, $this->expediteur, $action);
+        $service->sendRoadmapStatusMessage($this->loop, $this->expediteur, $action, LoopRoadmapItem::STATUS_TODO, LoopRoadmapItem::STATUS_IN_PROGRESS);
+
+        foreach ([NotificationCatalogue::LOOP_ROADMAP_ITEM_CREATED, NotificationCatalogue::LOOP_ROADMAP_ITEM_MOVED] as $cle) {
+            $notification = MemberNotification::query()->where('notification_key', $cle)->where('recipient_id', $this->membre->id)->sole();
+            $livraison = $this->livraisonPush((string) $notification->id);
+
+            app(NotificationWebPushDeliverer::class)->deliver((string) $livraison->notification_id);
+
+            $this->assertSame(NotificationDeliveryStatus::SENT, $livraison->fresh()->status, "{$cle} : push parti");
+            foreach (['fr', 'en'] as $locale) {
+                $this->assertNotSame(__('notifications.push_title_fallback', [], $locale), __('notifications.push_title.'.str_replace('.', '_', $cle), [], $locale), "{$cle} [{$locale}] : titre propre");
+            }
+        }
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn ($request) => $request->url() === $appareil->endpoint);
     }
 
     public function test_le_reglage_coupe_APRES_coup_arrete_le_push(): void

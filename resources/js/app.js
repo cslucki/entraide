@@ -7,6 +7,7 @@ import { chatLoopAdaptivePolling } from './chatloop-adaptive-polling.js';
 import { notificationsBadgeRealtime } from './notifications-badge-realtime.js';
 import { messageThreadAdaptivePolling, messageThreadRealtimeNudge } from './message-thread-adaptive-polling.js';
 import { messagesUnreadBadgeRealtime } from './messages-unread-badge-realtime.js';
+import { voiceRecorder, voiceNotePlayer } from './voice-notes.js';
 import * as FilePond from 'filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
@@ -324,6 +325,22 @@ function registerChatLoopAdaptivePolling() {
     // `loop-chat.blade.php`. Voir `chatloop-adaptive-polling.js` pour la
     // logique (testable sans navigateur).
     Alpine.data('chatLoopAdaptivePolling', chatLoopAdaptivePolling);
+}
+
+/**
+ * TASK-1886 — l'enregistreur et le lecteur des messages vocaux. Meme
+ * idempotence que les `register*()` voisins (Alpine vit dans le bundle
+ * Livewire, il peut etre pret avant OU apres ce fichier).
+ */
+function registerVoiceNotes() {
+    if (!window.Alpine || window.__voiceNotesRegistered) {
+        return;
+    }
+
+    window.__voiceNotesRegistered = true;
+
+    Alpine.data('voiceRecorder', voiceRecorder);
+    Alpine.data('voiceNotePlayer', voiceNotePlayer);
 }
 
 /**
@@ -1752,6 +1769,10 @@ function registerBlogCoAuthorCard() {
         success: '',
         selectedUserId: null,
         userQuery: '',
+        // TASK-1884 — la recherche a-t-elle repondu pour la saisie courante ?
+        // Sans ce drapeau, « aucun resultat » et « pas encore cherche » se
+        // confondaient : l'ecran restait muet.
+        searched: false,
 
         indexUrl: config.indexUrl,
         storeUrl: config.storeUrl,
@@ -1806,23 +1827,28 @@ function registerBlogCoAuthorCard() {
 
         searchUsers() {
             const q = (this.userQuery || '').trim();
+            this.searched = false;
             if (!q || q.length < 2) {
                 this.searchResults = [];
                 return;
             }
             this.searching = true;
-            fetch(this.searchUrl + '?q=' + encodeURIComponent(q))
+            fetch(this.searchUrl + '?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
                 .then(r => r.json())
                 .then(data => {
-                    this.searchResults = (data.users || []).filter(u => {
-                        if (u.id === this.postOwnerId) return false;
-                        return !this.coAuthors.some(c => c.id === u.id);
-                    });
+                    // TASK-1884 — l'auteur et les co-auteurs deja nommes restent
+                    // affiches, marques, au lieu de disparaitre sans explication.
+                    this.searchResults = (data.users || []).map(u => ({
+                        ...u,
+                        etat: u.id === this.postOwnerId ? 'owner' : (this.coAuthors.some(c => c.id === u.id) ? 'already' : 'free'),
+                    }));
                     this.searching = false;
+                    this.searched = true;
                 })
                 .catch(() => {
                     this.searchResults = [];
                     this.searching = false;
+                    this.searched = true;
                 });
         },
 
@@ -1830,6 +1856,13 @@ function registerBlogCoAuthorCard() {
             this.selectedUserId = user.id;
             this.userQuery = user.name;
             this.searchResults = [];
+        },
+
+        // TASK-1884 — un clic sur le nom ajoute : plus d'etape « choisir puis Ajouter ».
+        addUser(user) {
+            if (user.etat !== 'free') return;
+            this.selectedUserId = user.id;
+            this.addCoAuthor();
         },
 
         addCoAuthor() {
@@ -1851,6 +1884,8 @@ function registerBlogCoAuthorCard() {
                     this.coAuthors.push(data.co_author);
                     this.selectedUserId = null;
                     this.userQuery = '';
+                    this.searchResults = [];
+                    this.searched = false;
                     this.success = data.message || this.i18n.added || 'Co-author added.';
                     setTimeout(() => { this.success = ''; }, 3000);
                 })
@@ -8603,6 +8638,7 @@ document.addEventListener('alpine:init', () => {
     registerAlpineStores();
     registerChatLoopAdaptivePolling();
     registerMessageThreadAdaptivePolling();
+    registerVoiceNotes();
     registerBlogSnapshotCard();
     registerBlogEditor();
     registerBlogMethodSelectionCard();
@@ -8626,6 +8662,7 @@ document.addEventListener('alpine:init', () => {
 registerAlpineStores();
 registerChatLoopAdaptivePolling();
 registerMessageThreadAdaptivePolling();
+registerVoiceNotes();
 registerBlogSnapshotCard();
 registerBlogEditor();
 registerBlogMethodSelectionCard();
@@ -8679,14 +8716,24 @@ function registerRoadmapSortable() {
             container._sortable = Sortable.create(container, {
                 group: { name: 'roadmap-kanban', pull: true, put: true },
                 draggable: '[data-roadmap-id]',
-                handle: '.drag-handle',
+                // TASK-1879 (demande Cyril, 22/11) — la carte ENTIERE se saisit
+                // (plus de poignee). Le menu ⋮ et l'edition du titre restent
+                // cliquables : `preventOnFilter: false` laisse passer leur clic.
                 filter: '[data-no-drag]',
+                preventOnFilter: false,
+                // Deplacement a la souris/au doigt (pas le glisser-deposer HTML5) :
+                // sous 5 px de mouvement, c'est un CLIC (ouvre la fiche), au-dela,
+                // un deplacement. Meme comportement sur ordinateur et telephone.
+                forceFallback: true,
+                fallbackTolerance: 5,
                 animation: 150,
                 delay: 150,
                 delayOnTouchOnly: true,
                 ghostClass: 'roadmap-ghost',
                 chosenClass: 'roadmap-chosen',
+                onStart: () => root.dispatchEvent(new CustomEvent('roadmap-drag-start')),
                 onEnd: (evt) => {
+                    root.dispatchEvent(new CustomEvent('roadmap-drag-end'));
                     const fromStatus = evt.from.getAttribute('data-status');
                     const toStatus = evt.to.getAttribute('data-status');
                     const itemId = evt.item.getAttribute('data-roadmap-id');
@@ -8720,6 +8767,23 @@ function registerRoadmapSortable() {
 }
 
 document.addEventListener('livewire:init', registerRoadmapSortable);
+
+// TASK-1879 (demande Cyril, 22/11) — apres un `submit` Livewire refuse par le
+// serveur, on amene au PREMIER champ en erreur (ordre du formulaire). Le
+// navigateur, lui, est deja couvert par `x-form-live-validation`.
+document.addEventListener('livewire:init', () => {
+    window.Livewire.hook('commit', ({ component, commit, succeed }) => {
+        if (! (commit.calls || []).some((appel) => appel.method === 'submit')) {
+            return;
+        }
+
+        succeed(() => requestAnimationFrame(() => {
+            const erreur = component.el.querySelector('form[data-live-validation] [data-erreur-serveur]');
+            const bloc = erreur?.closest('[data-champ]') || erreur;
+            bloc?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }));
+    });
+});
 
 // -------------------------------------------------------------------------
 // Roadmap card actions menu — fixed-positioned dropdown that flips up/down so it

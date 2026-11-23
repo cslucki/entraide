@@ -1,40 +1,50 @@
 @php
     $organizationRouteParam = request()->route('organization') ?: currentOrganization()?->slug;
-    $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default;
+    // TASK-1879 (demande Cyril, 22/11) — arrive par /org/{slug}/..., on y reste :
+    // les liens sans prefixe ne servent qu'a qui navigue deja sans prefixe.
+    $usesDefaultOrganizationRoute = (bool) currentOrganization()?->is_default && ! request()->route('organization');
     $myPostsUrl = $usesDefaultOrganizationRoute && Route::has('flux.my')
         ? route('flux.my')
         : route('organization.flux.my', ['organization' => $organizationRouteParam]);
     $fluxUrl = $usesDefaultOrganizationRoute && Route::has('flux')
         ? route('flux')
         : route('organization.flux', ['organization' => $organizationRouteParam]);
+    // TASK-1879 (demande Cyril, 22/11) — « Mes annonces » : administrateur seulement.
+    $_orgEdition = currentOrganization();
+    $estProprietaireEdition = $_orgEdition !== null && (auth()->id() === $_orgEdition->admin_id || auth()->user()?->is_admin);
+    if (! $estProprietaireEdition) {
+        $myPostsUrl = $fluxUrl;
+    }
 @endphp
 
 <div class="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-6">
         <div class="flex items-center gap-4">
-            <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">← {{ __('feed-post.back_to_feed') }}</a>
-            <a href="{{ $myPostsUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed-post.my_posts') }}</a>
+            <a href="{{ $fluxUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed-post.back_to_feed') }}</a>
+            @if($estProprietaireEdition)
+                <a href="{{ $myPostsUrl }}" class="text-sm font-semibold text-indigo-600 hover:underline dark:text-indigo-400">{{ __('feed-post.my_posts') }}</a>
+            @endif
         </div>
         <h1 class="mt-3 text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('feed-post.edit_post') }}</h1>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('feed-post.edit_subtitle') }}</p>
     </div>
 
-    <form wire:submit="submit" class="space-y-5 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:p-6">
+    <form wire:submit="submit" data-live-validation class="space-y-5 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:p-6">
         <div>
             <label for="title" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.title_optional') }}</label>
             <input id="title" type="text" wire:model="title" maxlength="255" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="{{ __('feed-post.title_placeholder') }}">
-            @error('title') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            @error('title') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
-        <div>
+        {{-- TASK-1879 (demande Cyril, 22/11) — le message s'ecrit avec TipTap, en HTML. --}}
+        <div data-champ wire:key="champ-message-formulaire" class="scroll-mt-24">
             <label for="content" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.message') }}</label>
-
             <div class="mt-2">
-                <x-markdown-toolbar target="content" />
+                <x-markdown-wysiwyg-editor name="content" format="html" wire-model="content" :value="$content" required rows="7" :invalid="$errors->has('content')" :mentions="$mentions" />
             </div>
-
-            <textarea id="content" wire:model="content" rows="7" class="mt-1 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="{{ __('feed-post.content_placeholder') }}"></textarea>
-            @error('content') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            {{-- Emplacement de l'alerte AVANT soumission (`x-form-live-validation`), sous l'editeur. --}}
+            <ul id="content-error" hidden class="mt-1 space-y-1 text-sm text-red-600 dark:text-red-400"></ul>
+            @error('content') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
         <div class="space-y-3 rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
@@ -62,7 +72,7 @@
                 <div>
                     <label for="scheduledAt" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.schedule_label') }}</label>
                     <input id="scheduledAt" type="datetime-local" wire:model="scheduledAt" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
-                    @error('scheduledAt') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                    @error('scheduledAt') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
                 </div>
             @endif
         </div>
@@ -86,13 +96,13 @@
                     <button type="button" wire:click="removeImage" class="w-full bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">{{ __('feed-post.remove_new') }}</button>
                 </div>
             @endif
-            @error('image') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            @error('image') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
         <div>
             <label for="loopMessage" class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('feed-post.loop_message') }}</label>
             <textarea id="loopMessage" wire:model="loopMessage" rows="2" class="mt-2 w-full rounded-2xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="{{ __('feed-post.loop_message_placeholder') }}"></textarea>
-            @error('loopMessage') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+            @error('loopMessage') <p class="mt-1 text-sm text-red-600 dark:text-red-400" data-erreur-serveur>{{ $message }}</p> @enderror
         </div>
 
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -101,5 +111,6 @@
                 {{ __('feed-post.submit_save') }}
             </button>
         </div>
+        <x-form-live-validation />
     </form>
 </div>

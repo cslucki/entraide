@@ -28,7 +28,8 @@ class WebLoginOrganizationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_non_admin_with_organization_lands_on_chatloop_on_login(): void
+    /** TASK-1880 (demande Cyril, 22/11) — un membre arrive sur le Flux, plus sur ses Boucles. */
+    public function test_non_admin_with_organization_lands_on_the_feed_on_login(): void
     {
         // TASK-1749 — `is_public` explicite : le defaut d'usine est FALSE, et
         // le selecteur de `/login` ne propose que du public et de l'actif. Une
@@ -44,7 +45,7 @@ class WebLoginOrganizationTest extends TestCase
             'email' => $user->email,
             'password' => 'password',
             'organization' => $organization->slug,
-        ])->assertRedirect('/org/'.$organization->slug.'/loops');
+        ])->assertRedirect('/org/'.$organization->slug.'/flux');
     }
 
     /**

@@ -63,6 +63,8 @@
                 @enderror
             </div>
 
+            @include('loops.partials.pitch-field', ['value' => $currentLoop->pitch])
+
             <div>
                 <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea name="description" id="description" rows="4"

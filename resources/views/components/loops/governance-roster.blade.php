@@ -28,6 +28,11 @@
     // Les personnes qui viennent d'arriver : leur ligne se signale un instant,
     // pour qu'on voie ou elles se sont rangees dans une liste triee.
     'highlightIds' => [],
+    // TASK-1885 C4 — la Card Membres seule les active : `joinReasons`
+    // (user_id => phrase « pourquoi rejoindre ») et `profileLinks` (le nom
+    // mene au profil public). Les ecrans d'administration restent inchanges.
+    'joinReasons' => [],
+    'profileLinks' => false,
     // Les intitules de role au-dessus de chaque groupe. Vrais par defaut : les
     // deux ecrans d'administration ont la largeur pour eux et s'en servent. La
     // Card Membres, elle, tient dans un panneau etroit et prefere un flux unique
@@ -136,9 +141,15 @@
 
                     <span class="min-w-0 flex-1">
                         <span class="flex items-center gap-1.5">
-                            <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
-                                {{ $member->user?->publicDisplayName() ?? '—' }}
-                            </span>
+                            @if($profileLinks)
+                                <x-user-profile-link :user="$member->user" class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                                    {{ $member->user?->publicDisplayName() ?? '—' }}
+                                </x-user-profile-link>
+                            @else
+                                <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                                    {{ $member->user?->publicDisplayName() ?? '—' }}
+                                </span>
+                            @endif
                             @isset($chips[$role])
                                 <span class="shrink-0 rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-wide {{ $chips[$role]['class'] }}">
                                     {{ $chips[$role]['label'] }}
@@ -160,6 +171,9 @@
                         @endphp
                         @if($notes !== [])
                             <span class="block truncate text-[10px] leading-tight text-gray-400">{{ implode(' · ', $notes) }}</span>
+                        @endif
+                        @if(! empty($joinReasons[(string) $member->user_id]))
+                            <span class="mt-0.5 block text-xs italic leading-snug text-gray-500 dark:text-gray-400" data-loop-member-reason="{{ $member->user_id }}">« {{ \Illuminate\Support\Str::limit($joinReasons[(string) $member->user_id], 160) }} »</span>
                         @endif
                     </span>
 

@@ -190,8 +190,17 @@ class TASK1081WorkspaceCompositionTest extends TestCase
         // Rien n'a ete retire de la composition : c'est cela que ce test garde.
         $active = app(LoopTypeRegistry::class)->activeCardsFor($loop->fresh());
 
-        foreach (array_keys(config('loop_cards.cards')) as $key) {
+        // TASK-1879 — sauf une Card de PLUGIN : elle ne vit que tant que son
+        // plugin est actif dans la Boucle, jamais par une ligne `loop_cards`
+        // (`LoopTypeRegistry::activeCardsFor()`). Ici aucun plugin n'est actif.
+        $plugins = array_keys(app(LoopCardRegistry::class)->pluginCards());
+
+        foreach (array_diff(array_keys(config('loop_cards.cards')), $plugins) as $key) {
             $this->assertContains($key, $active, "La Card {$key} a disparu de la composition.");
+        }
+
+        foreach ($plugins as $key) {
+            $this->assertNotContains($key, $active, "La Card de plugin {$key} est apparue sans son plugin.");
         }
 
         // Et **tout ce qui est actif s'affiche** (TASK-1124). Le plafond de

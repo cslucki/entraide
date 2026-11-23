@@ -91,6 +91,16 @@ class LoopChat extends Component
 
     public ?string $replyToMessageId = null;
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — les cartes du fil auxquelles on
+     * repond comme a un message (`replyTo()` accepte deja tout message de la
+     * Boucle ; seule l'action manquait a l'ecran).
+     */
+    public const TYPES_CARTES_REPONDABLES = [
+        'loop_event', 'dossier_file', 'poll_event', 'roadmap_action',
+        'watch_item', 'blog_post', 'help_request', 'journal_entry',
+    ];
+
     public ?array $replyingTo = null;
 
     /**
@@ -716,7 +726,7 @@ class LoopChat extends Component
     {
         return $fenetre->contains(
             fn (LoopMessage $message) => $message->isServiceRequestProjection()
-                || in_array($message->type, ['blog_post', 'dossier_file', 'roadmap_action'], true)
+                || in_array($message->type, ['blog_post', 'dossier_file', 'roadmap_action', 'watch_item', 'journal_entry'], true)
         );
     }
 
@@ -1139,6 +1149,65 @@ class LoopChat extends Component
         // telle quelle a chaque mention choisie : sans cette synchronisation,
         // la premiere mention ajoutee a la main effacerait la notre.
         $this->dispatch('bp-mention-auto', id: $mentionnable['id'], ancien: $ancien);
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — un membre ne cree pas de categorie
+     * de veille ; il la DEMANDE au proprietaire. La Card envoie cet evenement,
+     * le composeur se pre-remplit de « @Proprietaire : j'aimerais ajouter une
+     * categorie de veille, qui serait » et il n'y a plus qu'a completer.
+     *
+     * Meme mecanique que la mention automatique d'une reponse (T1872) : la
+     * mention est SELECTIONNEE (notification au proprietaire a l'envoi), et
+     * `composer-filled` donne le focus avec le curseur en fin de texte. Un
+     * brouillon deja ecrit n'est jamais efface : la phrase s'ajoute dessous.
+     * Rien n'est envoye : c'est la personne qui envoie.
+     */
+    #[On('veille-suggerer-categorie')]
+    public function suggererUneCategorieDeVeille(): void
+    {
+        $user = auth()->user();
+
+        if (! $user || ! app(\App\Services\Loops\LoopWatchService::class)->canCreate($user, $this->loop)) {
+            return;
+        }
+
+        $proprietaireId = LoopMember::query()
+            ->where('loop_id', $this->loop->id)
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('status', 'active')
+            ->where('role', 'owner')
+            ->orderBy('created_at')
+            ->value('user_id');
+
+        $mentionnable = $proprietaireId === null
+            ? null
+            : collect($this->mentionablesReels())->firstWhere('id', (string) $proprietaireId);
+
+        $phrase = __('veille.suggest_category_message');
+        $texte = $mentionnable !== null ? '@'.$mentionnable['nom'].' : '.$phrase : $phrase;
+
+        $corps = (string) ($this->body ?? '');
+        $vierge = trim($corps) === '' || $corps === $this->mentionAutoTexte;
+
+        $this->body = $vierge ? $texte : rtrim($corps)."\n".$texte;
+
+        if ($vierge) {
+            // Le texte n'est plus une mention automatique de reponse : la
+            // retirer ne doit pas effacer ce que la personne completera.
+            $this->mentionAutoTexte = null;
+            $this->mentionAutoId = null;
+        }
+
+        if ($mentionnable !== null) {
+            $this->mentionsSelectionnees = array_values(array_unique(array_merge(
+                $this->mentionsSelectionnees,
+                [$mentionnable['id']],
+            )));
+            $this->dispatch('bp-mention-auto', id: $mentionnable['id'], ancien: null);
+        }
+
+        $this->dispatch('composer-filled');
     }
 
     public function cancelReply(): void
@@ -3686,6 +3755,10 @@ class LoopChat extends Component
         $projectedDossierFiles = $this->projectedDossierFiles($messages);
         $projectedDossierFileUrls = $this->projectedDossierFileUrls($projectedDossierFiles);
         $projectedRoadmapItems = $this->projectedRoadmapItems($messages);
+        $projectedJournalEntries = $this->projectedJournalEntries($messages);
+        $projectedFeedPosts = $this->projectedFeedPosts($messages);
+        // TASK-1879 — les veilles annoncees, relues en direct et filtrees par droit.
+        $projectedWatchItems = $this->projectedWatchItems($messages);
         $aiRoute = $this->aiRoute();
         $canDeleteMessages = $this->canDeleteDisplayedMessages();
         // La vue retire le compositeur plutot que d'accepter un message que
@@ -3747,6 +3820,9 @@ class LoopChat extends Component
             'projectedDossierFiles',
             'projectedDossierFileUrls',
             'projectedRoadmapItems',
+            'projectedJournalEntries',
+            'projectedFeedPosts',
+            'projectedWatchItems',
             'aiRoute',
             'canDeleteMessages',
             'canCapitalize',
@@ -3907,6 +3983,105 @@ class LoopChat extends Component
      *
      * @return Collection<string, LoopRoadmapItem>
      */
+    /**
+     * TASK-1879 — les veilles annoncees (`type='watch_item'`), relues EN DIRECT.
+     *
+     * Le message ne porte que l'identifiant : tout ce qui s'affiche vient de la
+     * veille ACTUELLE. Rien ne resout — et la vue rend « Cette veille n'est
+     * plus disponible » — quand la veille est supprimee (soft delete), quand le
+     * plugin est eteint dans la Boucle ou l'Organization, ou quand le lecteur
+     * n'a pas `veille.view`. Bornee a l'Organization ET a la Boucle courantes.
+     *
+     * @return Collection<string, \App\Models\LoopWatchItem>
+     */
+    private function projectedWatchItems(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->type === 'watch_item')
+            ->map(fn (LoopMessage $message) => $message->metadata['watch_item_id'] ?? null)
+            ->filter(fn ($id) => is_string($id) && \Illuminate\Support\Str::isUuid($id))
+            ->unique()
+            ->values();
+
+        $user = auth()->user();
+
+        if ($ids->isEmpty() || ! $user instanceof User
+            || ! app(\App\Services\Loops\LoopWatchService::class)->canView($user, $this->loop)) {
+            return collect();
+        }
+
+        return \App\Models\LoopWatchItem::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->whereIn('id', $ids)
+            ->with('category:id,name')
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — les annonces du Flux diffusees dans la
+     * Boucle (message `user`, `metadata.type = announcement`), relues EN DIRECT
+     * et filtrees par ce que le lecteur a le droit de voir dans le Flux.
+     *
+     * @return Collection<string, \App\Models\FeedPost>
+     */
+    private function projectedFeedPosts(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => ($message->metadata['type'] ?? null) === 'announcement')
+            ->map(fn (LoopMessage $message) => $message->metadata['feed_post_id'] ?? null)
+            ->filter(fn ($id) => is_string($id) && \Illuminate\Support\Str::isUuid($id))
+            ->unique()
+            ->values();
+
+        $user = auth()->user();
+
+        if ($ids->isEmpty() || ! $user instanceof User) {
+            return collect();
+        }
+
+        return \App\Models\FeedPost::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->whereIn('id', $ids)
+            ->published()
+            ->visibleTo($user)
+            ->with(['user', 'organization'])
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * TASK-1879 — les entrees du Journal annoncees (`type='journal_entry'`),
+     * relues EN DIRECT (une correction se voit, un retrait degrade la carte).
+     * Rien ne resout sans `journal.view` pour le lecteur.
+     *
+     * @return Collection<string, \App\Models\LoopJournalEntry>
+     */
+    private function projectedJournalEntries(Collection $messages): Collection
+    {
+        $ids = $messages
+            ->filter(fn (LoopMessage $message) => $message->type === 'journal_entry')
+            ->map(fn (LoopMessage $message) => $message->metadata['journal_entry_id'] ?? null)
+            ->filter(fn ($id) => is_string($id) && \Illuminate\Support\Str::isUuid($id))
+            ->unique()
+            ->values();
+
+        $user = auth()->user();
+
+        if ($ids->isEmpty() || ! $user instanceof User
+            || ! app(\App\Support\Loops\LoopPermissionResolver::class)->can($user, $this->loop, 'journal.view')) {
+            return collect();
+        }
+
+        return \App\Models\LoopJournalEntry::query()
+            ->where('organization_id', $this->loop->organization_id)
+            ->where('loop_id', $this->loop->id)
+            ->whereIn('id', $ids)
+            ->get()
+            ->keyBy('id');
+    }
+
     private function projectedRoadmapItems(Collection $messages): Collection
     {
         $ids = $messages

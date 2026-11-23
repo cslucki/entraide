@@ -56,6 +56,24 @@
                                 <td class="px-5 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $req->created_at->isoFormat('D MMM YYYY') }}</td>
                                 <td class="px-5 py-4">
                                     <a href="{{ $_dashRoute('dashboard.requests.detail', ['serviceRequest' => $req]) }}" class="font-medium text-gray-900 dark:text-gray-100 hover:text-indigo-600">{{ $req->title }}</a>
+                                    {{-- TASK-1885 C6 — posee dans une Boucle (badge + lien) ou pour tout le monde. --}}
+                                    @php($_boucles = ($bouclesParDemande ?? [])[(string) $req->id] ?? collect())
+                                    <div class="mt-1 flex flex-wrap items-center gap-1" data-request-audience="{{ $_boucles->isEmpty() ? 'everyone' : 'loop' }}">
+                                        @forelse($_boucles->take(2) as $_boucle)
+                                            <a href="{{ $_dashRoute('loops.show', ['loop' => $_boucle->slug ?: $_boucle->id]) }}"
+                                               data-request-loop="{{ $_boucle->id }}"
+                                               title="{{ __('dashboard.request_audience_loop_title', ['name' => $_boucle->name]) }}"
+                                               class="inline-flex max-w-[14rem] items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60">
+                                                <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>
+                                                <span class="truncate">{{ __('dashboard.request_audience_loop', ['name' => $_boucle->name]) }}</span>
+                                            </a>
+                                        @empty
+                                            <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ __('dashboard.request_audience_everyone') }}</span>
+                                        @endforelse
+                                        @if($_boucles->count() > 2)
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">+{{ $_boucles->count() - 2 }}</span>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="px-5 py-4 whitespace-nowrap">
                                     @if($req->category)

@@ -4,11 +4,13 @@ namespace App\Livewire;
 
 use App\Models\FeedPost;
 use App\Services\UrlPreviewService;
+use App\Support\Feed\FeedMentions;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -30,8 +32,24 @@ class EditFeedPost extends Component
 
     public $image = null;
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — la page a-t-elle ete ouverte par une
+     * URL prefixee /org/{slug} ? La redirection finale y reste (une requete
+     * Livewire n'a plus le parametre de route).
+     */
+    #[Locked]
+    public bool $urlPrefixee = false;
+
+    /** TASK-1879 — « Le champ Message », pas « Le champ content ». */
+    protected function validationAttributes(): array
+    {
+        return ['content' => __('feed-post.message'), 'title' => __('feed-post.title_optional')];
+    }
+
     public function mount(FeedPost $feedPost): void
     {
+        $this->urlPrefixee = (bool) request()->route('organization');
+
         $this->post = $feedPost;
 
         if (! auth()->user() || ! auth()->user()->can('update', $feedPost)) {
@@ -39,7 +57,8 @@ class EditFeedPost extends Component
         }
 
         $this->title = $feedPost->title ?? '';
-        $this->content = $feedPost->content;
+        // TASK-1879 — une annonce ancienne (Markdown) s'ouvre convertie en HTML.
+        $this->content = $feedPost->contenuHtml();
         $this->mode = match ($feedPost->status) {
             FeedPost::STATUS_DRAFT => 'draft',
             FeedPost::STATUS_SCHEDULED => 'schedule',
@@ -66,17 +85,45 @@ class EditFeedPost extends Component
 
         $this->validate([
             'title' => 'nullable|string|max:255',
-            'content' => 'required|string|max:10000',
+            'content' => 'required|string|max:50000',
             'image' => 'nullable|image|max:10240',
             'mode' => 'required|in:publish,draft,schedule',
             'scheduledAt' => $this->mode === 'schedule' ? ['required', 'date', 'after:now'] : 'nullable',
             'loopMessage' => 'nullable|string|max:10000',
         ]);
 
+        // TASK-1879 (demande Cyril, 22/11) — HTML de TipTap, nettoye comme celui
+        // du blog. Un message fait seulement de balises vides est vide.
+        $this->content = FeedPost::nettoyerContenu($this->content);
+
+        if (trim(html_entity_decode(strip_tags($this->content))) === '') {
+            $this->addError('content', __('validation.required', ['attribute' => __('feed-post.message')]));
+
+            return;
+        }
+
         $org = currentOrganization();
 
         if (! $org) {
             abort(404);
+        }
+
+        // TASK-1880 — memes regles de mention qu'a la creation, sur les
+        // Boucles et la visibilite DEJA enregistrees de l'annonce.
+        $auteur = $this->post->user ?? auth()->user();
+        $analyse = app(FeedMentions::class)->analyser(
+            $this->content,
+            $org,
+            $auteur,
+            $this->post->loops()->pluck('loops.id')->map(fn ($id) => (string) $id)->all(),
+            $this->post->visibility !== FeedPost::VISIBILITE_BOUCLES,
+            $org->admin_id === $auteur->id || (bool) $auteur->is_admin,
+        );
+
+        if ($analyse['erreur'] !== null) {
+            $this->addError('content', $analyse['erreur']);
+
+            return;
         }
 
         [$status, $publishedAt, $scheduledAtDb] = match ($this->mode) {
@@ -105,14 +152,22 @@ class EditFeedPost extends Component
             'loop_message' => $this->loopMessage ?: null,
         ]);
 
+        // TASK-1880 — n'avertit que les personnes NOUVELLEMENT mentionnees
+        // (identifiant d'evenement unique par annonce, cf. le job).
+        $this->post->notifierLesMentions();
+
         session()->flash('status', match ($this->mode) {
             'draft' => 'Brouillon mis à jour.',
             'schedule' => 'Annonce planifiée mise à jour.',
             default => 'Annonce mise à jour.',
         });
 
-        $route = currentOrganization()?->is_default ? 'flux.my' : 'organization.flux.my';
-        $parameters = $route === 'organization.flux.my' ? ['organization' => currentOrganization()?->slug] : [];
+        // TASK-1879 (demande Cyril, 22/11) — « Mes annonces » est reserve a
+        // l'administrateur : un membre revient au Flux.
+        $org = currentOrganization();
+        $page = $org !== null && (auth()->id() === $org->admin_id || auth()->user()?->is_admin) ? 'flux.my' : 'flux';
+        $route = $org?->is_default && ! $this->urlPrefixee ? $page : 'organization.'.$page;
+        $parameters = str_starts_with($route, 'organization.') ? ['organization' => $org?->slug] : [];
 
         $this->redirectRoute($route, $parameters);
     }
@@ -138,6 +193,23 @@ class EditFeedPost extends Component
 
     public function render()
     {
-        return view('livewire.edit-feed-post');
+        // TASK-1880 — le menu `@`, sur les Boucles deja enregistrees.
+        $org = currentOrganization();
+        $auteur = $this->post->user;
+        $mentions = null;
+
+        if ($org !== null && $auteur !== null) {
+            $boucles = $this->post->loops()->pluck('loops.id')->map(fn ($id) => (string) $id)->all();
+            $mentions = app(FeedMentions::class)->configurationDuMenu(
+                $org,
+                $auteur,
+                $boucles,
+                $this->post->visibility !== FeedPost::VISIBILITE_BOUCLES,
+                $org->admin_id === $auteur->id || (bool) $auteur->is_admin,
+                $boucles,
+            );
+        }
+
+        return view('livewire.edit-feed-post', compact('mentions'));
     }
 }

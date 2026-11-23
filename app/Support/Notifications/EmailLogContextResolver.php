@@ -108,6 +108,8 @@ final class EmailLogContextResolver
         'public-password-reset' => 'Réinitialisation de mot de passe',
         'emailer' => 'Envoi manuel (gabarit)',
         'bulk-email' => 'Envoi en masse (admin)',
+        // TASK-1883 — newsletter des demandes et propositions d'aide.
+        'newsletter' => 'Newsletter hebdomadaire',
         'crm' => 'CRM',
     ];
 

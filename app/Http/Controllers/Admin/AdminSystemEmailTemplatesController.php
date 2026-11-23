@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\SystemEmailTemplate;
+use App\Support\Email\HelpDigestBlocks;
 use App\Services\EmailerService;
 use Database\Seeders\SystemEmailTemplateSeeder;
 use Illuminate\Http\JsonResponse;
@@ -221,7 +222,15 @@ class AdminSystemEmailTemplatesController extends Controller
 
         $emailer = app(EmailerService::class);
         $subject = $emailer->interpolateSubject($validated['subject'], $demo, $cles);
-        $html = $emailer->interpolate($validated['content_html'], $demo, $cles);
+        // TASK-1883 — les blocs de la newsletter, avec les vraies demandes et
+        // propositions de l'organisation par defaut (lecture seule, aucun envoi).
+        $contenu = $validated['content_html'];
+        if (HelpDigestBlocks::contient($contenu)
+            && ($org = Organization::query()->where('is_default', true)->first() ?? Organization::query()->where('is_active', true)->orderBy('name')->first())) {
+            $contenu = app(HelpDigestBlocks::class)->developper($contenu, $org, $locale);
+        }
+
+        $html = $emailer->interpolate($contenu, $demo, $cles);
 
         $rendu = (string) app(Markdown::class)->render('emails.system-email', ['html' => $html]);
 

@@ -6,6 +6,11 @@ use App\Models\BlogPost;
 use App\Models\BlogTodo;
 use App\Models\BlogTodoThread;
 use App\Models\User;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationEmissionConflict;
+use App\Support\Notifications\NotificationEmitter;
+use Illuminate\Support\Facades\Log;
+use Ramsey\Uuid\Uuid;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -65,6 +70,8 @@ class BlogTodoController extends Controller
             'position' => $maxPosition + 1,
         ]);
 
+        $this->prevenirLAssigne($post, $todo, $user);
+
         $todo->load(['user', 'assignedTo', 'threads.user']);
 
         return response()->json([
@@ -107,7 +114,13 @@ class BlogTodoController extends Controller
             }
         }
 
+        $ancienAssigne = $todo->assigned_to;
         $todo->update($validated);
+
+        if (array_key_exists('assigned_to', $validated) && (string) $todo->assigned_to !== (string) $ancienAssigne) {
+            $this->prevenirLAssigne($post, $todo, $user);
+        }
+
         $todo->load(['user', 'assignedTo', 'threads.user']);
 
         return response()->json([
@@ -248,9 +261,22 @@ class BlogTodoController extends Controller
         return $organization;
     }
 
+    /**
+     * « Pilote » de l'article : son auteur, ou — TASK-1884 #3 — le proprietaire
+     * ou un animateur d'une Boucle liee, qui gerent les taches comme l'auteur.
+     * Memoise par requete : la policy lit les Boucles liees.
+     *
+     * @var array<string, bool>
+     */
+    private array $pilotes = [];
+
     private function isAuthor(BlogPost $post, User $user): bool
     {
-        return $post->user_id === $user->id;
+        if ($post->user_id === $user->id) {
+            return true;
+        }
+
+        return $this->pilotes[$post->id.':'.$user->id] ??= app(\App\Policies\BlogPostPolicy::class)->canEditAsLoopLead($user, $post);
     }
 
     private function isAssigned(BlogTodo $todo, User $user): bool
@@ -324,5 +350,45 @@ class BlogTodoController extends Controller
             'created_at' => $thread->created_at->toISOString(),
             'created_at_human' => $thread->created_at->diffForHumans(),
         ];
+    }
+
+    /**
+     * TASK-1884 #7 (demande Cyril, 22/11) — prevenir celui a qui la tache est
+     * confiee : a la creation ET a la reattribution, jamais soi-meme.
+     *
+     * Chaque attribution est un evenement distinct (uuid4) : A -> B -> A
+     * previent A deux fois, c'est voulu. Comme pour la co-ecriture, une panne
+     * du canal ne defait jamais la tache.
+     */
+    private function prevenirLAssigne(BlogPost $post, BlogTodo $todo, User $acteur): void
+    {
+        if ($todo->assigned_to === null || (string) $todo->assigned_to === (string) $acteur->id) {
+            return;
+        }
+
+        $assigne = User::query()->whereKey($todo->assigned_to)->where('organization_id', $post->organization_id)->first();
+
+        if ($assigne === null) {
+            return;
+        }
+
+        try {
+            app(NotificationEmitter::class)->emit(
+                notificationKey: NotificationCatalogue::BLOG_TODO_ASSIGNED,
+                organization: (string) $post->organization_id,
+                recipient: $assigne,
+                eventId: (string) Uuid::uuid4(),
+                objectType: NotificationCatalogue::objectTypeFor(NotificationCatalogue::BLOG_TODO_ASSIGNED),
+                objectId: (string) $todo->id,
+                actor: (string) $acteur->organization_id === (string) $post->organization_id ? $acteur : null,
+            );
+        } catch (NotificationEmissionConflict) {
+            // Rejeu : deja prevenu.
+        } catch (\Throwable $echec) {
+            Log::warning('TASK-1884 notification de tache non emise', [
+                'blog_todo_id' => $todo->id,
+                'raison' => $echec->getMessage(),
+            ]);
+        }
     }
 }

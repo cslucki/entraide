@@ -67,6 +67,8 @@
                             // Organizations ou une seule, tous les membres ou
                             // seulement ceux sans presentation, contenu libre
                             // ou modele existant.
+                            // TASK-1883 — newsletter des demandes et propositions d'aide.
+                            ['route' => 'admin.newsletter', 'label' => 'Newsletter', 'icon' => 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z'],
                             ['route' => 'admin.email-bulksending', 'label' => __('admin.emailer_bulksending'), 'icon' => 'M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5'],
                             // TASK-1788 correctif 11 (demande Cyril) — le cockpit a
                             // quitte l'Emailer pour la section « Notifications »,
@@ -230,6 +232,8 @@
                             // (creation manuelle avec mot de passe saisi), qui reste dans
                             // « Organisations » avec le reste de la gestion des comptes.
                             ['route' => 'admin.users.bulk-create', 'label' => 'Création de comptes en masse', 'icon' => 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z'],
+                            // TASK-1882 — clonage d'un compte vers une autre Organization.
+                            ['route' => 'admin.outils.clonage-de-comptes', 'label' => 'Clonage de comptes', 'icon' => 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'],
                             ['route' => 'admin.outils.assign-data', 'label' => __('admin.assign_data.nav_label'), 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
                             ['route' => 'admin.outils.fix-categories', 'label' => 'Fix catégories', 'icon' => 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
                             // TASK-1630 — diagnostic et purge des arborescences legacy.

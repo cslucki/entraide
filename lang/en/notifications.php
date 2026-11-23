@@ -97,12 +97,21 @@ return [
      * is what the person is looking for.
      */
     'push_body' => [
+        'loop_poll_created' => 'Open BouclePro to vote.',
+        'loop_article_published' => 'Open BouclePro to read the article.',
+        'loop_dossier_file_uploaded' => 'Open BouclePro to see the files.',
+        'loop_roadmap_item_created' => 'Open BouclePro to see the Roadmap.',
+        'loop_roadmap_item_moved' => 'Open BouclePro to see the Roadmap.',
+        'loop_journal_entry_created' => 'Open BouclePro to read the Journal.',
+        // TASK-1879
+        'loop_watch_item_created' => 'Open BouclePro to read the watch item.',
         'loop_mention_created' => 'Open BouclePro to read the message.',
         'loop_invitation' => 'Open BouclePro to reply.',
         'loop_member_added' => 'You can now take part.',
         'loop_join_request_accepted' => 'You can now take part.',
         'blog_comment_created' => 'Open the article to read the comment.',
         'blog_co_author_added' => 'Open the article to get started.',
+        'blog_todo_assigned' => 'Open the article to see the task.',
         // TASK-1786 — generic on purpose: a push shows on a LOCKED SCREEN, so
         // naming the person would expose someone's mutual aid to whoever walks
         // past the phone. The full story lives in `keys_named`, behind auth.
@@ -115,6 +124,7 @@ return [
 
         // TASK-1751 — names neither the person nor the listing.
         'transaction_proposal_created' => 'Open BouclePro to see the proposal.',
+        'conversation_private_received' => 'Open BouclePro to read the conversation.',
 
         // TASK-1802 — names neither the Boucle nor the event: a Push shows on
         // a locked screen, and the Boucle may be private.
@@ -123,9 +133,18 @@ return [
         // TASK-1810 — neither the person nor the item's context: a Push
         // shows on a LOCKED screen, same doctrine as its neighbours.
         'feed_post_comment_created' => 'Open the Feed to read the comment.',
+        'feed_post_mention_created' => 'Open the Feed to read the announcement.',
     ],
 
     'push_title' => [
+        'loop_poll_created' => 'A new poll in your Loop',
+        'loop_article_published' => 'A new article in your Loop',
+        'loop_dossier_file_uploaded' => 'New files in your Loop',
+        'loop_roadmap_item_created' => 'A new action in the Roadmap',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward',
+        'loop_journal_entry_created' => 'A new entry in the Journal',
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item in your Loop',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
         // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
         // complete du nom de la Boucle si elle est PUBLIQUE, par
@@ -140,6 +159,7 @@ return [
         // anyone.
         'blog_comment_created' => 'A new comment on your article',
         'blog_co_author_added' => 'You have been added to an article',
+        'blog_todo_assigned' => 'A task was assigned to you',
 
         // TASK-1786 — names neither the person nor the listing.
         'entraide_comment_created' => 'New suggestion on your mutual aid',
@@ -151,6 +171,7 @@ return [
 
         // TASK-1751 — shown on a LOCKED screen (CDC §6.4/6.5).
         'transaction_proposal_created' => 'Someone replied to your help request',
+        'conversation_private_received' => 'You received a private message',
 
         // TASK-1802 — names neither the Boucle nor the event, same reason as
         // its collective neighbours: a Push shows on a locked screen.
@@ -159,9 +180,18 @@ return [
         // TASK-1810 — same doctrine: neither the person nor the item's
         // context, on a locked screen.
         'feed_post_comment_created' => 'New comment on the Feed',
+        'feed_post_mention_created' => 'You were tagged on the Feed',
     ],
 
     'keys' => [
+        'loop_poll_created' => 'A new poll was posted',
+        'loop_article_published' => 'A new article was published',
+        'loop_dossier_file_uploaded' => 'Files were uploaded',
+        'loop_roadmap_item_created' => 'An action was added to the Roadmap',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward',
+        'loop_journal_entry_created' => 'An entry was written in the Journal',
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item was shared',
         'loop_mention_created' => 'You were mentioned in a Loop',
         // TASK-1761 — the REQUEST, owner side.
         'loop_join_request_created' => 'Someone is asking to join your Loop',
@@ -170,9 +200,11 @@ return [
 
         // TASK-1751 — one key for both directions of the mutual aid.
         'transaction_proposal_created' => 'Someone replied to your help request or offer',
+        'conversation_private_received' => 'Receive a private message',
 
         // TASK-1702
         'blog_co_author_added' => 'You were added as a co-author of an article',
+        'blog_todo_assigned' => 'An article task is assigned to you',
 
         // TASK-1697
         'blog_comment_created' => 'A new comment on your article',
@@ -192,6 +224,7 @@ return [
 
         // TASK-1810 (demande Cyril, 12/11) — comments or reactions on my Feed items.
         'feed_post_comment_created' => 'Comments on my Feed items',
+        'feed_post_mention_created' => 'Mentions in Feed announcements',
         'feed_post_reaction_created' => 'Reactions on my Feed items',
     ],
 
@@ -209,6 +242,14 @@ return [
      * longer always `:loop`.
      */
     'keys_named' => [
+        'loop_poll_created' => 'A new poll was posted in the Loop “:loop”',
+        'loop_article_published' => 'A new article was published in the Loop “:loop”',
+        'loop_dossier_file_uploaded' => 'Files were uploaded in the Loop “:loop”',
+        'loop_roadmap_item_created' => 'An action was added to the Roadmap of the Loop “:loop”',
+        'loop_roadmap_item_moved' => 'A Roadmap action moved forward in the Loop “:loop”',
+        'loop_journal_entry_created' => 'An entry was written in the Journal of the Loop “:loop”',
+        // TASK-1879
+        'loop_watch_item_created' => 'A new watch item was shared in the Loop “:loop”',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
@@ -221,6 +262,7 @@ return [
         'loop_mention_all_created' => '“:prenom” mentioned all the members of the Loop “:loop”',
         // TASK-1757 — see the French file for why this surface only.
         'transaction_proposal_created' => ':prenom replies to “:titre” — :temps',
+        'conversation_private_received' => ':prenom sent you a private message',
         // TASK-1786 — named ONLY here. `:type` carries "mutual aid offer" or
         // "help request", resolved by the controller, which is what lets ONE
         // key serve both listing types.
@@ -320,6 +362,22 @@ return [
             'subject' => 'Comment on the Feed',
             'body' => '<p>Hello,</p><p><strong>:prenom</strong> just commented on the Feed about something that concerns you: <strong>:contexte</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">View in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>No rush: you don’t need to sign in to read it.</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
         ],
+        // TASK-1880 — fallback for the `feed_post_mention_created` template.
+        // TASK-1884 #1 — repli du gabarit `blog_co_author_added` : `:prenom`, `:titre`,
+        // `:url` et `:reglages` restent des JETONS.
+        // TASK-1884 #7 — repli du gabarit `blog_todo_assigned` (jetons :tache, :titre_court, :titre, :prenom, :date, :url, :reglages).
+        'blog_todo_assigned' => [
+            'subject' => ':tache on “:titre_court”',
+            'body' => '<p>Hello,</p><p><strong>:prenom</strong> assigned you a task on the article <strong>:titre</strong>:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:tache</blockquote><p>Task created on :date.</p><p><a href=":url">Open the article</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
+        'blog_co_author_added' => [
+            'subject' => ':prenom made you co-author of an article',
+            'body' => '<p>Hello,</p><p><strong>:prenom</strong> made you co-author of an article: <strong>:titre</strong>.</p><p>Here is the link to this article:</p><p><a href=":url">Open the article</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
+        'feed_post_mention_created' => [
+            'subject' => ':prenom tagged you on the Feed',
+            'body' => '<p>Hello,</p><p><strong>:prenom</strong> tagged you in a Feed announcement:</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:message</blockquote><p><a href=":url">View the announcement in the Feed</a></p><p>If the link does not work, copy this address into your browser:<br>:url</p><p>See you soon,<br>The BouclePro team</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">To stop receiving this email, go to <a href=":reglages">Notification settings</a>.</p>',
+        ],
         'loop_mention_created' => [
             'subject' => 'You were mentioned in a Loop',
             // TASK-1772 — see the French file: both the excerpt and the
@@ -343,6 +401,16 @@ return [
         // TASK-1751 — FALLBACK, used when the administrable template is
         // missing or disabled. The coherence suite requires it as soon as
         // the `email` channel is declared.
+        // TASK-1885 C5 — required by the coherence suite; never used in
+        // practice (the email is sent by `SendNewMessageReceivedEmail`).
+        'conversation_private_received' => [
+            'subject' => 'You received a private message',
+            'body' => '<p>Hello,</p>'
+                .'<p>A member sent you a private message on BouclePro.</p>'
+                .'<p><a href=":url">Read the conversation</a></p>'
+                .'<p>If the link does not work, copy this address into your browser:<br>:url</p>'
+                .'<p>See you soon,<br>The BouclePro team</p>',
+        ],
         'transaction_proposal_created' => [
             'subject' => 'Someone replied to your help request or offer',
             'body' => '<p>Hello,</p>'

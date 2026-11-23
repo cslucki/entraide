@@ -39,7 +39,8 @@ class RegistrationEmailFailureTest extends TestCase
             'country_code' => 'FR',
             'password' => 'password',
             'password_confirmation' => 'password',
-        ])->assertRedirect(route('loops.index'));
+        // TASK-1880 (demande Cyril, 22/11) — un membre arrive sur le Flux.
+        ])->assertRedirect(route('flux'));
 
         $user = User::where('email', 'alice@example.com')->first();
         $this->assertNotNull($user);

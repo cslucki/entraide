@@ -102,6 +102,23 @@
         ],
     ] : [];
 
+    // TASK-1879 (demande Cyril, 22/11) — « Je fais une annonce », en tete : le
+    // composeur du Flux (#ecrire l'amene et le focalise) ; l'administrateur de
+    // l'Organization garde sa page de creation complete.
+    $_coopOrg = currentOrganization();
+    if (auth()->check() && $_coopOrg !== null && auth()->user()->can('create', \App\Models\FeedPost::class)) {
+        $_coopProprietaire = auth()->id() === $_coopOrg->admin_id || auth()->user()->is_admin;
+        array_unshift($coopActions, [
+            'url' => $_coopProprietaire
+                ? $routeUrl('flux.create', 'organization.flux.create')
+                : $routeUrl('flux', 'organization.flux').'#ecrire',
+            'label' => __('navigation.fab_announce'),
+            'hint' => __('navigation.fab_announce_hint'),
+            'tone' => 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300',
+            'icon' => config('navigation_icons.feed'),
+        ]);
+    }
+
     // TASK-1500 — UNE seule liste, connecte ou non.
     //
     // Le rail portait deux listes : huit entrees pour un membre, quatre pour un
@@ -290,7 +307,9 @@
                         {{ __('navigation.fab_label') }}
                     </p>
                     @foreach($coopActions as $action)
-                        <a href="{{ $action['url'] }}"
+                        {{-- `open = false` : « Je fais une annonce » vise la page COURANTE
+                             (#ecrire) quand on est deja sur le Flux. --}}
+                        <a href="{{ $action['url'] }}" x-on:click="open = false"
                            class="flex items-center gap-3 rounded-xl px-2.5 py-2 transition hover:bg-[var(--bp-surface)]">
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl {{ $action['tone'] }}">
                                 <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">

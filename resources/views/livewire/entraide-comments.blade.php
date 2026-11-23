@@ -90,13 +90,16 @@
 
             <div class="flex gap-3">
                 @if($commentaire->user?->isDisplayableIn(currentOrganization()))
-                <img src="{{ $commentaire->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
+                {{-- TASK-1885 C3 — avatar et nom menent au profil public. --}}
+                <x-user-profile-link :user="$commentaire->user" class="flex-shrink-0 rounded-full" tabindex="-1" aria-hidden="true">
+                    <img src="{{ $commentaire->user->avatar_url }}" alt="" class="w-9 h-9 rounded-full flex-shrink-0">
+                </x-user-profile-link>
                 @endif
                 <div class="flex-1 min-w-0">
                     <div class="flex flex-wrap items-baseline gap-x-2">
-                        <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <x-user-profile-link :user="$commentaire->user" class="text-sm font-semibold text-gray-900 dark:text-gray-100">
                             {{ $commentaire->user?->publicDisplayName() ?? __('profile.deactivated_user') }}
-                        </span>
+                        </x-user-profile-link>
                         {{-- `datetime` lisible par une machine, `diffForHumans`
                              pour l'oeil : la date est une information du CDC §2. --}}
                         <time datetime="{{ $commentaire->created_at->toIso8601String() }}" class="text-xs text-gray-400">

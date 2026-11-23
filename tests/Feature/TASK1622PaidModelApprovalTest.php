@@ -536,7 +536,7 @@ class TASK1622PaidModelApprovalTest extends TestCase
     {
         app(LoopPluginAiModels::class)->assignPaid('aperio', self::PAYE, $this->superAdmin);
 
-        $reponse = $this->actingAs($this->superAdmin)->get(route('admin.loop-plugins'));
+        $reponse = $this->actingAs($this->superAdmin)->get(route('admin.loop-plugins.show', 'pour-contre'));
 
         $reponse->assertOk()
             // Le choix de type, par role.
@@ -558,7 +558,7 @@ class TASK1622PaidModelApprovalTest extends TestCase
         app(LoopPluginAiModels::class)->assignPaid('aperio', self::PAYE, $this->superAdmin);
         config()->set('ai_pricing.models.openrouter.'.self::PAYE, null);
 
-        $this->actingAs($this->superAdmin)->get(route('admin.loop-plugins'))
+        $this->actingAs($this->superAdmin)->get(route('admin.loop-plugins.show', 'pour-contre'))
             ->assertOk()
             ->assertSee('data-model-status="paid_invalid"', false)
             ->assertSee(__('loops.plugins_models_status_paid_invalid'));

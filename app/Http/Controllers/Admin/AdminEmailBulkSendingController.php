@@ -152,7 +152,8 @@ class AdminEmailBulkSendingController extends Controller
                 },
             ],
             'member_filter' => ['required', Rule::in(BulkEmailSend::MEMBER_FILTERS)],
-            'content_source' => ['required', Rule::in(BulkEmailSend::CONTENT_SOURCES)],
+            // TASK-1883 — la newsletter a son propre ecran ; jamais par ce formulaire.
+            'content_source' => ['required', Rule::in([BulkEmailSend::CONTENT_SOURCE_CUSTOM, BulkEmailSend::CONTENT_SOURCE_TEMPLATE])],
             'email_template_id' => ['required_if:content_source,'.BulkEmailSend::CONTENT_SOURCE_TEMPLATE, 'nullable', Rule::exists('email_templates', 'id')],
             'subject' => ['required_if:content_source,'.BulkEmailSend::CONTENT_SOURCE_CUSTOM, 'nullable', 'string', 'max:255'],
             'content_format' => ['required_if:content_source,'.BulkEmailSend::CONTENT_SOURCE_CUSTOM, 'nullable', Rule::in(BulkEmailSend::CONTENT_FORMATS)],

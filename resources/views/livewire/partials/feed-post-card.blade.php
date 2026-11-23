@@ -28,54 +28,117 @@
     // jamais un lien mort.
     $_slugOrganization = currentOrganization()?->slug;
     $_lienProfil = \App\Support\Feed\FeedEventRenderer::lienProfil($post->user, $_slugOrganization);
+
+    // TASK-1879 (design, demande Cyril) — un evenement NE dans une Boucle
+    // (sondage, veille, Roadmap, depot, article, evenement de Boucle) porte un
+    // bandeau « lieu » en tete de carte. Pas pour l'adhesion ni la creation :
+    // leur apercu EST deja la Boucle.
+    $_boucle = $estEvenement
+        && ! in_array($post->type, [\App\Support\Feed\FeedEventCatalogue::ADHESION_BOUCLE, \App\Support\Feed\FeedEventCatalogue::BOUCLE_CREEE], true)
+        ? $post->boucle
+        : null;
+    $_lienBoucle = $_boucle && $_slugOrganization
+        ? route('organization.loops.show', ['organization' => $_slugOrganization, 'loop' => $_boucle->slug ?: $_boucle->getKey()])
+        : null;
 @endphp
 
 <div class="flex items-start gap-3">
-    {{-- TASK-1812 correctif 07 — LA GOUTTIERE D'AVATAR, detachee de la carte.
-         `size="md" variant="solid"` : la MEME mise en forme que les avatars
-         des commentaires du Flux juste plus bas dans cette carte (TASK-1788
-         correctif 09, pastille pleine façon ChatLoop) — demande de Cyril en
-         recette, la pastille par defaut (`sm`, translucide) se voyait a peine
-         a cote de la carte. --}}
-    @if($_lienProfil)
-        <a href="{{ $_lienProfil }}"
-           data-feed-post-avatar="{{ $post->id }}"
-           aria-label="{{ $authorName }}"
-           class="mt-0.5 shrink-0 rounded-full transition hover:ring-2 hover:ring-indigo-300 dark:hover:ring-indigo-600">
-            <x-user-avatar :user="$post->user" size="md" variant="solid" />
-        </a>
-    @else
-        <x-user-avatar :user="$post->user" size="md" variant="solid" class="mt-0.5 shrink-0" />
-    @endif
-
     <article id="feed-post-{{ $post->id }}" class="min-w-0 flex-1 overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900" x-data="{ showComments: false, showReactions: false }">
-    @if($post->image_path)
-        <img src="{{ $post->imageUrl() }}" alt="" class="h-56 w-full object-cover sm:h-72">
-    @endif
-
-    <div class="{{ $estEvenement ? 'space-y-3 px-4 py-3 sm:px-5' : 'space-y-4 p-4 sm:p-5' }}">
+    <div class="space-y-4 p-4 sm:p-5">
+        {{-- TASK-1879 (demande Cyril, 22/11) — en-tete facon Facebook : l'avatar
+             entre DANS la carte (fin de la gouttiere TASK-1812 c07), la date
+             sous le nom / la phrase. Puis l'item, puis la Boucle. --}}
+        <header class="flex items-start gap-3" data-feed-post-header>
+            @if($_lienProfil)
+                <a href="{{ $_lienProfil }}" data-feed-post-avatar="{{ $post->id }}" aria-label="{{ $authorName }}"
+                   class="shrink-0 rounded-full transition hover:ring-2 hover:ring-indigo-300 dark:hover:ring-indigo-600">
+                    <x-user-avatar :user="$post->user" size="md" variant="solid" />
+                </a>
+            @else
+                <x-user-avatar :user="$post->user" size="md" variant="solid" class="shrink-0" />
+            @endif
+            <div class="min-w-0 flex-1" @if($estEvenement) data-feed-event="{{ $post->type }}" @endif>
+                @if($estEvenement)
+                    {{-- `ligneHtml()` : toutes les parties dynamiques passent par `e()`
+                         (contrat ecrit dans son docblock) ; jamais `markdown()`. --}}
+                    <p class="text-sm leading-snug text-gray-700 dark:text-gray-200">
+                        {!! \App\Support\Feed\FeedEventRenderer::ligneHtml($post, $_slugOrganization, $_lienBoucle !== null) !!}
+                    </p>
+                @else
+                    {{-- TASK-1885 C3 bis (decision Cyril, 23/11) — le NOM de l'auteur mene
+                         aussi au profil, comme son avatar et comme les commentaires (C3). --}}
+                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        @if($_lienProfil)
+                            <a href="{{ $_lienProfil }}" data-feed-post-author="{{ $post->id }}" class="rounded-sm hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-accent)]">{{ $authorName }}</a>
+                        @else
+                            {{ $authorName }}
+                        @endif
+                    </p>
+                @endif
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ ($post->published_at ?? $post->created_at)->isoFormat('lll') }}</p>
+            </div>
+            {{-- TASK-1879 (demandes Cyril, 22/11) — menu « ... » de l'auteur sur SON
+                 annonce : Modifier, Supprimer. La suppression se confirme DANS le
+                 menu (pas de `confirm()` du navigateur). --}}
+            @if(! $estEvenement && auth()->id() === $post->user_id && $_slugOrganization)
+                @canany(['update', 'delete'], $post)
+                    <div class="relative -mr-1 -mt-1 shrink-0" x-data="{ menu: false, confirmer: false }"
+                         x-on:click.outside="menu = false; confirmer = false" x-on:keydown.escape="menu = false; confirmer = false">
+                        <button type="button" data-feed-post-menu="{{ $post->id }}"
+                                x-on:click="menu = ! menu; confirmer = false" x-bind:aria-expanded="menu"
+                                aria-haspopup="menu" aria-label="{{ __('feed-post.post_actions') }}" title="{{ __('feed-post.post_actions') }}"
+                                class="grid h-10 w-10 place-items-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100">
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>
+                        </button>
+                        <div x-cloak x-show="menu" role="menu"
+                             x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                             class="absolute right-0 top-11 z-30 w-56 origin-top-right overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                            <div x-show="! confirmer">
+                                @can('update', $post)
+                                    <a href="{{ route('organization.flux.edit', ['organization' => $_slugOrganization, 'feedPost' => $post->id]) }}" role="menuitem"
+                                       data-feed-post-edit="{{ $post->id }}"
+                                       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">
+                                        <svg class="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.86 4.49a2.1 2.1 0 0 1 2.97 2.97L8.5 18.79 4.5 19.5l.71-4z"/><path d="m15 6.35 2.97 2.97"/></svg>
+                                        {{ __('feed-post.edit_action') }}
+                                    </a>
+                                @endcan
+                                @can('delete', $post)
+                                    <button type="button" role="menuitem" x-on:click="confirmer = true" data-feed-post-delete="{{ $post->id }}"
+                                            class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10">
+                                        <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>
+                                        {{ __('feed-post.delete_action') }}
+                                    </button>
+                                @endcan
+                            </div>
+                            @can('delete', $post)
+                                <div x-show="confirmer" x-cloak class="p-2" data-feed-post-delete-confirm="{{ $post->id }}">
+                                    <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('feed-post.delete_confirm') }}</p>
+                                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('feed-post.delete_irreversible') }}</p>
+                                    <div class="mt-3 flex gap-2">
+                                        <button type="button" x-on:click="confirmer = false"
+                                                class="flex-1 rounded-xl bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">{{ __('feed-post.cancel') }}</button>
+                                        <button type="button" wire:click="deleteFeedPost('{{ $post->id }}')" wire:loading.attr="disabled"
+                                                class="flex-1 rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-60">{{ __('feed-post.delete_action') }}</button>
+                                    </div>
+                                </div>
+                            @endcan
+                        </div>
+                    </div>
+                @endcanany
+            @endif
+        </header>
         @unless($estEvenement)
-        <header class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
+            <div>
                 <div class="flex flex-wrap items-center gap-2">
                     <span class="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">{{ \App\Support\Feed\FeedEventCatalogue::connait($post->type) ? __('feed.events.badge') : __('feed.post_badge') }}</span>
                     @if($post->isPinned())
                         <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">{{ __('feed.pinned_badge') }}</span>
                     @endif
-                    @if($post->loops->isNotEmpty())
-                        <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                            {{ trans_choice('feed.loop_count', $post->loops->count(), ['count' => $post->loops->count()]) }}
-                        </span>
-                    @endif
                 </div>
                 @if($post->title)
                     <h2 class="mt-3 text-lg font-bold text-gray-950 dark:text-gray-50">{{ $post->title }}</h2>
                 @endif
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {{ $authorName }} · {{ $post->published_at?->isoFormat('lll') ?? $post->created_at->isoFormat('lll') }}
-                </p>
             </div>
-        </header>
         @endunless
 
         {{-- TASK-1752 — DEUX rendus, et la separation n'est pas cosmetique.
@@ -97,16 +160,6 @@
                 sont echappees par `e()` — c'est son contrat, ecrit dans son
                 docblock. Jamais `markdown()` ici : la syntaxe resterait
                 active et un nom contenant `[texte](url)` produirait un lien. --}}
-            <div class="flex items-center gap-3" data-feed-event="{{ $post->type }}">
-                <p class="min-w-0 flex-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
-                    {!! \App\Support\Feed\FeedEventRenderer::ligneHtml($post, $_slugOrganization) !!}
-                </p>
-
-                <span class="shrink-0 text-xs text-gray-400 dark:text-gray-500">
-                    {{ ($post->published_at ?? $post->created_at)->isoFormat('ll') }}
-                </span>
-            </div>
-
             {{-- La PIECE JOINTE graphique (demande Cyril) : extrait de
                 presentation + photo pour une personne, couverture pour une
                 Boucle, extrait du texte pour une demande ou une proposition.
@@ -118,22 +171,46 @@
             @if($_apercu !== null)
                 @php($_balise = $_apercu['url'] ? 'a' : 'div')
                 <{{ $_balise }} @if($_apercu['url']) href="{{ $_apercu['url'] }}" @endif
-                    class="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 transition dark:border-gray-800 dark:bg-gray-800/50 {{ $_apercu['url'] ? 'hover:bg-gray-100 dark:hover:bg-gray-800' : '' }}"
+                    class="flex min-w-0 items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 transition dark:border-gray-800 dark:bg-gray-800/50 {{ $_apercu['url'] ? 'hover:border-gray-400 hover:bg-white hover:shadow-md dark:hover:border-gray-500 dark:hover:bg-gray-700' : '' }}"
                     data-feed-event-apercu>
                     @if($_apercu['image'])
                         <img src="{{ $_apercu['image'] }}" alt=""
                              class="{{ $_apercu['ronde'] ? 'h-14 w-14 rounded-full' : 'h-14 w-20 rounded-xl' }} shrink-0 object-cover">
+                    @elseif(! empty($_apercu['date']))
+                        {{-- TASK-1879 (demande Cyril) — la tuile date de la Card Evenements. --}}
+                        <span class="flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-xl text-center text-white {{ $_apercu['date']['annule']
+                                ? 'bg-gradient-to-br from-gray-400 to-gray-500 dark:from-gray-600 dark:to-gray-700'
+                                : 'bg-gradient-to-br from-indigo-600 to-indigo-700 dark:from-indigo-500 dark:to-indigo-600' }}" data-feed-event-date>
+                            <span class="text-[9px] font-bold uppercase leading-none opacity-80">{{ $_apercu['date']['jour'] }}</span>
+                            <span class="font-mono text-xl font-bold leading-tight tabular-nums">{{ $_apercu['date']['quantieme'] }}</span>
+                            <span class="text-[9px] font-semibold leading-none opacity-90">{{ $_apercu['date']['mois'] }}</span>
+                            <span class="mt-1 rounded-full bg-white/20 px-1 font-mono text-[9px] leading-tight tabular-nums">{{ $_apercu['date']['heure'] }}</span>
+                        </span>
                     @elseif(! empty($_apercu['icone']))
                         {{-- TASK-1809 (correctif Cyril) — la MEME icone que le
                              rail gauche (« Entraide »), jamais une seconde
                              icone inventee pour le meme concept. --}}
-                        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                        {{-- TASK-1879 — `teinte` optionnelle (la Veille est sky) ;
+                             par defaut, l'indigo de l'Entraide. --}}
+                        <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl {{ match ($_apercu['teinte'] ?? null) {
+                            'sky' => 'bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300',
+                            'violet' => 'bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300',
+                            'rose' => 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300',
+                            'emerald' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
+                            'amber' => 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
+                            'teal' => 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-300',
+                            'stone' => 'bg-stone-200 text-stone-600 dark:bg-stone-500/20 dark:text-stone-300',
+                            default => 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300',
+                        } }}">
                             <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="{{ $_apercu['icone'] }}" />
                             </svg>
                         </span>
                     @endif
                     <span class="min-w-0 flex-1">
+                        @if(! empty($_apercu['categorie']))
+                            <x-veille.categorie :category="$_apercu['categorie']" class="mb-0.5 text-[11px]" />
+                        @endif
                         @if($_apercu['titre'])
                             <span class="block truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $_apercu['titre'] }}</span>
                         @endif
@@ -143,10 +220,23 @@
                     </span>
                 </{{ $_balise }}>
             @endif
+            {{-- TASK-1879 (design, demandes Cyril 22/11) — style Bento : la tuile
+                 BOUCLE sous l'item. Deux surlignages distincts au survol :
+                 la Boucle passe en indigo plein ; l'item s'eclaire et se detache.
+                 Pas de mot « Ouvrir » : la tuile entiere est le lien (libelle pour
+                 les lecteurs d'ecran seulement). Sombre : texte blanc / gris clair. --}}
+            @if($_lienBoucle)
+                @include('livewire.partials.feed-loop-tile', ['boucle' => $_boucle, 'lien' => $_lienBoucle])
+            @endif
         @elseif(filled($post->content))
             <div class="prose prose-sm max-w-none text-gray-800 dark:prose-invert dark:text-gray-100">
-                {!! markdown($post->content) !!}
+                {{-- TASK-1879 — HTML de TipTap nettoye (ou ancien Markdown converti). --}}
+                {!! $post->contenuHtml() !!}
             </div>
+        @endif
+
+        @if($post->image_path)
+            <img src="{{ $post->imageUrl() }}" alt="" class="h-56 w-full rounded-2xl object-cover sm:h-72">
         @endif
 
         @if(is_array($preview))
@@ -162,6 +252,19 @@
                     @endif
                 </span>
             </a>
+        @endif
+
+        {{-- TASK-1879 (demande Cyril, 22/11) — les Boucles d'une ANNONCE, en bas,
+             au meme endroit que la Boucle des autres lignes du Flux. --}}
+        @if(! $estEvenement && $post->loops->isNotEmpty() && $_slugOrganization)
+            <div class="space-y-2" data-feed-post-loops>
+                @foreach($post->loops as $_boucleAnnonce)
+                    @include('livewire.partials.feed-loop-tile', [
+                        'boucle' => $_boucleAnnonce,
+                        'lien' => route('organization.loops.show', ['organization' => $_slugOrganization, 'loop' => $_boucleAnnonce->slug ?: $_boucleAnnonce->getKey()]),
+                    ])
+                @endforeach
+            </div>
         @endif
 
         {{-- TASK-1788 correctif 09 — des cibles TACTILES, pas des liens de souris.
@@ -258,7 +361,14 @@
                                 <x-user-avatar :user="$comment->user" size="md" variant="solid" class="mt-0.5 shrink-0" />
                             @endif
                             <div class="min-w-0 flex-1 rounded-2xl bg-gray-50 px-3 py-2 text-sm dark:bg-gray-800/60">
-                                <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}</p>
+                                {{-- TASK-1885 C3 — le nom mene aussi au profil, comme l'avatar. --}}
+                                <p class="font-semibold text-gray-800 dark:text-gray-100">
+                                    @if($_lienCommentateur)
+                                        <a href="{{ $_lienCommentateur }}" data-feed-comment-author="{{ $comment->user?->id }}" class="hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bp-accent)] rounded-sm">{{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}</a>
+                                    @else
+                                        {{ $comment->user?->publicDisplayName() ?? __('feed.member_fallback') }}
+                                    @endif
+                                </p>
                                 <p class="mt-0.5 whitespace-pre-line break-words text-gray-600 dark:text-gray-300">{{ $comment->content }}</p>
                             </div>
                         </div>

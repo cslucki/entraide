@@ -110,6 +110,19 @@ class LoopDossiersCard extends Component
     }
 
     /**
+     * TASK-1879 (recette Cyril, 22/11) — un apercu Fichier ou Article ouvert
+     * depuis ChatLoop restait affiche quand on rouvrait la Card par le menu
+     * « Dossiers ». Ouverte depuis le menu, la Card repart de sa liste.
+     */
+    #[On('loop-card-opened-from-menu')]
+    public function ouvertureDepuisLeMenu(string $card = ''): void
+    {
+        if ($card === 'core.dossiers') {
+            $this->closeDetail();
+        }
+    }
+
+    /**
      * TASK-1684 — se remettre a jour apres un depot fait depuis la ChatLoop.
      *
      * Le depot du menu « + » du composeur passe par l'endpoint Dossiers en
@@ -229,6 +242,7 @@ class LoopDossiersCard extends Component
                 'urls' => null,
                 'articles' => collect(),
                 'articleUrls' => collect(),
+                'modifyUrls' => collect(),
                 'series' => collect(),
                 'files' => collect(),
                 // Les deux sorties de `render()` offrent le meme contrat.
@@ -270,11 +284,20 @@ class LoopDossiersCard extends Component
 
         $articles = $this->recentArticles($dossier);
 
+        // TASK-1884 #3 — « Modifier » pour l'auteur, les co-auteurs, le
+        // proprietaire et les animateurs. Au plus une requete (pas de policy par ligne).
+        $modifiables = $readOnly ? [] : app(\App\Services\Loops\LoopWritingService::class)->editableArticleIds($this->loop, $user, $articles);
+        $orgSlug = $this->loop->organization?->slug;
+        $modifyUrls = $orgSlug === null ? collect() : $articles
+            ->filter(fn ($a) => in_array((string) $a->id, $modifiables, true))
+            ->mapWithKeys(fn ($a) => [$a->id => route('organization.blog.edit', ['organization' => $orgSlug, 'post' => $a->slug])]);
+
         return view('livewire.loop-dossiers-card', [
             'dossier' => $dossier,
             'urls' => $this->dossierUrls($dossier),
             'articles' => $articles,
             'articleUrls' => $this->articleUrls($articles),
+            'modifyUrls' => $modifyUrls,
             'series' => $this->recentSeries($dossier),
             'files' => $fichiersRecents = $this->recentFiles($dossier),
             'fileUrls' => $this->fileUrls($fichiersRecents, $dossier),

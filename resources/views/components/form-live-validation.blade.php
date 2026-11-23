@@ -254,6 +254,9 @@
             // amene au premier champ fautif — le meme geste qu'au retour du
             // serveur.
             e.preventDefault();
+            // TASK-1879 — un formulaire Livewire (`wire:submit`) ecoute le MEME
+            // evenement : sans cet arret, il partait quand meme au serveur.
+            e.stopImmediatePropagation();
 
             var premier = null;
             form.querySelectorAll('input, select, textarea').forEach(function (champ) {
@@ -267,7 +270,14 @@
 
             if (premier) {
                 var cible = cibleAtteignable(premier);
-                cible.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                // TASK-1879 — un bloc de champ marque `data-champ` (libelle +
+                // editeur) se montre EN ENTIER, libelle compris ; sinon, le champ.
+                var bloc = premier.closest('[data-champ]');
+                if (bloc) {
+                    bloc.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                } else {
+                    cible.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
                 cible.focus({ preventScroll: true });
             }
         });

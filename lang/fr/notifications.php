@@ -108,6 +108,14 @@ return [
      * place, qui est ce que la personne cherche.
      */
     'push_body' => [
+        'loop_poll_created' => 'Ouvrez BouclePro pour voter.',
+        'loop_article_published' => 'Ouvrez BouclePro pour lire l\'article.',
+        'loop_dossier_file_uploaded' => 'Ouvrez BouclePro pour voir les fichiers.',
+        'loop_roadmap_item_created' => 'Ouvrez BouclePro pour voir la Roadmap.',
+        'loop_roadmap_item_moved' => 'Ouvrez BouclePro pour voir la Roadmap.',
+        'loop_journal_entry_created' => 'Ouvrez BouclePro pour lire le Journal.',
+        // TASK-1879
+        'loop_watch_item_created' => 'Ouvrez BouclePro pour lire la veille.',
         'loop_mention_created' => 'Ouvrez BouclePro pour lire le message.',
         'loop_invitation' => 'Ouvrez BouclePro pour répondre.',
         'loop_member_added' => 'Vous pouvez maintenant y participer.',
@@ -122,6 +130,7 @@ return [
         // entier dans `keys_named`, qui n'est lisible qu'authentifie.
         'entraide_comment_created' => 'Ouvrez BouclePro pour lire la suggestion.',
         'blog_co_author_added' => 'Ouvrez l’article pour commencer.',
+        'blog_todo_assigned' => 'Ouvrez l’article pour voir la tâche.',
 
         // TASK-1747 — ne nomme NI la Boucle NI la personne : une demande
         // d'aide peut etre posee dans une Boucle privee, et le corps d'un
@@ -130,6 +139,8 @@ return [
 
         // TASK-1751 — ni la personne, ni le titre de l'annonce.
         'transaction_proposal_created' => 'Ouvrez BouclePro pour voir la proposition.',
+        // TASK-1885 C5 — ecran verrouille : ni nom, ni extrait.
+        'conversation_private_received' => 'Ouvrez BouclePro pour lire la conversation.',
 
         // TASK-1802 — ni la Boucle ni l'Evenement : un Push s'affiche sur un
         // ecran VERROUILLE, et la Boucle peut etre privee.
@@ -138,9 +149,18 @@ return [
         // TASK-1810 — ni la personne, ni le contexte de l'item : un Push
         // s'affiche sur un ecran VERROUILLE, meme doctrine que ses voisines.
         'feed_post_comment_created' => 'Ouvrez le Flux pour lire le commentaire.',
+        'feed_post_mention_created' => 'Ouvrez le Flux pour lire l’annonce.',
     ],
 
     'push_title' => [
+        'loop_poll_created' => 'Un nouveau sondage dans votre Boucle',
+        'loop_article_published' => 'Un nouvel article dans votre Boucle',
+        'loop_dossier_file_uploaded' => 'Nouveaux fichiers dans votre Boucle',
+        'loop_roadmap_item_created' => 'Une nouvelle action dans la Roadmap',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap avance',
+        'loop_journal_entry_created' => 'Une nouvelle entrée dans le Journal',
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille dans votre Boucle',
         // TASK-1772 — ni le nom de la personne, ni celui de la Boucle :
         // ce texte s'affiche sur un ecran VERROUILLE. Le corps sera
         // complete du nom de la Boucle si elle est PUBLIQUE, par
@@ -151,6 +171,7 @@ return [
         // TASK-1751 — ni le nom de la personne, ni le titre de l'annonce :
         // ce texte s'affiche sur un écran VERROUILLÉ (CDC §6.4/6.5).
         'transaction_proposal_created' => 'On répond à votre demande d’aide',
+        'conversation_private_received' => 'Vous avez reçu un message privé',
         'loop_member_added' => 'Vous avez rejoint une Boucle',
         'loop_join_request_accepted' => 'Votre demande a été acceptée',
 
@@ -159,6 +180,7 @@ return [
         // devant n'importe qui.
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
         'blog_co_author_added' => 'On vous associe à un article',
+        'blog_todo_assigned' => 'Une tâche vous est confiée',
 
         // TASK-1786 — le titre exact du CDC §9, qui ne nomme ni la personne ni
         // l'annonce : il est donc compatible avec l'ecran verrouille.
@@ -176,15 +198,25 @@ return [
         // TASK-1810 — meme doctrine : ni la personne, ni le contexte de
         // l'item, sur un ecran verrouille.
         'feed_post_comment_created' => 'Nouveau commentaire sur le Flux',
+        'feed_post_mention_created' => 'On vous a identifié sur le Flux',
     ],
 
     'keys' => [
+        'loop_poll_created' => 'Un nouveau sondage a été posé',
+        'loop_article_published' => 'Un nouvel article a été publié',
+        'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés',
+        'loop_roadmap_item_created' => 'Une action a été ajoutée à la Roadmap',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap a avancé',
+        'loop_journal_entry_created' => 'Une entrée a été écrite dans le Journal',
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille a été partagée',
         'loop_mention_created' => 'On vous a mentionné dans une Boucle',
         // TASK-1761 — la DEMANDE, cote proprietaire. Ses deux voisines
         // portent la DECISION et vont au demandeur.
         'loop_join_request_created' => 'Quelqu’un demande à rejoindre votre Boucle',
         // TASK-1702
         'blog_co_author_added' => 'On vous a ajouté comme co-auteur d’un article',
+        'blog_todo_assigned' => 'Une tâche d’article vous est confiée',
 
         // TASK-1697
         'blog_comment_created' => 'Un nouveau commentaire sur votre article',
@@ -203,6 +235,8 @@ return [
         // une seule clé sert les deux sens de l'échange, et le fait vu du
         // destinataire est le même — on répond à SON annonce.
         'transaction_proposal_created' => 'Quelqu’un répond à votre demande ou proposition d’aide',
+        // TASK-1885 C5 — libelle du reglage demande par Cyril.
+        'conversation_private_received' => 'Recevoir un message privé',
 
         // TASK-1381 — deux libellés, parce que ce sont deux faits. Le membre
         // doit savoir ce qui lui est arrivé sans avoir à ouvrir quoi que ce soit.
@@ -214,6 +248,7 @@ return [
 
         // TASK-1810 (demande Cyril, 12/11) — on a commente ou réagi à un item du Flux.
         'feed_post_comment_created' => 'Commentaires sur mes items du Flux',
+        'feed_post_mention_created' => 'Mentions dans les annonces du Flux',
         'feed_post_reaction_created' => 'Réactions sur mes items du Flux',
     ],
 
@@ -239,6 +274,14 @@ return [
      * controleur a pu resoudre, quelle qu'elle soit.
      */
     'keys_named' => [
+        'loop_poll_created' => 'Un nouveau sondage a été posé dans la Boucle « :loop »',
+        'loop_article_published' => 'Un nouvel article a été publié dans la Boucle « :loop »',
+        'loop_dossier_file_uploaded' => 'Des fichiers ont été déposés dans la Boucle « :loop »',
+        'loop_roadmap_item_created' => 'Une action a été ajoutée à la Roadmap de la Boucle « :loop »',
+        'loop_roadmap_item_moved' => 'Une action de la Roadmap a avancé dans la Boucle « :loop »',
+        'loop_journal_entry_created' => 'Une entrée a été écrite dans le Journal de la Boucle « :loop »',
+        // TASK-1879
+        'loop_watch_item_created' => 'Une nouvelle veille a été partagée dans la Boucle « :loop »',
         // TASK-1772 — nommee UNIQUEMENT ici : le Centre est derriere
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
@@ -254,6 +297,8 @@ return [
         // l'authentification. `push_title` et le sujet d'email restent
         // generiques (ecran verrouille, apercu de boite mail).
         'transaction_proposal_created' => ':prenom répond à « :titre » — :temps',
+        // TASK-1885 C5 — nomme UNIQUEMENT ici (Centre authentifie).
+        'conversation_private_received' => ':prenom vous a envoyé un message privé',
         // TASK-1786 — nommee UNIQUEMENT ici, meme doctrine que ses voisines : le
         // Centre est derriere l'authentification. C'est le texte du CDC §7, et
         // `:type` porte « proposition d'entraide » ou « demande d'aide », resolu
@@ -359,6 +404,23 @@ return [
             'subject' => 'Commentaire sur le flux',
             'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vient de commenter le flux à propos d’un sujet qui vous concerne : <strong>:contexte</strong></p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:extrait</blockquote><p><a href=":url">Voir dans le Flux</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>Rien ne presse : vous n’avez pas besoin de vous connecter pour en prendre connaissance.</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
         ],
+        // TASK-1880 — repli du gabarit `feed_post_mention_created` : `:prenom`,
+        // `:message`, `:url` et `:reglages` restent des JETONS.
+        // TASK-1884 #1 — repli du gabarit `blog_co_author_added` : `:prenom`, `:titre`,
+        // `:url` et `:reglages` restent des JETONS.
+        // TASK-1884 #7 — repli du gabarit `blog_todo_assigned` (jetons :tache, :titre_court, :titre, :prenom, :date, :url, :reglages).
+        'blog_todo_assigned' => [
+            'subject' => ':tache sur « :titre_court »',
+            'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vous a confié une tâche sur l’article <strong>:titre</strong> :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:tache</blockquote><p>Tâche saisie le :date.</p><p><a href=":url">Ouvrir l’article</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
+        'blog_co_author_added' => [
+            'subject' => ':prenom vous a nommé co-auteur d’un article',
+            'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vous a nommé co-auteur d’un article : <strong>:titre</strong>.</p><p>Voici le lien de cet article :</p><p><a href=":url">Ouvrir l’article</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
+        'feed_post_mention_created' => [
+            'subject' => ':prenom vous a identifié sur le Flux',
+            'body' => '<p>Bonjour,</p><p><strong>:prenom</strong> vous a identifié dans une annonce du Flux :</p><blockquote style="margin:16px 0;padding:12px 16px;border-left:3px solid #ccc;white-space:pre-line">:message</blockquote><p><a href=":url">Voir l’annonce dans le Flux</a></p><p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p><p>À bientôt,<br>L’équipe BouclePro</p><hr style="margin:24px 0;border:0;border-top:1px solid #eee"><p style="font-size:12px;color:#777">Pour ne plus recevoir cet email, allez dans <a href=":reglages">Réglages des notifications</a>.</p>',
+        ],
         'loop_mention_created' => [
             'subject' => 'On vous a mentionné dans une Boucle',
             // TASK-1772 (recette 06/11) — `:extrait` porte le message, et
@@ -389,6 +451,17 @@ return [
         // administrable `transaction_proposal_created` ; ce texte sert si
         // le gabarit est absent ou désactivé. La suite de cohérence
         // l'exige dès que le canal `email` est déclaré.
+        // TASK-1885 C5 — exige par la suite de coherence (canal email declare).
+        // Jamais employe en pratique : l'email part par `SendNewMessageReceivedEmail`
+        // (gabarit `private_message_received`), le canal n'etant pas planifie.
+        'conversation_private_received' => [
+            'subject' => 'Vous avez reçu un message privé',
+            'body' => '<p>Bonjour,</p>'
+                .'<p>Un membre vous a envoyé un message privé sur BouclePro.</p>'
+                .'<p><a href=":url">Lire la conversation</a></p>'
+                .'<p>Si le lien ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>:url</p>'
+                .'<p>À bientôt,<br>L’équipe BouclePro</p>',
+        ],
         'transaction_proposal_created' => [
             'subject' => 'Quelqu’un répond à votre demande ou proposition d’aide',
             'body' => '<p>Bonjour,</p>'

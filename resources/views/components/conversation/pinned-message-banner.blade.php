@@ -6,7 +6,11 @@
 @if($pinnedMessage)
 @php
     $senderName = $pinnedMessage->sender?->publicDisplayName() ?? 'BouclePro';
-    $body = $pinnedMessage->isDeleted() ? __('messages.deleted_message_placeholder') : mb_substr($pinnedMessage->body, 0, 120);
+    // TASK-1886 — un vocal epingle se lit « 🎤 Message vocal (0:27) ». Le
+    // bandeau est partage avec `LoopMessage`, qui ne porte pas de vocal.
+    $body = $pinnedMessage->isDeleted()
+        ? __('messages.deleted_message_placeholder')
+        : (($pinnedMessage instanceof \App\Models\Message ? $pinnedMessage->voiceSummary() : null) ?? mb_substr($pinnedMessage->body, 0, 120));
 @endphp
 <div class="sticky top-0 z-20 bg-amber-50/95 dark:bg-amber-900/90 backdrop-blur border border-amber-200 dark:border-amber-700/50 rounded-lg px-3 py-2 mx-3 mt-2 flex items-center justify-between gap-3 shadow-sm">
     <div class="flex items-center gap-2 min-w-0">

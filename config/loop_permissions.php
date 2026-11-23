@@ -405,6 +405,21 @@ return [
             'requires_card' => 'core.article',
         ],
 
+        /*
+         * TASK-1884 #3 (demande Cyril, 22/11) — le proprietaire et les animateurs
+         * d'une Boucle modifient les articles de CETTE Boucle comme leur auteur :
+         * modifier, publier, gerer les taches. Supprimer reste a l'auteur
+         * (`BlogPostPolicy::delete`), gerer les co-auteurs aussi.
+         *
+         * Sans `requires_card` : un article rejoint une Boucle par la Card Article
+         * OU par un Dossier ; le droit vaut quel que soit le chemin.
+         */
+        'writing.edit_any' => [
+            'module' => 'writing', 'label_fr' => 'Modifier les articles de la Boucle', 'label_en' => 'Edit the Loop\'s articles',
+            'description' => 'Modifier, publier et gerer les taches des articles rattaches a la Boucle, comme leur auteur. Supprimer reste a l\'auteur.',
+            'locked' => false,
+        ],
+
         'chatloop.view' => [
             'module' => 'chatloop', 'label_fr' => 'Consulter ChatLoop', 'label_en' => 'View ChatLoop',
             'description' => 'Lire la conversation de la Boucle.', 'locked' => false,
@@ -521,6 +536,42 @@ return [
             'requires_card' => 'core.polls',
         ],
 
+        // ── Veille (TASK-1879) ──────────────────────────────────────────────
+        //
+        // Gatees par la Card `plugin.veille`, qui n'existe dans une Boucle que
+        // tant que le plugin `veille` y est ACTIF (LoopTypeRegistry::
+        // activeCardsFor). Plugin eteint -> Card absente -> `requires_card`
+        // refuse les quatre, quel que soit le role.
+        //
+        // Les deux droits de GESTION sont `locked => true` : ni un reglage
+        // global ni une surcharge d'Organization ne peuvent les donner a un
+        // membre ordinaire. Ils restent au proprietaire et a l'animateur.
+        'veille.view' => [
+            'module' => 'veille', 'label_fr' => 'Consulter la Veille', 'label_en' => 'View watch items',
+            'description' => 'Lire les veilles publiees dans la Boucle.',
+            'locked' => false,
+            'read' => true,
+            'requires_card' => 'plugin.veille',
+        ],
+        'veille.create' => [
+            'module' => 'veille', 'label_fr' => 'Publier une veille', 'label_en' => 'Publish a watch item',
+            'description' => 'Publier une veille ; chacun garde la main sur les siennes.',
+            'locked' => false,
+            'requires_card' => 'plugin.veille',
+        ],
+        'veille.manage' => [
+            'module' => 'veille', 'label_fr' => 'Gerer toutes les veilles', 'label_en' => 'Manage all watch items',
+            'description' => 'Modifier ou supprimer une veille dont on n\'est pas l\'auteur.',
+            'locked' => true,
+            'requires_card' => 'plugin.veille',
+        ],
+        'veille.manage_categories' => [
+            'module' => 'veille', 'label_fr' => 'Gerer les categories de Veille', 'label_en' => 'Manage watch categories',
+            'description' => 'Creer, renommer, ordonner et archiver les categories de Veille de la Boucle.',
+            'locked' => true,
+            'requires_card' => 'plugin.veille',
+        ],
+
         // ── Invitations ─────────────────────────────────────────────────────
         'invitations.view' => [
             'module' => 'invitations', 'label_fr' => 'Voir les invitations', 'label_en' => 'View invitations',
@@ -564,6 +615,8 @@ return [
             'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
             'events.view', 'events.create', 'events.respond', 'events.manage',
             'events.publish_organization',
+            // TASK-1879 — la Veille : publier, gerer celles des autres, et les categories.
+            'veille.view', 'veille.create', 'veille.manage', 'veille.manage_categories',
             'dossiers.view', 'dossiers.create_article', 'dossiers.upload_file',
             'course_material.view', 'course_material.manage',
             'progression.view', 'progression.complete', 'progression.manage',
@@ -573,6 +626,8 @@ return [
             'decisions.view', 'decisions.record', 'decisions.manage',
             'marketplace.view', 'marketplace.highlight', 'marketplace.manage',
             'writing.view', 'writing.compose',
+            // TASK-1884 #3 — modifier les articles de la Boucle comme leur auteur.
+            'writing.edit_any',
         ],
 
         /*
@@ -604,6 +659,8 @@ return [
             'polls.view', 'polls.create', 'polls.vote', 'polls.manage',
             'events.view', 'events.create', 'events.respond', 'events.manage',
             'events.publish_organization',
+            // TASK-1879 — la Veille : publier, gerer celles des autres, et les categories.
+            'veille.view', 'veille.create', 'veille.manage', 'veille.manage_categories',
             // TASK-1313 : `dossiers.create_article` — capitaliser une reponse IA
             // utile en Article du Dossier est un geste d'ANIMATION, pas un geste
             // de propriete. `dossiers.upload_file` reste a l'owner : deposer des
@@ -619,6 +676,8 @@ return [
             'decisions.view', 'decisions.record', 'decisions.manage',
             'marketplace.view', 'marketplace.highlight', 'marketplace.manage',
             'writing.view', 'writing.compose',
+            // TASK-1884 #3 — modifier les articles de la Boucle comme leur auteur.
+            'writing.edit_any',
         ],
 
         /*
@@ -634,6 +693,8 @@ return [
             'roadmap.view',
             'chatloop.view', 'chatloop.post',
             'polls.view', 'polls.create', 'polls.vote',
+            // TASK-1879 — consulter et publier ; chacun garde la main sur les siennes.
+            'veille.view', 'veille.create',
             /* TASK-1872 correctif 05 (demande Cyril, 21/11) — « les membres de
                la boucle doivent avoir l'autorisation de publier des
                evenements ».

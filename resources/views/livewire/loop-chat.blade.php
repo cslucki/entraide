@@ -218,7 +218,8 @@
                     $_auteurPrecedent = $_signatureAuteur;
                 @endphp
 
-                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }} {{ $_changeAuteur ? 'pt-1.5 md:pt-0' : '' }}">
+                @php $carteRepondable = ! $isDeleted && $editingMessageId !== $msg->id && in_array($msg->type, \App\Livewire\LoopChat::TYPES_CARTES_REPONDABLES, true); @endphp
+                <div id="loop-message-{{ $msg->id }}" wire:key="msg-{{ $msg->id }}" class="{{ $carteRepondable ? 'relative max-w-md md:max-w-[30.8rem]' : '' }} transition-all duration-300 {{ $estRegroupee ? 'md:hidden' : '' }} {{ $_changeAuteur ? 'pt-1.5 md:pt-0' : '' }}">
                     @if($isDeleted)
                         <x-conversation.message-bubble
                             :type="$isOwn ? 'sent' : 'received'"
@@ -249,6 +250,37 @@
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    @elseif($msg->type === 'user' && ($msg->metadata['type'] ?? null) === 'announcement' && ! empty($msg->metadata['feed_post_id']))
+                        {{-- TASK-1879 (demande Cyril, 22/11) — une annonce du Flux diffusee
+                             dans la Boucle : carte d'outil (icone « Flux » du rail), relue
+                             EN DIRECT ($projectedFeedPosts), jamais le corps brut. --}}
+                        @php
+                            $fpPost = $projectedFeedPosts->get($msg->metadata['feed_post_id']);
+                        @endphp
+                        <div class="max-w-md rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 md:max-w-[30.8rem] dark:border-indigo-800/50 dark:bg-indigo-900/20" data-feed-announcement-card>
+                            <div class="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ config('navigation_icons.feed') }}"/></svg>
+                                {{ __('feed-post.chat_badge') }}
+                            </div>
+                            @if($fpPost)
+                                <a href="{{ $fpPost->announcementUrl() }}" class="group block">
+                                    @if($fpPost->title)
+                                        <span class="block text-sm font-bold text-gray-900 group-hover:underline dark:text-gray-100">{{ $fpPost->title }}</span>
+                                    @endif
+                                    @if(filled($fpPost->loop_message))
+                                        <span class="mt-0.5 block text-xs font-medium leading-5 text-indigo-900 dark:text-indigo-100">{{ $fpPost->loop_message }}</span>
+                                    @endif
+                                    <span class="mt-0.5 line-clamp-3 block text-xs leading-5 text-gray-600 dark:text-gray-300">{{ Str::limit($fpPost->contenuTexte(), 220) }}</span>
+                                </a>
+                                <div class="mt-2 flex items-center justify-between gap-2">
+                                    <span class="text-[11px] text-gray-500 dark:text-gray-400">{{ $fpPost->user?->publicDisplayName() ?? __('messages.member') }} · {{ $msg->created_at->diffForHumans() }}</span>
+                                    <a href="{{ $fpPost->announcementUrl() }}" class="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-indigo-700">{{ __('feed-post.chat_open') }}</a>
+                                </div>
+                            @else
+                                <p class="text-sm font-medium text-gray-600 dark:text-gray-300">{{ __('feed-post.chat_unavailable') }}</p>
+                                <span class="mt-1 block text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                            @endif
                         </div>
                     @elseif($msg->type === 'loop_event')
                         {{-- Une rencontre proposee, deplacee ou annulee. Meme
@@ -367,6 +399,31 @@
                             </button>
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
                         </div>
+                    @elseif($msg->type === 'journal_entry')
+                        {{-- TASK-1879 (demande Cyril, 22/11) — une entree ecrite dans le
+                             Journal. Texte relu EN DIRECT ($projectedJournalEntries). --}}
+                        @php
+                            $jrEntry = $projectedJournalEntries->get($msg->metadata['journal_entry_id'] ?? null);
+                        @endphp
+                        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-stone-700/60 dark:bg-stone-800/40" data-journal-entry-card>
+                            <svg class="h-4 w-4 shrink-0 text-stone-600 dark:text-stone-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>
+                            @if($jrEntry)
+                                <span class="min-w-0 flex-1 text-xs leading-5 text-stone-900 dark:text-stone-100">
+                                    {{ $msg->body }}
+                                    <span class="block text-[11px] text-stone-600 dark:text-stone-300">
+                                        @if($jrEntry->occurred_on)<span class="font-semibold">{{ $jrEntry->occurred_on->isoFormat('LL') }}</span> · @endif{{ \Illuminate\Support\Str::limit($jrEntry->displayBody(), 140) }}
+                                    </span>
+                                </span>
+                            @else
+                                <span class="min-w-0 flex-1 text-xs leading-5 text-stone-900/60 dark:text-stone-100/60">{{ __('loops.chat_journal_unavailable') }}</span>
+                            @endif
+                            <button type="button"
+                                    x-on:click="$dispatch('bp-open-loop-card', { card: 'core.journal' })"
+                                    class="shrink-0 rounded-lg bg-stone-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-stone-700">
+                                {{ __('loops.chat_journal_open') }}
+                            </button>
+                            <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                        </div>
                     @elseif($msg->type === 'roadmap_action')
                         {{-- TASK-1826 — une action de Roadmap creee. Meme
                              forme discrete que l'Evenement et le Sondage : un
@@ -381,12 +438,20 @@
                             $rmItem = $projectedRoadmapItems->get($rmMeta['roadmap_item_id'] ?? null);
                         @endphp
                         <div class="flex flex-wrap items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/70 px-3 py-2 dark:border-teal-800/50 dark:bg-teal-900/20">
-                            <svg class="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            {{-- TASK-1879 (demande Cyril) — l'icone « Kanban » de la Card Roadmap. --}}
+                            <svg class="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" data-roadmap-kanban-icon><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v12a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18V6ZM13.5 6A2.25 2.25 0 0 1 15.75 3.75H18A2.25 2.25 0 0 1 20.25 6v6A2.25 2.25 0 0 1 18 14.25h-2.25A2.25 2.25 0 0 1 13.5 12V6Z"/></svg>
                             @if($rmItem)
                                 <span class="min-w-0 flex-1 text-xs leading-5 text-teal-900 dark:text-teal-100">
                                     {{ $msg->body }}
                                     <span class="block text-[11px] text-teal-700/80 dark:text-teal-300/80">
-                                        <span class="font-semibold">{{ __('loops.roadmap_status_'.$rmItem->status) }}</span>
+                                        {{-- TASK-1879 — une carte de DEPLACEMENT montre son etape
+                                             (A faire -> En cours), pas le statut du moment :
+                                             sinon « passee En cours » s'afficherait « Fait ». --}}
+                                        @if(($rmMeta['event'] ?? null) === 'moved' && \App\Models\LoopRoadmapItem::isValidStatus($rmMeta['from'] ?? '') && \App\Models\LoopRoadmapItem::isValidStatus($rmMeta['to'] ?? ''))
+                                            <span class="font-semibold" data-roadmap-move>{{ __('loops.roadmap_status_'.$rmMeta['from']) }} → {{ __('loops.roadmap_status_'.$rmMeta['to']) }}</span>
+                                        @else
+                                            <span class="font-semibold">{{ __('loops.roadmap_status_'.$rmItem->status) }}</span>
+                                        @endif
                                         @if($rmItem->assignees->isNotEmpty())
                                             · {{ $rmItem->assignees->pluck('name')->join(', ') }}
                                         @endif
@@ -409,6 +474,57 @@
                                 </button>
                             @endif
                             <span class="w-full text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                        </div>
+                    @elseif($msg->type === 'watch_item')
+                        {{-- TASK-1879 — une veille publiee. Ligne compacte, meme
+                             famille que Sondage / Roadmap : un reperage, pas une
+                             prise de parole. Le message ne porte que
+                             l'identifiant ; categorie et extrait sont relus EN
+                             DIRECT ($projectedWatchItems). Supprimee, plugin
+                             eteint ou lecteur sans droit : rien d'elle ne
+                             s'affiche. Le bouton ouvre la Card Veille. --}}
+                        @php
+                            $wiMeta = $msg->metadata ?? [];
+                            $wiItem = $projectedWatchItems->get($wiMeta['watch_item_id'] ?? null);
+                        @endphp
+                        {{-- TASK-1879 (design) — une « coupure » de veille : toute la
+                             carte ouvre la Card (une seule cible, pas de bouton
+                             concurrent). Le Sujet est le titre ; la pastille de
+                             categorie est la meme que dans la Card et le Flux. --}}
+                        <div data-watch-announcement="{{ $wiItem ? 'available' : 'unavailable' }}" class="relative max-w-md md:max-w-[30.8rem]">
+                            @if($wiItem)
+                                <button type="button"
+                                        x-on:click="$dispatch('bp-open-loop-card', { card: 'plugin.veille' })"
+                                        data-action="open-watch-card"
+                                        class="group relative flex w-full items-start gap-3 rounded-xl border border-sky-200 bg-white p-3 text-left transition hover:border-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-500 dark:border-sky-900/70 dark:bg-gray-900 dark:hover:border-sky-600">
+                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-900/50 dark:text-sky-300" aria-hidden="true">
+                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ $msg->body }}</span>
+                                        <span class="mt-0.5 line-clamp-2 block text-sm font-semibold leading-snug text-gray-900 group-hover:underline dark:text-gray-50">
+                                            {{ filled($wiItem->subject) ? $wiItem->subject : \Illuminate\Support\Str::limit($wiItem->information, 140) }}
+                                        </span>
+                                        <span class="mt-1 flex items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+                                            <x-veille.categorie :category="$wiItem->category" />
+                                            <span class="shrink-0">{{ $msg->created_at->diffForHumans() }}</span>
+                                        </span>
+                                    </span>
+                                    <span class="mt-2.5 self-start text-sky-600 dark:text-sky-300" aria-hidden="true">
+                                        <svg class="h-4 w-4 transition group-hover:translate-x-0.5 motion-reduce:transition-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                                    </span>
+                                    <span class="sr-only">{{ __('veille.chat_open_card') }}</span>
+                                </button>
+                            @else
+                                <div class="flex items-center gap-2 rounded-xl border border-dashed border-gray-300 px-3 py-2 dark:border-gray-700">
+                                    <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+                                    <span class="min-w-0 flex-1 text-xs italic text-gray-500 dark:text-gray-400">{{ __('veille.chat_unavailable') }}</span>
+                                    <span class="shrink-0 text-[10px] text-gray-400 dark:text-gray-500">{{ $msg->created_at->diffForHumans() }}</span>
+                                </div>
+                            @endif
+                            @if($carteRepondable)
+                                @include('livewire.partials.loop-chat-reply-card')
+                            @endif
                         </div>
                     @elseif($msg->type === 'blog_post')
                         {{-- TASK-1826 — un Article publie ou partage dans la
@@ -785,6 +901,21 @@
                         >
                             {!! $msg->body !!}
                         </x-conversation.message-bubble>
+                    @endif
+
+                    {{-- TASK-1879 (demande Cyril, 22/11) — on repond a une carte
+                         (Evenement, Sondage, Veille, Article, depot, Roadmap,
+                         demande d'aide) COMME a une bulle : l'icone ↩ vit DANS la
+                         carte, en bas a droite, comme les actions d'une bulle.
+                         Meme evenement `reply-to-message` (citation, mention
+                         automatique de l'auteur, focus). Ancre par le `relative`
+                         du conteneur du message — jamais hors du fil (cf. bug
+                         sr-only du 22/11). --}}
+                    {{-- TASK-1879 (demande Cyril, 22/11) — toutes les cartes ont la
+                         largeur de la carte Veille (`max-w-md`, +10 % sur desktop) :
+                         l'icone Repondre reste dans leur coin, jamais au bout du fil. --}}
+                    @if($carteRepondable && $msg->type !== 'watch_item')
+                        @include('livewire.partials.loop-chat-reply-card')
                     @endif
                 </div>
 

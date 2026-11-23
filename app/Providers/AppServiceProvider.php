@@ -101,6 +101,9 @@ class AppServiceProvider extends ServiceProvider
         // fois par requete (ou par job), jamais gardee d'un job a l'autre par
         // un worker longue duree.
         $this->app->scoped(ImageVariantResolver::class);
+        // TASK-1879 — `scoped` : le memo des plugins actifs d'une Boucle vit le
+        // temps d'une requete, et chaque ecriture de plugin le vide.
+        $this->app->scoped(\App\Services\Loops\LoopPluginActivation::class);
 
         // TASK-1617 — la source de tarif RESOLUE A L'APPEL pour les modeles
         // gratuits d'OpenRouter.
@@ -371,6 +374,13 @@ class AppServiceProvider extends ServiceProvider
                 // parler l'agent sur un message qui ne lui demandait rien, et
                 // facturerait le tenant pour une correction.
                 if ($message->isClaimCorrection()) {
+                    return;
+                }
+
+                // TASK-1879 — une annonce de Veille est un reperage, pas une
+                // question : l'agent IA n'y repond pas. La Veille est humaine
+                // par decision MASTER (aucune analyse IA).
+                if (in_array($message->type, ['watch_item', 'journal_entry'], true)) {
                     return;
                 }
 

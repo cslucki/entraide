@@ -71,11 +71,19 @@ class FeedPostPolicy
         // `react` et `comment` DELEGUENT a cette methode : la restriction les
         // suit sans qu'on ait a y penser, ce qui est exactement pourquoi elle
         // se pose ici et pas dans le composant.
-        if (($feedPost->visibility ?? 'organization') !== 'loop') {
+        if ($user->is_admin) {
             return true;
         }
 
-        if ($user->is_admin) {
+        // TASK-1879 — annonce de membre : membre actif d'une de SES Boucles.
+        if (($feedPost->visibility ?? 'organization') === FeedPost::VISIBILITE_BOUCLES) {
+            return \App\Models\LoopMember::whereIn('loop_id', $feedPost->loops()->pluck('loops.id'))
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->exists();
+        }
+
+        if (($feedPost->visibility ?? 'organization') !== 'loop') {
             return true;
         }
 

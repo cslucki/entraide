@@ -279,7 +279,52 @@ final class NotificationCatalogue
      */
     public const LOOP_EVENT_CREATED = 'loop.event.created';
 
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — une veille est publiee dans la Boucle.
+     *
+     * Fait COLLECTIF, comme `LOOP_EVENT_CREATED` : tous les membres actifs sauf
+     * l'auteur, calme par la sourdine PAR BOUCLE (`loopScopeFor()`). Canaux :
+     * in-app (obligatoire) et Web Push (PWA, actif par defaut, debrayable).
+     * **Jamais d'e-mail** : le canal n'est pas declare, donc aucune preference
+     * ne peut l'allumer. Remplace la decision MASTER initiale « ni Push ni
+     * e-mail ».
+     */
+    public const LOOP_WATCH_ITEM_CREATED = 'loop.watch_item.created';
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — meme regime que la Veille pour trois
+     * annonces ChatLoop jusque-la muettes : un Sondage pose, un Article publie
+     * dans la Boucle, un depot de fichiers dans Dossiers. Faits COLLECTIFS
+     * (sourdine par Boucle), in-app + Web Push, JAMAIS d'e-mail. Seules les
+     * creations notifient : ni la cloture d'un Sondage, ni chaque vote.
+     */
+    public const LOOP_POLL_CREATED = 'loop.poll.created';
+
+    public const LOOP_ARTICLE_PUBLISHED = 'loop.article.published';
+
+    public const LOOP_DOSSIER_FILE_UPLOADED = 'loop.dossier_file.uploaded';
+
+    /**
+     * TASK-1879 (demande Cyril, 22/11) — Roadmap : une action ajoutee, une
+     * action passee « En cours » ou « Fait ». Memes regles que ci-dessus :
+     * fait collectif (sourdine par Boucle), in-app + Web Push, jamais d'e-mail.
+     * Un retour vers « A faire » ne notifie pas.
+     */
+    public const LOOP_ROADMAP_ITEM_CREATED = 'loop.roadmap_item.created';
+
+    public const LOOP_ROADMAP_ITEM_MOVED = 'loop.roadmap_item.moved';
+
+    /** TASK-1879 (demande Cyril, 22/11) — une entree ecrite dans le Journal. Memes regles. */
+    public const LOOP_JOURNAL_ENTRY_CREATED = 'loop.journal_entry.created';
+
     public const BLOG_CO_AUTHOR_ADDED = 'blog.co_author.added';
+
+    /**
+     * TASK-1884 #7 (demande Cyril, 22/11) — une tache d'article vous est
+     * confiee (creation OU reattribution). Seul l'assigne est prevenu, jamais
+     * l'acteur lui-meme ; rien pour un changement de titre ni pour « fait ».
+     */
+    public const BLOG_TODO_ASSIGNED = 'blog.todo.assigned';
 
     /**
      * TASK-1751 — quelqu'un repond a votre annonce.
@@ -365,6 +410,28 @@ final class NotificationCatalogue
      * `deliver()` n'est jamais invoque pour cette cle.
      */
     public const FEED_POST_REACTION_CREATED = 'feed.post_reaction.created';
+
+    /**
+     * TASK-1880 (demande Cyril, 22/11) — on m'a mentionne dans une annonce du
+     * Flux (`@Nom`, `@tous` ou `@membres`). Courriel + application + Web Push,
+     * le courriel portant la TOTALITE du message.
+     */
+    public const FEED_POST_MENTION_CREATED = 'feed.post_mention.created';
+
+    /**
+     * TASK-1885 C5 (demande Cyril, 22/11) — on m'a envoye un message dans une
+     * DISCUSSION PRIVEE (`Transaction::isDirectConversation()`).
+     *
+     * Le nom dit le FAIT et evite la sous-chaine « message » : la garde
+     * anti-bruit de T1744 l'interdit dans toute cle qui pousse (§6.2 du CDC
+     * notifications combat la diffusion de tout message a tous). Une
+     * discussion privee vise UNE personne : c'est l'inverse de ce bruit.
+     *
+     * L'email n'est PAS planifie par le catalogue : il part deja par
+     * `SendNewMessageReceivedEmail` (gabarit `private_message_received`), qui
+     * lit desormais la preference email de CETTE cle. Voir `channelIsPlanned()`.
+     */
+    public const CONVERSATION_PRIVATE_RECEIVED = 'conversation.private.received';
 
     /**
      * Le type d'objet de cette cle, expose comme constante.
@@ -467,6 +534,9 @@ final class NotificationCatalogue
      * survit, jamais la reaction elle-meme.
      */
     public const OBJECT_FEED_POST = 'feed_post';
+
+    /** TASK-1884 #7 — une tache d'article (`blog_todos.id`) ; elle mene a l'editeur de l'article. */
+    public const OBJECT_BLOG_TODO = 'blog_todo';
 
     /**
      * Le registre.
@@ -767,11 +837,14 @@ final class NotificationCatalogue
                 // auteur prolifique en recevrait des dizaines. CDC 6.2 :
                 // « plutot non par defaut ».
                 //
-                // Pas de canal EMAIL ici, donc le Push est le SEUL canal
-                // sortant de cette cle. Cela ne change rien a son defaut : le
-                // defaut d'un canal ne se decide pas a la disponibilite des
-                // autres.
+                // (TASK-1884 : la cle a desormais AUSSI un courriel, ci-dessous.)
                 self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+
+                // TASK-1884 #1 (demande Cyril) — « {Prenom} vous a nomme co-auteur
+                // d'un article », gabarit systeme GLOBAL `blog_co_author_added`.
+                // Desactivable, comme le courriel des mentions : l'in-app, lui,
+                // reste non desactivable.
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
             ],
         ],
 
@@ -845,6 +918,83 @@ final class NotificationCatalogue
          * les trois canaux demarrent ACTIFS, email et Web Push restant
          * debrayables individuellement.
          */
+        // TASK-1879 — une veille publiee : in-app + Web Push, JAMAIS d'e-mail.
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_POLL_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_ARTICLE_PUBLISHED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_DOSSIER_FILE_UPLOADED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_ROADMAP_ITEM_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_JOURNAL_ENTRY_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1879 — in-app + Web Push, JAMAIS d'e-mail (voir la constante).
+        self::LOOP_ROADMAP_ITEM_MOVED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        self::LOOP_WATCH_ITEM_CREATED => [
+            'category' => 'loop',
+            'intention' => self::INTENTION_CHANGEMENTS,
+            'object_type' => self::OBJECT_LOOP,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
         self::LOOP_EVENT_CREATED => [
             'category' => 'loop',
             'intention' => self::INTENTION_CHANGEMENTS,
@@ -961,6 +1111,50 @@ final class NotificationCatalogue
                 self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
             ],
         ],
+
+        // TASK-1884 #7 — une tache d'article vous est confiee. Adressee a vous,
+        // mais un auteur prolifique peut en distribuer beaucoup : courriel ET
+        // in-app desactivables, pas de Web Push (sobriete, principe directeur).
+        self::BLOG_TODO_ASSIGNED => [
+            'category' => 'blog',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
+            'object_type' => self::OBJECT_BLOG_TODO,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1880 — une mention dans une annonce du Flux. Meme classement que
+        // `LOOP_MENTION_CREATED` : on m'interpelle nommement (ou collectivement),
+        // l'in-app n'est donc pas desactivable ; courriel et Web Push le sont.
+        self::FEED_POST_MENTION_CREATED => [
+            'category' => 'feed',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
+            'object_type' => self::OBJECT_FEED_POST,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => false],
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
+
+        // TASK-1885 C5 (demande Cyril, 22/11) — « Recevoir un message prive » :
+        // email, application et PWA ACTIFS par defaut, et reglables (meme regime
+        // que `ENTRAIDE_COMMENT_CREATED`, demande explicite d'un reglage).
+        // L'objet est la conversation : `OBJECT_TRANSACTION` mene a `messages.show`.
+        self::CONVERSATION_PRIVATE_RECEIVED => [
+            'category' => 'transaction',
+            'intention' => self::INTENTION_SOLLICITATION_DIRECTE,
+            'object_type' => self::OBJECT_TRANSACTION,
+            'channels' => [
+                self::CHANNEL_IN_APP => ['default' => true, 'configurable' => true],
+                // `planned => false` : livre par `SendNewMessageReceivedEmail`,
+                // jamais par le planificateur (sinon DEUX emails par message).
+                self::CHANNEL_EMAIL => ['default' => true, 'configurable' => true, 'planned' => false],
+                self::CHANNEL_WEB_PUSH => ['default' => true, 'configurable' => true],
+            ],
+        ],
     ];
 
     public static function has(string $notificationKey): bool
@@ -1075,6 +1269,19 @@ final class NotificationCatalogue
     }
 
     /**
+     * TASK-1885 C5 — ce canal est-il livre par le PLANIFICATEUR ?
+     *
+     * Vrai par defaut, pour toutes les cles existantes. `false` signifie qu'un
+     * job metier dedie livre deja ce canal (et lit la preference du membre) :
+     * le planificateur ne doit rien mettre en file, sous peine de double envoi.
+     * Le canal reste declare — donc reglable a l'ecran des preferences.
+     */
+    public static function channelIsPlanned(string $notificationKey, string $channel): bool
+    {
+        return self::definition($notificationKey)['channels'][$channel]['planned'] ?? true;
+    }
+
+    /**
      * TASK-1778 — l'identifiant de Boucle qui gouverne une preference, ou `null`.
      *
      * ## Pourquoi cette regle vit ICI et nulle part ailleurs
@@ -1103,7 +1310,8 @@ final class NotificationCatalogue
         // TASK-1802 — LOOP_EVENT_CREATED rejoint LOOP_HELP_REQUEST_CREATED :
         // meme fait collectif, meme `object_type` (OBJECT_LOOP), donc le meme
         // `object_id` EST deja l'identifiant de la Boucle.
-        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED], true)) {
+        // TASK-1879 — LOOP_WATCH_ITEM_CREATED aussi : meme fait collectif.
+        if (! in_array($notificationKey, [self::LOOP_HELP_REQUEST_CREATED, self::LOOP_EVENT_CREATED, self::LOOP_WATCH_ITEM_CREATED, self::LOOP_POLL_CREATED, self::LOOP_ARTICLE_PUBLISHED, self::LOOP_DOSSIER_FILE_UPLOADED, self::LOOP_ROADMAP_ITEM_CREATED, self::LOOP_ROADMAP_ITEM_MOVED, self::LOOP_JOURNAL_ENTRY_CREATED], true)) {
             return null;
         }
 

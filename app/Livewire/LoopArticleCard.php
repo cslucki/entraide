@@ -134,6 +134,13 @@ class LoopArticleCard extends Component
             : collect();
 
         $publies = $canView ? $this->service()->published($this->loop) : collect();
+        $ailleurs = $canView && $utilisateur ? $this->service()->othersDrafts($this->loop, $utilisateur) : collect();
+
+        // TASK-1884 #3 — « Modifier » pour l'auteur, les co-auteurs, le
+        // proprietaire et les animateurs ; une Boucle archivee ne s'ecrit plus.
+        $modifiables = $this->loop->isArchived()
+            ? []
+            : $this->service()->editableArticleIds($this->loop, $utilisateur, $publies->concat($ailleurs));
 
         $vue = view('livewire.loop-article-card', [
             'canView' => $canView,
@@ -144,7 +151,10 @@ class LoopArticleCard extends Component
             'editUrls' => $brouillons->mapWithKeys(
                 fn (BlogPost $a) => [$a->id => $this->lien('blog.edit', ['post' => $a->slug])],
             ),
-            'othersDrafts' => $canView && $utilisateur ? $this->service()->othersDrafts($this->loop, $utilisateur) : collect(),
+            'othersDrafts' => $ailleurs,
+            'modifyUrls' => $publies->concat($ailleurs)
+                ->filter(fn (BlogPost $a) => in_array((string) $a->id, $modifiables, true))
+                ->mapWithKeys(fn (BlogPost $a) => [$a->id => $this->lien('blog.edit', ['post' => $a->slug])]),
             'published' => $publies,
             'readUrls' => $publies->mapWithKeys(
                 fn (BlogPost $a) => [$a->id => $this->lien('blog.show', ['post' => $a->slug])],

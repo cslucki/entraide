@@ -103,6 +103,81 @@ class MessageThread extends Component
     public $photo = null;
 
     /**
+     * TASK-1886 — LE VOCAL, sur une propriete A PART de `$photo`.
+     *
+     * C'est le chemin d'arrivee, et lui seul, qui fait d'un fichier un vocal
+     * ephemere : un `.mp3` joint par `$photo` reste une piece jointe durable,
+     * meme si son type est identique. Le serveur ne devine donc rien sur le
+     * contenu pour decider de supprimer — une erreur de devinette detruirait
+     * un fichier que son auteur voulait garder.
+     */
+    public $voice = null;
+
+    /**
+     * TASK-1886 — la duree annoncee par l'enregistreur, en secondes.
+     *
+     * Valeur CLIENT, donc d'affichage seulement : elle est bornee a l'envoi et
+     * ne decide d'aucun droit. Le plafond qui protege le serveur est le POIDS
+     * (`TAILLE_MAX_VOCAL_KO`), verifie sur le fichier reel.
+     */
+    public ?int $voiceDuration = null;
+
+    /**
+     * TASK-1886 — la forme de la voix, mesuree a l'enregistrement : jusqu'a
+     * 40 valeurs de 0 a 100. Valeur CLIENT, purement graphique : elle est
+     * bornee et convertie en entiers a l'envoi, jamais interpretee.
+     *
+     * @var array<int, mixed>
+     */
+    public array $voiceWaveform = [];
+
+    /**
+     * TASK-1886 — 5 Mo : cinq minutes d'Opus a 32-64 kbit/s pesent 1,2 a
+     * 2,4 Mo, et l'AAC de Safari un peu plus. Le double de marge, pas plus :
+     * l'instance PROD unique (1 vCPU / 512 Mo) sert tout le monde pendant
+     * chaque envoi.
+     */
+    public const TAILLE_MAX_VOCAL_KO = 5120;
+
+    /**
+     * TASK-1886 — le prefixe des vocaux, EN TETE de cle.
+     *
+     * Une regle de cycle de vie R2/S3 ne filtre que par DEBUT de cle : sous
+     * `{org}/{transaction}/voice/`, aucune regle ne pourrait viser les vocaux
+     * sans viser aussi les pieces jointes durables. Ici, le filet R2 (« supprimer
+     * sous `message-voice/` apres 7 jours ») ne peut toucher QUE des vocaux.
+     */
+    public const PREFIXE_VOCAL = 'message-voice';
+
+    /**
+     * TASK-1886 — les types qu'un enregistreur de navigateur produit, tels que
+     * finfo les DEVINE sur le contenu, et le type audio honnete a servir.
+     *
+     * Chrome/Android enregistrent du WebM/Opus, Safari du MP4/AAC, Firefox de
+     * l'Ogg/Opus. Un conteneur sans piste video est pourtant souvent devine
+     * `video/webm` ou `video/mp4` par libmagic, qui ne lit que l'en-tete du
+     * conteneur : le refuser ferait echouer tout vocal Chrome. Il est accepte
+     * ICI seulement — sur ce chemin vocal, borne a 5 Mo — et servi sous son
+     * nom audio, pour que le navigateur le joue dans une balise `<audio>`.
+     *
+     * @var array<string, string>
+     */
+    public const TYPES_VOCAUX = [
+        'audio/webm' => 'audio/webm',
+        'video/webm' => 'audio/webm',
+        'audio/ogg' => 'audio/ogg',
+        'video/ogg' => 'audio/ogg',
+        'application/ogg' => 'audio/ogg',
+        'audio/mp4' => 'audio/mp4',
+        'audio/x-m4a' => 'audio/mp4',
+        'video/mp4' => 'audio/mp4',
+        'audio/aac' => 'audio/aac',
+        'audio/mpeg' => 'audio/mpeg',
+        'audio/wav' => 'audio/wav',
+        'audio/x-wav' => 'audio/wav',
+    ];
+
+    /**
      * TASK-1808 §4 — la pluie de coeurs est-elle due MAINTENANT, a CE lecteur ?
      *
      * Decidee une seule fois, au montage, et jamais recalculee au rendu : le
@@ -276,7 +351,9 @@ class MessageThread extends Component
 
         $this->replyToMessageId = $message->id;
         $this->replyingTo = [
-            'body' => mb_substr($message->body, 0, 120),
+            // TASK-1886 — un vocal n'a pas de texte : sans ce libelle, la
+            // citation s'affichait VIDE (vu en recette).
+            'body' => $message->voiceSummary() ?? mb_substr($message->body, 0, 120),
             'sender_name' => $message->sender?->name ?? 'BouclePro',
         ];
     }
@@ -297,6 +374,40 @@ class MessageThread extends Component
             $this->photo = null;
             $this->addError('photo', __('messages.invalid_attachment'));
         }
+    }
+
+    /**
+     * TASK-1886 — meme garde que `updatedPhoto()` : un fichier refuse est
+     * retire tout de suite, plutot que de rester en attente d'un envoi qui
+     * echouerait.
+     */
+    public function updatedVoice(): void
+    {
+        if (! $this->voice) {
+            return;
+        }
+
+        $validator = validator(['voice' => $this->voice], ['voice' => $this->reglesDeVocal()]);
+
+        if ($validator->fails()) {
+            $this->voice = null;
+            $this->addError('voice', __('messages.voice_invalid'));
+        }
+    }
+
+    /**
+     * TASK-1886 — `mimetypes:` lit le type DEVINE sur le contenu (finfo), jamais
+     * celui que le navigateur annonce.
+     *
+     * @return list<string>
+     */
+    private function reglesDeVocal(): array
+    {
+        return [
+            'file',
+            'mimetypes:'.implode(',', array_keys(self::TYPES_VOCAUX)),
+            'max:'.self::TAILLE_MAX_VOCAL_KO,
+        ];
     }
 
     /**
@@ -508,10 +619,13 @@ class MessageThread extends Component
     public function sendMessage(): void
     {
         $this->validate([
-            'newMessage' => 'required_without:photo|string|max:5000',
+            // TASK-1886 — un vocal seul est un envoi valide, comme une image
+            // seule : `required_without_all` remplace `required_without`.
+            'newMessage' => 'required_without_all:photo,voice|string|max:5000',
             'photo' => $this->photo ? $this->reglesDePieceJointe($this->photo) : ['nullable'],
+            'voice' => $this->voice ? $this->reglesDeVocal() : ['nullable'],
         ], [
-            'newMessage.required_without' => __('messages.body_or_image_required'),
+            'newMessage.required_without_all' => __('messages.body_or_image_required'),
         ]);
 
         $user = auth()->user();
@@ -581,8 +695,33 @@ class MessageThread extends Component
             $this->photo = null;
         }
 
+        // TASK-1886 — le vocal. Son fichier part dans les MEMES colonnes
+        // `file_*` qu'une piece jointe (meme route gardee, meme disque), et
+        // seule l'echeance en fait un vocal. Un message porte l'un OU
+        // l'autre : un vocal arrive toujours seul du composeur, qui masque
+        // le champ et les pieces jointes pendant l'enregistrement.
+        $vocal = [];
+
+        if ($this->voice && $piece === [] && $imagePath === null) {
+            $piece = $this->storeVoice($this->voice);
+            $vocal = [
+                'voice_expires_at' => now()->addDays(Message::VOICE_TTL_DAYS),
+                'voice_duration' => max(1, min(Message::VOICE_MAX_SECONDS, (int) $this->voiceDuration)),
+                'waveform' => $this->formeDeVoixBornee(),
+            ];
+        }
+
+        $this->voice = null;
+        $this->voiceDuration = null;
+        $this->voiceWaveform = [];
+
         $url = UrlPreviewService::extractFirstUrl($this->newMessage);
         $preview = $url ? app(UrlPreviewService::class)->fetchPreview($url) : null;
+
+        $metadonnees = array_filter([
+            'url_preview' => $preview,
+            'voice_waveform' => $vocal['waveform'] ?? null,
+        ], fn ($valeur) => $valeur !== null && $valeur !== []);
 
         $newMessageBody = $this->newMessage;
 
@@ -632,7 +771,7 @@ class MessageThread extends Component
          * differe le NOMBRE d'envois — un seul, comme avant — seulement SON
          * INSTANT.
          */
-        $msg = DB::transaction(function () use ($transaction, $user, $replyToId, $imagePath, $piece, $preview, $newMessageBody) {
+        $msg = DB::transaction(function () use ($transaction, $user, $replyToId, $imagePath, $piece, $metadonnees, $vocal, $newMessageBody) {
             $transactionVerrouillee = Transaction::where('organization_id', $this->organizationId)
                 ->whereKey($transaction->id)
                 ->lockForUpdate()
@@ -653,7 +792,9 @@ class MessageThread extends Component
                 'file_name' => $piece['name'] ?? null,
                 'file_mime' => $piece['mime'] ?? null,
                 'file_size' => $piece['size'] ?? null,
-                'metadata' => $preview !== null ? ['url_preview' => $preview] : null,
+                'voice_expires_at' => $vocal['voice_expires_at'] ?? null,
+                'voice_duration' => $vocal['voice_duration'] ?? null,
+                'metadata' => $metadonnees !== [] ? $metadonnees : null,
                 'type' => 'user',
                 'organization_id' => $transactionVerrouillee->organization_id,
             ]);
@@ -970,6 +1111,52 @@ class MessageThread extends Component
             'mime' => $file->getMimeType() ?: 'application/octet-stream',
             'size' => (int) $file->getSize(),
         ];
+    }
+
+    /**
+     * TASK-1886 — deposer un vocal, sous son prefixe DEDIE en tete de cle.
+     *
+     * `message-voice/{org}/{transaction}/{uuid}` : le purgeur n'efface que sous
+     * ce prefixe, et une regle de cycle de vie R2 peut le viser sans jamais
+     * atteindre une piece jointe durable.
+     *
+     * Le type enregistre est le type AUDIO honnete (`TYPES_VOCAUX`) : un WebM
+     * sans image devine `video/webm` doit etre servi en `audio/webm`.
+     *
+     * @return array{path: string, disk: string, name: string, mime: string, size: int}
+     */
+    private function storeVoice($file): array
+    {
+        $disque = 'message_files';
+        $chemin = self::PREFIXE_VOCAL.'/'.$this->organizationId.'/'.$this->transactionId.'/'.Str::uuid()->toString();
+
+        Storage::disk($disque)->put($chemin, $file->get());
+
+        $devine = (string) ($file->getMimeType() ?: '');
+
+        return [
+            'path' => $chemin,
+            'disk' => $disque,
+            'name' => __('messages.voice_file_name'),
+            'mime' => self::TYPES_VOCAUX[$devine] ?? 'audio/webm',
+            'size' => (int) $file->getSize(),
+        ];
+    }
+
+    /**
+     * TASK-1886 — la forme de la voix, reduite a ce qu'elle doit etre : au plus
+     * 40 entiers de 0 a 100. Tout le reste est ecarte sans erreur — c'est un
+     * dessin, pas une donnee dont depend un droit.
+     *
+     * @return list<int>
+     */
+    private function formeDeVoixBornee(): array
+    {
+        return collect(array_slice($this->voiceWaveform, 0, 40))
+            ->filter(fn ($valeur) => is_numeric($valeur))
+            ->map(fn ($valeur) => max(0, min(100, (int) round((float) $valeur))))
+            ->values()
+            ->all();
     }
 
     /**
