@@ -174,7 +174,10 @@ class ProfileController extends Controller
             : "Profil de {$user->name} sur Entraide";
         // TASK-1873 — l'aperçu social garde l'ORIGINAL : la variante d'avatar
         // (192 px) passe sous le minimum de 200 px de certains reseaux.
-        $ogImage = $user->avatar ? Storage::disk('public')->url($user->avatar) : $user->avatar_url;
+        // TASK-1896 — sans photo, `null` : le gabarit retombe sur le logo
+        // BouclePro. Le repli d'`avatar_url` est une `data:` URI, qu'aucun
+        // reseau social ne sait lire en `og:image`.
+        $ogImage = $user->avatar ? Storage::disk('public')->url($user->avatar) : null;
         $jsonLd = json_encode([
             '@context' => 'https://schema.org',
             '@type' => 'Person',

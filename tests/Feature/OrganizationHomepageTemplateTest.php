@@ -280,7 +280,10 @@ class OrganizationHomepageTemplateTest extends TestCase
         // (des URL de fichier, jamais un SVG de lettre genere) reste entier :
         // seul l'oeil qui le lit change. L'absence pour un anonyme est prouvee
         // separement ci-dessous.
-        $member = User::factory()->create(['organization_id' => $this->org->id]);
+        // TASK-1896 — le lecteur a lui aussi une photo : sans elle, SON avatar
+        // de repli (SVG local en data URI, menu de compte) ferait rougir
+        // l'assertion ci-dessous sans rien dire du hero.
+        $member = User::factory()->create(['organization_id' => $this->org->id, 'avatar' => 'avatars/lecteur.jpg']);
 
         $response = $this->actingAs($member)->get('/org/test-org');
 
