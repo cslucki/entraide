@@ -70,14 +70,27 @@ class DossierFileTransport
         string $chemin,
         string $nom,
         array $entetes,
+        ?\DateTimeInterface $expireAuPlusTard = null,
     ): RedirectResponse|StreamedResponse {
         try {
             if (config("filesystems.disks.{$disque}.driver") === 'local') {
                 return Storage::disk($disque)->download($chemin, $nom, $entetes);
             }
 
+            // TASK-1886 — une URL signee vit 30 minutes. Pour un fichier qui
+            // a une ECHEANCE (un vocal ephemere), elle ne doit pas lui
+            // survivre : signee a 4 j 23 h 59, elle rouvrirait le vocal une
+            // demi-heure apres sa fin promise. Le plancher d'une minute evite
+            // une URL deja morte a sa remise (la garde de la route a de toute
+            // facon refuse un vocal echu avant d'arriver ici).
+            $fin = now()->addMinutes(30);
+
+            if ($expireAuPlusTard !== null && $expireAuPlusTard < $fin) {
+                $fin = max(now()->addMinute(), \Illuminate\Support\Carbon::instance($expireAuPlusTard));
+            }
+
             return redirect()->away(
-                Storage::disk($disque)->temporaryUrl($chemin, now()->addMinutes(30)),
+                Storage::disk($disque)->temporaryUrl($chemin, $fin),
             );
         } catch (\Exception $e) {
             abort(404);
@@ -85,15 +98,15 @@ class DossierFileTransport
     }
 
     /** Telechargement d'un fichier quelconque : il arrive en piece jointe. */
-    public function telechargerDepuis(string $disque, string $chemin, string $nom, ?string $mime): RedirectResponse|StreamedResponse
+    public function telechargerDepuis(string $disque, string $chemin, string $nom, ?string $mime, ?\DateTimeInterface $expireAuPlusTard = null): RedirectResponse|StreamedResponse
     {
         return $this->servirDepuis($disque, $chemin, $nom, [
             'Content-Type' => $mime ?: 'application/octet-stream',
-        ]);
+        ], $expireAuPlusTard);
     }
 
     /** Apercu d'un fichier quelconque, quand le navigateur sait le rendre. */
-    public function apercuDepuis(string $disque, string $chemin, string $nom, ?string $mime): RedirectResponse|StreamedResponse|BinaryFileResponse
+    public function apercuDepuis(string $disque, string $chemin, string $nom, ?string $mime, ?\DateTimeInterface $expireAuPlusTard = null): RedirectResponse|StreamedResponse|BinaryFileResponse
     {
         $entetes = [
             'Content-Type' => $this->typeAffichable($mime),
@@ -129,7 +142,7 @@ class DossierFileTransport
             }
         }
 
-        return $this->servirDepuis($disque, $chemin, $nom, $entetes);
+        return $this->servirDepuis($disque, $chemin, $nom, $entetes, $expireAuPlusTard);
     }
 
     /**

@@ -960,7 +960,18 @@ $_piedPorteAutreChose = (bool) ($bottomModeBadge || $aiTruncated || $aiModelLabe
              telephone — la taille de WhatsApp — et garde 14 px au bureau. --}}
         <div x-ref="copyContent" class="bp-bulle-markdown min-w-0 max-w-full cursor-default overflow-hidden break-words text-[16px] leading-5 md:text-sm [overflow-wrap:anywhere]" style="caret-color: transparent; word-break: break-word;">{!! $_teindreLesMentions(markdown($renderableBody)) !!}</div>
 
-        @if($attachment)
+        @if($attachment && ! empty($attachment['voice']))
+            {{-- TASK-1886 — le vocal se joue dans la bulle, facon WhatsApp. --}}
+            <x-conversation.voice-note-player
+                :id="$attachment['voice']['id']"
+                :src="$attachment['previewUrl'] ?? null"
+                :duration="$attachment['voice']['duration']"
+                :peaks="$attachment['voice']['peaks']"
+                :expired="$attachment['voice']['expired']"
+                :expires-in="$attachment['voice']['expiresIn']"
+                :is-sent="$isSent"
+            />
+        @elseif($attachment)
             <x-conversation.file-attachment-card
                 :name="$attachment['name'] ?? ''"
                 :size="$attachment['size'] ?? null"

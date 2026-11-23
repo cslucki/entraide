@@ -113,3 +113,13 @@ Schedule::command('guest:purge-expired')->daily();
 // `withoutOverlapping` seul ne couvre que les executions successives sur
 // LA MEME instance, pas les executions simultanees entre instances.
 Schedule::command('notifications:recover-stale-deliveries')->everyFiveMinutes()->withoutOverlapping(5)->onOneServer();
+
+// TASK-1886 — les messages vocaux sont promis pour cinq jours. La route gardee
+// les refuse des l'echeance ; ce balayage supprime ensuite leurs FICHIERS.
+// Quinze minutes : un fichier echu ne survit jamais plus d'un quart d'heure a
+// sa fin promise, et une passe sans travail ne coute qu'une requete indexee
+// (`messages.voice_expires_at`). `onOneServer()` : meme raison que la ligne
+// ci-dessus (doc Laravel Cloud, replicas). Laravel Cloud ne lit cette liste
+// qu'AU DEPLOIEMENT (runbook T1830) : le Scheduler est actif en PROD (mesure
+// CLI 22/11), un redeploiement suffit.
+Schedule::command('messages:purge-expired-voices')->everyFifteenMinutes()->withoutOverlapping(10)->onOneServer();
