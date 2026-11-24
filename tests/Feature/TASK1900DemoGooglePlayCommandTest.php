@@ -45,7 +45,6 @@ class TASK1900DemoGooglePlayCommandTest extends TestCase
 
     public function test_cree_une_organisation_fictive_fermee_sans_notification_et_un_testeur_membre_simple(): void
     {
-        Category::factory()->create(['organization_id' => null]);
         Mail::fake();
         Notification::fake();
 
@@ -69,6 +68,9 @@ class TASK1900DemoGooglePlayCommandTest extends TestCase
 
         $this->assertSame(3, Loop::withoutGlobalScopes()->where('organization_id', $org->id)->count());
         $this->assertSame(2, ServiceRequest::withoutGlobalScopes()->where('organization_id', $org->id)->count());
+        // Aucune categorie globale en PROD : la demo porte la sienne.
+        $this->assertSame(0, Category::query()->whereNull('organization_id')->count());
+        $this->assertSame($org->id, Category::query()->where('slug', DemoGooglePlayCommand::SLUG.'-entraide')->value('organization_id'));
         $this->assertSame(2, Service::withoutGlobalScopes()->where('organization_id', $org->id)->count());
 
         // Ecriture directe : ni email, ni notification.

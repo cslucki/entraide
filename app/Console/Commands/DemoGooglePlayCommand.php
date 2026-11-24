@@ -180,15 +180,18 @@ class DemoGooglePlayCommand extends Command
                 ])->save();
             }
 
-            // Demandes et propositions : rattachees a une categorie GLOBALE
-            // existante ; sans categorie globale, on s'abstient (et on le dit).
-            $categorie = Category::query()->whereNull('organization_id')->orderBy('created_at')->first();
-
-            if ($categorie === null) {
-                $this->warn('Aucune categorie globale : demandes et propositions non creees.');
-
-                return;
-            }
+            // Demandes et propositions : une categorie PROPRE a l'organisation
+            // de demonstration. La PROD n'a aucune categorie globale (toutes
+            // sont rattachees a une Organization) : s'appuyer sur une globale
+            // aurait cree une demo sans entraide.
+            $categorie = (new Category)->forceFill([
+                'organization_id' => $org->id,
+                'name_b2c' => 'Entraide',
+                'name_b2b' => 'Entraide',
+                'slug' => self::SLUG.'-entraide',
+                'color' => '#0d9488',
+            ]);
+            $categorie->save();
 
             foreach ($donnees['demandes'] as [$cle, $titre, $description]) {
                 (new ServiceRequest)->forceFill([
