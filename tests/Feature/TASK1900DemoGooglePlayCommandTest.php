@@ -7,11 +7,14 @@ use App\Models\Category;
 use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\MemberNotification;
+use App\Models\MemberNotificationPreference;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Services\Users\LoginAccountResolver;
+use App\Support\Notifications\NotificationCatalogue;
+use App\Support\Notifications\NotificationPreferenceResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
@@ -73,6 +76,14 @@ class TASK1900DemoGooglePlayCommandTest extends TestCase
         Mail::assertNothingQueued();
         Notification::assertNothingSent();
         $this->assertSame(0, MemberNotification::query()->count());
+
+        // Les membres fictifs ne recoivent aucun email ; le testeur garde les siens.
+        $fictif = $comptes->firstWhere('email', 'julien@'.DemoGooglePlayCommand::DOMAINE);
+        $resolveur = app(NotificationPreferenceResolver::class);
+        $this->assertGreaterThan(0, MemberNotificationPreference::query()->where('user_id', $fictif->id)->where('enabled', false)->count());
+        $this->assertFalse($resolveur->allows($fictif, NotificationCatalogue::LOOP_MENTION_CREATED, NotificationCatalogue::CHANNEL_EMAIL));
+        $this->assertTrue($resolveur->allows($testeur, NotificationCatalogue::LOOP_MENTION_CREATED, NotificationCatalogue::CHANNEL_EMAIL));
+        $this->assertSame(0, MemberNotificationPreference::query()->where('user_id', $testeur->id)->count());
     }
 
     public function test_le_testeur_n_entre_dans_aucune_autre_organisation(): void

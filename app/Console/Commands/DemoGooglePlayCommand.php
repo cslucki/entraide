@@ -9,10 +9,12 @@ use App\Models\Loop;
 use App\Models\LoopEvent;
 use App\Models\LoopMember;
 use App\Models\LoopMessage;
+use App\Models\MemberNotificationPreference;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Support\Notifications\NotificationCatalogue;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +31,8 @@ use Illuminate\Support\Str;
  *   n'existe jamais, RFC 2606), telephones dans la plage reservee a la fiction ;
  * - inscriptions fermees, sans administrateur, non publique sauf `--public` : le
  *   compte testeur est un MEMBRE SIMPLE, rattache a cette seule organisation ;
+ * - emails coupes pour les membres fictifs (preferences de notification) :
+ *   aucune notification ne part vers leurs adresses `.invalid` ;
  * - ecritures directes en base, comme un jeu de donnees : aucun controleur,
  *   donc aucune notification, aucun email, aucun appel IA ;
  * - le mot de passe du compte testeur est ALEATOIRE et n'est jamais affiche :
@@ -117,6 +121,7 @@ class DemoGooglePlayCommand extends Command
             $membres = [];
             foreach ($donnees['membres'] as $cle => $m) {
                 $membres[$cle] = $this->membre($org, $m + ['email' => "{$cle}@".self::DOMAINE]);
+                $this->couperLesEmails($membres[$cle]);
             }
 
             $membres['testeur'] = $this->membre($org, [
@@ -231,6 +236,30 @@ class DemoGooglePlayCommand extends Command
         ])->save();
 
         return $user;
+    }
+
+    /**
+     * Les membres fictifs ont des adresses `.invalid` : chaque email qu'on
+     * leur enverrait (le testeur ecrit dans une Boucle, les mentionne...)
+     * repartirait en erreur chez le relais SMTP. On coupe donc, pour eux, le
+     * canal email de toute notification qu'un membre peut couper lui-meme.
+     * Un canal obligatoire du catalogue reste tel quel (rien a forcer).
+     */
+    private function couperLesEmails(User $membre): void
+    {
+        foreach (NotificationCatalogue::keys() as $cle) {
+            if (! NotificationCatalogue::allowsChannel($cle, NotificationCatalogue::CHANNEL_EMAIL)
+                || ! NotificationCatalogue::channelIsConfigurable($cle, NotificationCatalogue::CHANNEL_EMAIL)) {
+                continue;
+            }
+
+            (new MemberNotificationPreference)->forceFill([
+                'user_id' => $membre->id,
+                'notification_key' => $cle,
+                'channel' => NotificationCatalogue::CHANNEL_EMAIL,
+                'enabled' => false,
+            ])->save();
+        }
     }
 
     private function purger(): int
