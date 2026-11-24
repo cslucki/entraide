@@ -51,15 +51,17 @@ return [
         [
             'title' => '4. Intelligence artificielle',
             'paragraphs' => [
-                'Certaines fonctions facultatives, lorsque votre organisation les a activées, s’appuient sur des modèles d’intelligence artificielle : assistant dans les discussions de Boucle, aide à la rédaction d’articles, recherche et synthèse dans les documents d’un Dossier, aide à la formulation d’une demande d’aide, assistant de profil, réponses aux questions posées depuis l’accueil, synthèse des connaissances d’une Boucle.',
-                'Le texte concerné (et, pour les Dossiers, des extraits des documents) est alors transmis à nos prestataires d’IA, OpenAI et OpenRouter, pour produire la réponse. L’IA assiste les membres : elle ne prend aucune décision à leur place.',
+                'Certaines fonctions facultatives s’appuient sur des modèles d’intelligence artificielle : assistant dans les discussions de Boucle, aide à la rédaction d’articles, recherche et synthèse dans les documents d’un Dossier, aide à la formulation d’une demande d’aide ou d’une offre, assistant de profil, réponses aux questions posées depuis l’accueil, synthèse des connaissances d’une Boucle. Certaines ne sont disponibles que si votre organisation les a activées ; l’aide à la rédaction d’articles, l’aide à la formulation d’une offre et l’assistant de profil sont proposés par la plateforme, indépendamment de ce réglage.',
+                'Lorsque vous utilisez l’une de ces fonctions, le texte nécessaire à la réponse est transmis : votre demande et, selon la fonction, les derniers messages de la Boucle avec le nom de leurs auteurs, des extraits des documents d’un Dossier ou les informations de votre profil (nom, présentation, compétences). Dans les organisations où la recherche dans les Dossiers est activée, le texte des documents déposés est aussi transmis automatiquement, pour être indexé.',
+                'Ces données sont transmises à OpenAI et à OpenRouter. OpenRouter les achemine vers le fournisseur du modèle utilisé, par exemple Mistral AI ou OpenAI. Ces fournisseurs traitent les données selon leurs propres conditions : ils peuvent les conserver et, pour certains, les utiliser pour améliorer leurs modèles. Évitez de confier à ces fonctions des informations que vous ne souhaitez pas leur transmettre.',
+                'L’IA assiste les membres : elle ne prend aucune décision à leur place.',
             ],
         ],
         [
             'title' => '5. Qui peut voir vos données',
             'paragraphs' => [
                 'Vos données sont visibles des membres des organisations auxquelles vous appartenez, selon les règles de chaque espace (Boucle publique ou privée, Dossier partagé…). Les données d’une organisation ne sont pas accessibles depuis une autre.',
-                'Nous faisons appel aux prestataires techniques suivants, uniquement pour faire fonctionner le service :',
+                'Nous faisons appel aux prestataires suivants pour faire fonctionner le service :',
             ],
             'items' => [
                 'Laravel Cloud : hébergement de l’application et des fichiers ;',
@@ -67,7 +69,7 @@ return [
                 'Cloudflare : acheminement et protection du trafic ;',
                 'un prestataire de relais d’emails : envoi des emails ;',
                 'le service de notification de votre navigateur ou de votre appareil (par exemple Google Firebase Cloud Messaging sur Android) : acheminement des notifications, dont le contenu est chiffré et ne lui est pas lisible ;',
-                'OpenAI et OpenRouter : fonctions d’intelligence artificielle ;',
+                'OpenAI, OpenRouter et les fournisseurs de modèles vers lesquels OpenRouter achemine les requêtes : fonctions d’intelligence artificielle (voir la section 4) ;',
                 'des réseaux de diffusion de ressources (Bunny Fonts pour les polices, jsDelivr et cdnjs pour certaines bibliothèques et icônes), qui reçoivent l’adresse IP de votre appareil lorsqu’une page les charge.',
             ],
         ],
@@ -83,6 +85,7 @@ return [
                 'Messages vocaux : supprimés automatiquement 5 jours après leur envoi.',
                 'Votre compte et vos contenus : conservés tant que votre compte est ouvert. Après sa fermeture, voir la page « Supprimer mon compte et mes données ».',
                 'Sauvegardes : la base de données peut être restaurée sur les 7 derniers jours ; une donnée effacée disparaît donc des sauvegardes de la base au plus tard 7 jours après.',
+                'Données transmises aux fonctions d’intelligence artificielle : conservées par les fournisseurs d’IA selon leurs propres politiques, sur lesquelles nous n’avons pas la main.',
             ],
             'link' => 'deletion',
         ],
