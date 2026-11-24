@@ -49,15 +49,17 @@ return [
         [
             'title' => '4. Artificial intelligence',
             'paragraphs' => [
-                'Some optional features, when your organisation has enabled them, rely on artificial-intelligence models: assistant in Loop discussions, article-writing help, search and summaries across the documents of a Folder, help phrasing a help request, profile assistant, answers to questions asked from the home page, summary of a Loop’s knowledge.',
-                'The relevant text (and, for Folders, excerpts of the documents) is then sent to our AI providers, OpenAI and OpenRouter, to produce the answer. AI assists members; it never makes decisions for them.',
+                'Some optional features rely on artificial-intelligence models: assistant in Loop discussions, article-writing help, search and summaries across the documents of a Folder, help phrasing a help request or an offer, profile assistant, answers to questions asked from the home page, summary of a Loop’s knowledge. Some are only available if your organisation has enabled them; article-writing help, help phrasing an offer and the profile assistant are provided by the platform, regardless of that setting.',
+                'When you use one of these features, the text needed for the answer is sent: your request and, depending on the feature, the latest messages of the Loop with their authors’ names, excerpts of a Folder’s documents, or your profile information (name, introduction, skills). In organisations where Folder search is enabled, the text of uploaded documents is also sent automatically so that it can be indexed.',
+                'This data is sent to OpenAI and OpenRouter. OpenRouter routes it to the provider of the model in use, for example Mistral AI or OpenAI. These providers process the data under their own terms: they may keep it and, for some of them, use it to improve their models. Avoid sharing with these features any information you do not wish to pass on to them.',
+                'AI assists members; it never makes decisions for them.',
             ],
         ],
         [
             'title' => '5. Who can see your data',
             'paragraphs' => [
                 'Your data is visible to members of the organisations you belong to, according to each space’s rules (public or private Loop, shared Folder…). One organisation’s data cannot be accessed from another.',
-                'We use the following technical providers, solely to run the service:',
+                'We use the following providers to run the service:',
             ],
             'items' => [
                 'Laravel Cloud: application and file hosting;',
@@ -65,7 +67,7 @@ return [
                 'Cloudflare: traffic delivery and protection;',
                 'an email relay provider: sending emails;',
                 'your browser’s or device’s notification service (for example Google Firebase Cloud Messaging on Android): delivering notifications, whose content is encrypted and unreadable to it;',
-                'OpenAI and OpenRouter: artificial-intelligence features;',
+                'OpenAI, OpenRouter and the model providers to which OpenRouter routes requests: artificial-intelligence features (see section 4);',
                 'resource delivery networks (Bunny Fonts for fonts, jsDelivr and cdnjs for some libraries and icons), which receive your device’s IP address when a page loads them.',
             ],
         ],
@@ -81,6 +83,7 @@ return [
                 'Voice messages: deleted automatically 5 days after they are sent.',
                 'Your account and content: kept while your account is open. After closure, see the “Delete my account and data” page.',
                 'Backups: the database can be restored over the last 7 days, so erased data leaves the database backups within 7 days at most.',
+                'Data sent to artificial-intelligence features: kept by the AI providers under their own policies, which are outside our control.',
             ],
             'link' => 'deletion',
         ],
