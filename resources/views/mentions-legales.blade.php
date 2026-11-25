@@ -1,27 +1,19 @@
-{{-- TASK-1903 — CENTRE INSTITUTIONNEL UNIQUE « Informations legales & securite ».
+{{-- TASK-1903 — PAGES LEGALES, UNE VUE (decision Cyril : plusieurs pages).
 
-     Une seule vue pour quatre rubriques : mentions legales, politique de
-     confidentialite, suppression de compte, securite des enfants (normes CSAE).
-     Les textes restent ceux de lang/{fr,en}/{legal,privacy,account_deletion,
-     child_safety}.php, rendus par legal.partials.sections ; rien n'est duplique.
+     Quatre PAGES distinctes, chacune avec son seul contenu, servies par cette
+     vue unique (textes de lang/{fr,en}/{legal,privacy,account_deletion,
+     child_safety}.php, rendus par legal.partials.sections ; rien n'est
+     duplique). Routes (global + /org/{slug}) :
+       /mentions-legales       -> « Informations legales & securite » : les
+                                  mentions legales (seul lien du pied de page).
+       /confidentialite        -> $focus = 'confidentialite'     } URL declarees
+       /suppression-de-compte  -> $focus = 'suppression-compte'  } a Google Play,
+       /securite-enfants       -> $focus = 'securite-enfants'    } 200 direct
+     Chaque page : son titre en <h1> et en <title>, son contenu seul, et en
+     tete le MEME sommaire des quatre pages (decision Cyril).
 
-     Servie par huit routes (global + /org/{slug}) :
-       /mentions-legales                     -> centre complet ($focus absent)
-       /confidentialite                      -> $focus = 'confidentialite'
-       /suppression-de-compte                -> $focus = 'suppression-compte'
-       /securite-enfants                     -> $focus = 'securite-enfants'
-
-     MODE CIBLE (URL declarees a Google Play) : reponse 200 directe, sans
-     redirection ni JavaScript. La rubrique visee est rendue EN PREMIER et son
-     titre est le <h1> et le <title> de la page : un robot qui ignore les
-     fragments `#…` voit d'emblee « Politique de confidentialite », etc. Les
-     autres rubriques suivent, apres le sommaire.
-
-     LIENS (decision Cyril) : jamais d'ancre `#…`. Le sommaire et les liens
-     internes menent aux URL REELLES, celles declarees a Google Play
-     (/confidentialite, /suppression-de-compte, /securite-enfants) et
-     /mentions-legales, bornees a l'Organization courante. Les `id` des
-     rubriques restent dans le HTML (structure), mais aucun lien n'y pointe. --}}
+     LIENS (decision Cyril) : jamais d'ancre `#…`, toujours les URL reelles,
+     bornees a l'Organization courante. --}}
 @php
     $focus = $focus ?? null;
 
@@ -70,10 +62,8 @@
         'contact' => ['url' => 'mailto:'.__('child_safety.contact_email'), 'label' => __('child_safety.contact_link')],
     ];
 
-    $ordre = array_keys($rubriques);
-    if ($focus !== null) {
-        $ordre = array_merge([$focus], array_values(array_diff($ordre, [$focus])));
-    }
+    // Une page = une rubrique : la page ciblee, ou les mentions legales.
+    $ordre = [$focus ?? 'mentions'];
 
     $pageTitle = $focus !== null ? $rubriques[$focus]['title'] : __('legal.center_title');
 @endphp
@@ -84,7 +74,7 @@
 
             <div class="mb-8 text-[var(--bp-muted)]">
                 @if ($focus !== null)
-                    {{-- Le centre, rappele en tete : il mene a sa page. --}}
+                    {{-- Retour vers « Informations legales & securite ». --}}
                     <a href="{{ $urls['mentions'] }}"
                        class="mb-3 inline-flex rounded-full bg-[color-mix(in_srgb,var(--bp-primary)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--bp-primary)] hover:underline">
                         {{ __('legal.center_title') }}
@@ -97,9 +87,8 @@
                 @endif
             </div>
 
-            @if ($focus === null)
-                @include('legal.partials.toc', ['rubriques' => $rubriques, 'urls' => $urls, 'focus' => $focus])
-            @endif
+            {{-- Le MEME sommaire en tete de chaque page (decision Cyril). --}}
+            @include('legal.partials.toc', ['rubriques' => $rubriques, 'urls' => $urls, 'courante' => $focus ?? 'mentions'])
 
             @foreach ($ordre as $id)
                 @php
@@ -142,11 +131,6 @@
                     </div>
                 </section>
 
-                @if ($focus !== null && $loop->first)
-                    <div class="mt-12">
-                        @include('legal.partials.toc', ['rubriques' => $rubriques, 'urls' => $urls, 'focus' => $focus])
-                    </div>
-                @endif
             @endforeach
         </div>
     </x-page-container>

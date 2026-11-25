@@ -8,15 +8,14 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * TASK-1903 — centre institutionnel unique « Informations legales & securite »
- * (/mentions-legales) : mentions legales, confidentialite, suppression de
- * compte et normes Securite des enfants (CSAE, Google Play).
+ * TASK-1903 — pages legales (decision Cyril : plusieurs pages, une vue).
  *
- * Les trois URL declarees a Google Play (/confidentialite,
- * /suppression-de-compte, /securite-enfants) repondent 200 DIRECTEMENT, sans
- * redirection ni JavaScript, en « mode cible » : la rubrique visee est le <h1>,
- * le <title>, et la premiere rubrique de la page. Le pied de page n'a plus
- * qu'un lien institutionnel, et le lien des bugs est distinct.
+ * /mentions-legales devient « Informations legales & securite » (mentions
+ * legales). /confidentialite, /suppression-de-compte et /securite-enfants — les
+ * URL declarees a Google Play — repondent 200 DIRECTEMENT, chacune avec SON seul
+ * contenu, son titre en <h1> et en <title>. Chaque page porte en tete le MEME
+ * sommaire des quatre pages, par URL reelles (jamais d'ancre). Le pied de page
+ * n'a plus qu'un lien institutionnel, et le lien des bugs est distinct.
  */
 class TASK1903ChildSafetyPageTest extends TestCase
 {
@@ -58,16 +57,39 @@ class TASK1903ChildSafetyPageTest extends TestCase
         return trim(html_entity_decode(strip_tags(end($m[1]) ?: ''), ENT_QUOTES));
     }
 
-    public function test_le_centre_regroupe_les_quatre_rubriques_et_mene_aux_url_reelles(): void
+    /** @return array<string, array{string, string}> URL, rubrique */
+    public static function pagesLegales(): array
+    {
+        return [
+            'mentions' => ['/mentions-legales', 'mentions'],
+            'confidentialite' => ['/confidentialite', 'confidentialite'],
+            'suppression' => ['/suppression-de-compte', 'suppression-compte'],
+            'securite enfants' => ['/securite-enfants', 'securite-enfants'],
+        ];
+    }
+
+    #[DataProvider('pagesLegales')]
+    public function test_chaque_page_porte_le_meme_sommaire_par_url_reelles(string $url, string $rubrique): void
+    {
+        $html = $this->withHeader('Accept-Language', 'fr')->get($url)->assertOk()->getContent();
+
+        app()->setLocale('fr');
+        $this->assertStringContainsString(e(__('legal.toc_title')), $html, "[{$url}] titre du sommaire");
+        foreach (['mentions' => 'mentions-legales', 'confidentialite' => 'confidentialite', 'suppression-compte' => 'suppression-de-compte', 'securite-enfants' => 'securite-enfants'] as $cible => $route) {
+            $this->assertStringContainsString('href="'.route($route).'" data-legal-toc="'.$cible.'"', $html, "[{$url}] sommaire {$cible}");
+        }
+        $this->assertSame(1, substr_count($html, 'aria-current="page"'), "[{$url}] une seule page courante");
+        $this->assertMatchesRegularExpression('#data-legal-toc="'.$rubrique.'"\s+aria-current="page"#', $html, "[{$url}] page courante");
+        $this->assertDoesNotMatchRegularExpression('#href="\#[a-z]#', $html, "[{$url}] aucun lien par ancre");
+
+        // Une page = son SEUL contenu.
+        preg_match_all('#data-legal-rubric="([^"]+)"#', $html, $rubriques);
+        $this->assertSame([$rubrique], $rubriques[1], "[{$url}] contenu seul");
+    }
+
+    public function test_la_page_mentions_legales_s_appelle_informations_legales_et_securite(): void
     {
         $html = $this->withHeader('Accept-Language', 'fr')->get('/mentions-legales')->assertOk()->getContent();
-
-        // Le sommaire mene aux URL REELLES (celles de Google Play), jamais a une ancre.
-        foreach (['mentions' => 'mentions-legales', 'confidentialite' => 'confidentialite', 'suppression-compte' => 'suppression-de-compte', 'securite-enfants' => 'securite-enfants'] as $rubrique => $route) {
-            $this->assertStringContainsString('data-legal-rubric="'.$rubrique.'"', $html, "rubrique {$rubrique}");
-            $this->assertStringContainsString('href="'.route($route).'" data-legal-toc="'.$rubrique.'"', $html, "sommaire {$rubrique}");
-        }
-        $this->assertDoesNotMatchRegularExpression('#href="\#[a-z]#', $html, 'aucun lien par ancre');
 
         app()->setLocale('fr');
         $this->assertSame(__('legal.center_title'), $this->premierH1($html));
@@ -92,9 +114,10 @@ class TASK1903ChildSafetyPageTest extends TestCase
             $this->assertMatchesRegularExpression('#<title>\s*'.preg_quote(e($titre), '#').'#', $html, "[{$route} {$langue}] <title>");
             $this->assertStringContainsString('data-legal-page="'.$ancre.'"', $html);
 
-            // La rubrique visee est la PREMIERE rubrique rendue (lisible sans script).
-            preg_match('#data-legal-rubric="([^"]+)"#', $html, $premiere);
-            $this->assertSame($ancre, $premiere[1] ?? null, "[{$route} {$langue}] premiere rubrique");
+            // Une page = son SEUL contenu ; retour vers « Informations legales & securite ».
+            preg_match_all('#data-legal-rubric="([^"]+)"#', $html, $rubriques);
+            $this->assertSame([$ancre], $rubriques[1], "[{$route} {$langue}] contenu seul");
+            $this->assertStringContainsString('href="'.route('mentions-legales').'"', $html);
 
             // Son contenu complet est present : toutes ses sections.
             foreach (__($fichier.'.sections') as $section) {
@@ -134,16 +157,13 @@ class TASK1903ChildSafetyPageTest extends TestCase
             ->assertSee('id="signaler"', false);
     }
 
-    public function test_la_suppression_de_compte_montre_ses_etapes_en_premier(): void
+    public function test_la_suppression_de_compte_montre_ses_etapes(): void
     {
         app()->setLocale('fr');
-        $html = $this->get('/suppression-de-compte')->assertOk()->getContent();
 
-        $etape = e(__('account_deletion.sections.0.steps.0'));
-        $confidentialite = 'id="confidentialite"';
-
-        $this->assertStringContainsString($etape, $html);
-        $this->assertLessThan(strpos($html, $confidentialite), strpos($html, $etape), 'les etapes doivent preceder les autres rubriques');
+        $this->withHeader('Accept-Language', 'fr')->get('/suppression-de-compte')->assertOk()
+            ->assertSee(__('account_deletion.sections.0.steps.0'))
+            ->assertDontSee('id="confidentialite"', false);
     }
 
     public function test_les_normes_n_affirment_aucun_mecanisme_inexistant(): void
