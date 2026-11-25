@@ -150,7 +150,7 @@
                 {{-- TASK-1605 — arbitrage MASTER : PAS de popup Alpine.
                      « Un bug ? » mene a la vraie page de signalement, deja
                      bornee a l'Organization (`organization.bug-reports.index`,
-                     `GET /org/{organization}/bugs`). Le backend existait deja :
+                     `GET /org/{organization}/report` depuis TASK-1904). Le backend existait deja :
                      rien n'a ete reinvente, seul le popup disparait.
 
                      Ce qui etait ici : un `<button>` basculant
@@ -161,9 +161,9 @@
                 <a href="{{ $bugReportIndexRoute }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
                    data-footer-bug-report>
-                    {{-- TASK-1903 (decision Cyril) — libelle explicite : ce
-                         lien mene aux rapports de BUGS (liste publique),
-                         jamais a un signalement d'abus. --}}
+                    {{-- TASK-1904 — « Signalement » : point d'entree unique
+                         et confidentiel (bugs, comportements, contenus,
+                         securite des enfants), `/org/{slug}/report`. --}}
                     {{ __('footer.bug_title') }}
                 </a>
             </div>

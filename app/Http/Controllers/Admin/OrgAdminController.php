@@ -1105,7 +1105,13 @@ class OrgAdminController extends Controller
     public function reports(Request $request, Organization $organization): View
     {
         $orgId = $organization->id;
-        $query = BugReport::where('organization_id', $orgId)->with('reporter');
+        // TASK-1904 (decision MASTER D3) — l'administrateur d'organisation ne
+        // lit JAMAIS un signalement « Securite des enfants » : superadmin seul.
+        $query = BugReport::where('organization_id', $orgId)->visibleByOrganizationAdmin()->with('reporter');
+
+        if ($request->filled('category') && in_array($request->category, BugReport::CATEGORIES, true)) {
+            $query->where('category', $request->category);
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -1126,6 +1132,8 @@ class OrgAdminController extends Controller
     public function resolveBugReport(Organization $organization, BugReport $bugReport): RedirectResponse
     {
         abort_if($bugReport->organization_id !== $organization->id, 404);
+        // TASK-1904 (D3) — ni lu ni resolu par l'organisation.
+        abort_if($bugReport->isChildSafety(), 404);
 
         $bugReport->update([
             'status' => 'resolved',

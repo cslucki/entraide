@@ -7,6 +7,8 @@
 // Le texte ne decrit QUE ce qui existe : un examen humain (aucune detection ni
 // alerte automatique), le lien « Signaler » sur les seuls profils, offres et
 // demandes (pas encore sur le Flux, les Boucles, les messages ni les articles),
+// TASK-1904 : le formulaire « Signalement » (categorie « Securite des enfants »,
+// lue par le seul superadmin, traitee en priorite) ;
 // le retrait de contenu et la suspension de compte par l'equipe, la
 // transmission manuelle des cas confirmes a PHAROS. Aucun delai garanti,
 // aucune duree de conservation inventee. A mettre a jour apres S2a / S2b.
@@ -60,10 +62,11 @@ return [
             ],
             'items' => [
                 'par email, au contact désigné : cslucki@gmail.com. Ce moyen couvre tous les contenus de BouclePro. Indiquez si possible l’adresse de la page, le nom du compte concerné et la date ;',
+                'avec le formulaire « Signalement », accessible depuis le pied de page et le menu de BouclePro une fois connecté : choisissez la catégorie « Sécurité des enfants ». Ces signalements sont lus par la seule équipe de modération de la plateforme et traités en priorité ;',
                 'avec le lien « Signaler » présent sur les profils, les offres et les demandes d’aide.',
             ],
             'after' => [
-                'Le lien « Signaler » n’existe pas encore sur les autres contenus (Flux, messages de Boucle, messages privés, articles) : pour ceux-ci, écrivez-nous par email.',
+                'Le lien « Signaler » n’existe pas encore sur les autres contenus (Flux, messages de Boucle, messages privés, articles) : pour ceux-ci, utilisez le formulaire « Signalement » en décrivant où se trouve le contenu, ou écrivez-nous par email.',
                 'Ne nous envoyez jamais de copie d’une image ou d’une vidéo illicite : décrivez-la et indiquez où elle se trouve.',
             ],
             'link' => 'contact',

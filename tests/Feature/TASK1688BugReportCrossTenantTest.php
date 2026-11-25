@@ -66,11 +66,11 @@ class TASK1688BugReportCrossTenantTest extends TestCase
         return DB::table('bug_reports')->count();
     }
 
-    /** Une charge VALIDE : `page_url` doit passer la regle `url`. */
+    /** Une charge VALIDE (TASK-1904 : `category` obligatoire, URL `/report`). */
     private function charge(string $detail = 'signalement'): array
     {
         return [
-            'reason' => 'other',
+            'category' => 'other',
             'details' => $detail,
             'page_url' => 'https://test.laravel/loops',
         ];
@@ -85,7 +85,7 @@ class TASK1688BugReportCrossTenantTest extends TestCase
         $avant = $this->bugs();
 
         $this->actingAs($this->membreA)
-            ->post("/org/{$this->orgB->slug}/bugs", $this->charge('INJECTE DEPUIS A'))
+            ->post("/org/{$this->orgB->slug}/report", $this->charge('INJECTE DEPUIS A'))
             ->assertNotFound();
 
         $this->assertSame($avant, $this->bugs(), 'aucune ligne ne doit etre creee dans le tenant etranger');
@@ -97,7 +97,7 @@ class TASK1688BugReportCrossTenantTest extends TestCase
         $avant = $this->bugs();
 
         $this->actingAs($this->membreB)
-            ->post("/org/{$this->orgA->slug}/bugs", $this->charge('INJECTE DEPUIS B'))
+            ->post("/org/{$this->orgA->slug}/report", $this->charge('INJECTE DEPUIS B'))
             ->assertNotFound();
 
         $this->assertSame($avant, $this->bugs());
@@ -117,10 +117,10 @@ class TASK1688BugReportCrossTenantTest extends TestCase
         $avant = $this->bugs();
 
         $existante = $this->actingAs($this->membreA)
-            ->post("/org/{$this->orgB->slug}/bugs", $this->charge());
+            ->post("/org/{$this->orgB->slug}/report", $this->charge());
 
         $inconnue = $this->actingAs($this->membreA)
-            ->post('/org/p03-aucune-org/bugs', $this->charge());
+            ->post('/org/p03-aucune-org/report', $this->charge());
 
         $this->assertSame(404, $existante->status());
         $this->assertSame($existante->status(), $inconnue->status());
@@ -154,7 +154,7 @@ class TASK1688BugReportCrossTenantTest extends TestCase
         $avant = $this->bugs();
 
         $this->actingAs($superAdmin)
-            ->post("/org/{$this->orgB->slug}/bugs", $this->charge('SUPERADMIN'))
+            ->post("/org/{$this->orgB->slug}/report", $this->charge('SUPERADMIN'))
             ->assertNotFound();
 
         $this->assertSame($avant, $this->bugs(), 'le SuperAdmin ne doit pas ecrire dans un tenant etranger');
@@ -169,7 +169,7 @@ class TASK1688BugReportCrossTenantTest extends TestCase
         $avant = $this->bugs();
 
         $this->actingAs($this->membreA)
-            ->post("/org/{$this->orgA->slug}/bugs", $this->charge('LEGITIME'))
+            ->post("/org/{$this->orgA->slug}/report", $this->charge('LEGITIME'))
             ->assertRedirect();
 
         $this->assertSame($avant + 1, $this->bugs());
@@ -192,7 +192,7 @@ class TASK1688BugReportCrossTenantTest extends TestCase
         $avant = $this->bugs();
 
         $this->actingAs($this->membreA)
-            ->post('/bugs', $this->charge('NON PREFIXEE'))
+            ->post('/report', $this->charge('NON PREFIXEE'))
             ->assertRedirect();
 
         $this->assertSame($avant + 1, $this->bugs());
@@ -218,12 +218,12 @@ class TASK1688BugReportCrossTenantTest extends TestCase
         $avant = $this->bugs();
 
         $reponse = $this->actingAs($this->membreA)->post(
-            "/org/{$this->orgA->slug}/bugs",
-            ['reason' => 'other', 'details' => 'x', 'page_url' => '/pas-une-url']
+            "/org/{$this->orgA->slug}/report",
+            ['category' => 'categorie-inconnue', 'details' => 'x']
         );
 
         $reponse->assertRedirect();
-        $reponse->assertSessionHasErrors('page_url');
+        $reponse->assertSessionHasErrors('category');
         $this->assertSame($avant, $this->bugs());
     }
 }

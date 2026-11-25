@@ -7,9 +7,8 @@ return [
     'flowchart' => 'Flowchart',
     'kit_demo' => 'Demo kit',
     'opensource' => 'OpenSource',
-    'bug' => 'A bug?',
-    'bug_title' => 'Report a bug',
-    'bug_view_reported' => 'View reported and fixed bugs',
+    'bug' => 'Report',
+    'bug_title' => 'Report',
     'bug_type' => 'Bug type...',
     'bug_type_mobile' => 'Mobile display',
     'bug_type_function' => 'Functionality',
@@ -21,5 +20,4 @@ return [
     'bug_guest_title' => 'A bug?',
     'bug_guest_text' => 'Log in to send us a precise report.',
     'bug_guest_login' => 'Log in',
-    'bug_guest_view' => 'View bugs',
 ];

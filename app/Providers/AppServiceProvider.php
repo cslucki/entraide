@@ -542,6 +542,8 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
             $view->with('pendingBugReportsCount', BugReport::where('status', 'pending')->count());
+            // TASK-1904 — compteur DISTINCT des signalements « Securite des enfants » en attente.
+            $view->with('pendingChildSafetyReportsCount', BugReport::where('status', 'pending')->where('category', BugReport::CHILD_SAFETY)->count());
             $view->with('pendingOrganizationRequestsCount', OrganizationRequest::where('status', 'pending')->count());
         });
 

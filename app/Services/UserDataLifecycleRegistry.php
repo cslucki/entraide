@@ -101,7 +101,7 @@ class UserDataLifecycleRegistry
             ['key' => 'blog_todo_threads', 'type' => 'sql', 'table' => 'blog_todo_threads', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_blog_post', 'justification' => 'Todo thread actor needs anonymization.'],
             ['key' => 'blog_todos_assigned_to', 'type' => 'sql', 'table' => 'blog_todos', 'column' => 'assigned_to', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_blog_post', 'justification' => 'Assignment can be detached.'],
             ['key' => 'blog_todos_user_id', 'type' => 'sql', 'table' => 'blog_todos', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_blog_post', 'justification' => 'Todo author identity needs anonymization.'],
-            ['key' => 'bug_reports', 'type' => 'sql', 'table' => 'bug_reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Bug reports are platform support records.'],
+            ['key' => 'bug_reports', 'type' => 'sql', 'table' => 'bug_reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Reports (bugs and moderation, TASK-1904) are platform support and moderation audit records.'],
             // TASK-1803 — `bulk_email_sends.organization_id` ne designe PAS
             // l'Organization du createur mais la CIBLE de l'envoi (NULL = toutes
             // les Organizations) : un `org_scope` 'direct' serait donc un
