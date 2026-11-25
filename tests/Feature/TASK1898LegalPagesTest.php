@@ -81,15 +81,15 @@ class TASK1898LegalPagesTest extends TestCase
     public function test_le_pied_de_page_et_les_mentions_legales_menent_aux_deux_pages(): void
     {
         // TASK-1903 — les deux contenus sont desormais des RUBRIQUES du centre
-        // institutionnel (/mentions-legales), reliees par ancres ; le pied de
-        // page n'a plus qu'un lien, vers ce centre.
-        foreach ([route('mentions-legales'), route('organization.mentions-legales', $this->organization)] as $url) {
-            $centre = $this->get($url)->assertOk()->getContent();
-            foreach (['confidentialite', 'suppression-compte'] as $ancre) {
-                $this->assertStringContainsString('id="'.$ancre.'"', $centre);
-                $this->assertStringContainsString('href="#'.$ancre.'"', $centre);
-            }
-        }
+        // institutionnel (/mentions-legales), dont le sommaire mene a leurs URL
+        // REELLES (jamais d'ancre) ; le pied n'a plus qu'un lien, vers ce centre.
+        $centre = $this->get(route('mentions-legales'))->assertOk()->getContent();
+        $this->assertStringContainsString('href="'.route('confidentialite').'"', $centre);
+        $this->assertStringContainsString('href="'.route('suppression-de-compte').'"', $centre);
+
+        $scoped = $this->get(route('organization.mentions-legales', $this->organization))->assertOk()->getContent();
+        $this->assertStringContainsString('href="'.route('organization.confidentialite', $this->organization).'"', $scoped);
+        $this->assertStringContainsString('href="'.route('organization.suppression-de-compte', $this->organization).'"', $scoped);
 
         // Le pied de page vit sur l'accueil public de l'Organization (et les
         // pages invitees), pas dans `x-app-layout` : on le lit la ou il est.

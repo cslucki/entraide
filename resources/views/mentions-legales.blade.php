@@ -17,10 +17,21 @@
      fragments `#…` voit d'emblee « Politique de confidentialite », etc. Les
      autres rubriques suivent, apres le sommaire.
 
-     Ancres stables : #mentions, #confidentialite, #suppression-compte,
-     #securite-enfants, #sommaire (+ sous-ancres CSAE : #signaler, #contact…). --}}
+     LIENS (decision Cyril) : jamais d'ancre `#…`. Le sommaire et les liens
+     internes menent aux URL REELLES, celles declarees a Google Play
+     (/confidentialite, /suppression-de-compte, /securite-enfants) et
+     /mentions-legales, bornees a l'Organization courante. Les `id` des
+     rubriques restent dans le HTML (structure), mais aucun lien n'y pointe. --}}
 @php
     $focus = $focus ?? null;
+
+    // URL dediee de chaque rubrique (global, ou /org/{slug} dans une Organization).
+    $urls = [
+        'mentions' => organizationScopedUrl('mentions-legales', 'organization.mentions-legales'),
+        'confidentialite' => organizationScopedUrl('confidentialite', 'organization.confidentialite'),
+        'suppression-compte' => organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte'),
+        'securite-enfants' => organizationScopedUrl('securite-enfants', 'organization.securite-enfants'),
+    ];
 
     $rubriques = [
         'mentions' => [
@@ -54,8 +65,8 @@
 
     // Liens internes des textes (`link` d'une section) : ancres de cette page.
     $links = [
-        'legal' => ['url' => '#mentions', 'label' => __('privacy.legal_link')],
-        'deletion' => ['url' => '#suppression-compte', 'label' => __('privacy.deletion_link')],
+        'legal' => ['url' => $urls['mentions'], 'label' => __('privacy.legal_link')],
+        'deletion' => ['url' => $urls['suppression-compte'], 'label' => __('privacy.deletion_link')],
         'contact' => ['url' => 'mailto:'.__('child_safety.contact_email'), 'label' => __('child_safety.contact_link')],
     ];
 
@@ -73,8 +84,8 @@
 
             <div class="mb-8 text-[var(--bp-muted)]">
                 @if ($focus !== null)
-                    {{-- Le centre, rappele en tete : il mene au sommaire. --}}
-                    <a href="#sommaire"
+                    {{-- Le centre, rappele en tete : il mene a sa page. --}}
+                    <a href="{{ $urls['mentions'] }}"
                        class="mb-3 inline-flex rounded-full bg-[color-mix(in_srgb,var(--bp-primary)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--bp-primary)] hover:underline">
                         {{ __('legal.center_title') }}
                     </a>
@@ -87,7 +98,7 @@
             </div>
 
             @if ($focus === null)
-                @include('legal.partials.toc', ['rubriques' => $rubriques, 'focus' => $focus])
+                @include('legal.partials.toc', ['rubriques' => $rubriques, 'urls' => $urls, 'focus' => $focus])
             @endif
 
             @foreach ($ordre as $id)
@@ -133,7 +144,7 @@
 
                 @if ($focus !== null && $loop->first)
                     <div class="mt-12">
-                        @include('legal.partials.toc', ['rubriques' => $rubriques, 'focus' => $focus])
+                        @include('legal.partials.toc', ['rubriques' => $rubriques, 'urls' => $urls, 'focus' => $focus])
                     </div>
                 @endif
             @endforeach

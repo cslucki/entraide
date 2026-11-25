@@ -58,14 +58,16 @@ class TASK1903ChildSafetyPageTest extends TestCase
         return trim(html_entity_decode(strip_tags(end($m[1]) ?: ''), ENT_QUOTES));
     }
 
-    public function test_le_centre_regroupe_les_quatre_rubriques_avec_des_ancres_stables(): void
+    public function test_le_centre_regroupe_les_quatre_rubriques_et_mene_aux_url_reelles(): void
     {
         $html = $this->withHeader('Accept-Language', 'fr')->get('/mentions-legales')->assertOk()->getContent();
 
-        foreach (['mentions', 'confidentialite', 'suppression-compte', 'securite-enfants'] as $ancre) {
-            $this->assertStringContainsString('id="'.$ancre.'"', $html, "ancre {$ancre}");
-            $this->assertStringContainsString('href="#'.$ancre.'"', $html, "sommaire {$ancre}");
+        // Le sommaire mene aux URL REELLES (celles de Google Play), jamais a une ancre.
+        foreach (['mentions' => 'mentions-legales', 'confidentialite' => 'confidentialite', 'suppression-compte' => 'suppression-de-compte', 'securite-enfants' => 'securite-enfants'] as $rubrique => $route) {
+            $this->assertStringContainsString('data-legal-rubric="'.$rubrique.'"', $html, "rubrique {$rubrique}");
+            $this->assertStringContainsString('href="'.route($route).'" data-legal-toc="'.$rubrique.'"', $html, "sommaire {$rubrique}");
         }
+        $this->assertDoesNotMatchRegularExpression('#href="\#[a-z]#', $html, 'aucun lien par ancre');
 
         app()->setLocale('fr');
         $this->assertSame(__('legal.center_title'), $this->premierH1($html));
