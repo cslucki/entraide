@@ -3,13 +3,18 @@
      texte en dur. Chaque section peut porter : `paragraphs`, `items`
      (liste a puces), `steps` (liste numerotee), `after` (paragraphes apres
      la liste) et `link` (clef de $links : lien interne en fin de section).
+     TASK-1903 — `id` (facultatif) : ancre de la section, pour un sommaire ;
+     $headingTag (defaut h2) : niveau du titre de section, h3 sous une rubrique
+     du centre institutionnel.
 
      @param array $sections
-     @param array<string, array{url: string, label: string}> $links --}}
+     @param array<string, array{url: string, label: string}> $links
+     @param string $headingTag --}}
+@php($headingTag = $headingTag ?? 'h2')
 <div class="space-y-6 text-[var(--bp-muted)] text-sm leading-relaxed">
     @foreach ($sections as $section)
-        <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-            <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ $section['title'] }}</h2>
+        <section @isset($section['id']) id="{{ $section['id'] }}" @endisset class="scroll-mt-24 rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
+            <{{ $headingTag }} class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ $section['title'] }}</{{ $headingTag }}>
 
             @foreach ($section['paragraphs'] ?? [] as $paragraph)
                 <p class="mt-2 first:mt-0">{{ $paragraph }}</p>

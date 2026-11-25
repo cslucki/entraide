@@ -51,7 +51,7 @@ return [
     'feed' => 'Feed',
     'messaging' => 'Messaging',
     'new_announcement' => 'New announcement',
-    'legal_notices' => 'Legal notices',
+    'legal_notices' => 'Legal & safety information',
     'my_space' => 'My space',
     'edit_service' => 'Edit service',
     'edit_article' => 'Edit article',

@@ -96,6 +96,8 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
         // exigees par Google Play, contenu global unique, rien d'interne.
         'organization.confidentialite' => 'Politique de confidentialite, contenu global servi dans le contexte de l\'Organization.',
         'organization.suppression-de-compte' => 'Suppression de compte, contenu global servi dans le contexte de l\'Organization.',
+        // TASK-1903 — normes Securite des enfants (Google Play), meme montage.
+        'organization.securite-enfants' => 'Normes Securite des enfants, contenu global servi dans le contexte de l\'Organization.',
 
         // ─── TASK-1692 / MICRO-11.2B — DIX-HUIT ENTREES RETIREES ────────────
         //
@@ -382,6 +384,8 @@ class TASK1489OrgRouteGuestBoundaryTest extends TestCase
             // TASK-1898 — memes exceptions `withoutMiddleware()` que les mentions legales.
             'organization.confidentialite',
             'organization.suppression-de-compte',
+            // TASK-1903 — meme exception `withoutMiddleware()`.
+            'organization.securite-enfants',
             'organization.flowchart',
             'organization.mycelium',
             'organization.open-source',

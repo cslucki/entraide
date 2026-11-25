@@ -12,10 +12,11 @@ return [
     'editor_text' => 'Ce site est édité par :',
     'director_title' => 'Directeur de la publication',
     'host_title' => 'Hébergeur',
-    // TASK-1898
-    'privacy_title' => 'Données personnelles',
-    'privacy_link' => 'Politique de confidentialité',
-    'account_deletion_link' => 'Supprimer mon compte et mes données',
+    // TASK-1903 — centre institutionnel unique (/mentions-legales) : mentions
+    // legales, confidentialite, suppression de compte, securite des enfants.
+    'center_title' => 'Informations légales & sécurité',
+    'center_intro' => 'Les informations institutionnelles de BouclePro, édité par l’Association AMT : mentions légales, politique de confidentialité, suppression de compte et normes de sécurité des enfants.',
+    'toc_title' => 'Sommaire',
     'opensource_title' => 'Projet open source',
     'opensource_text' => "BouclePro est un projet open source porté par l'association AMT. Le code source est disponible sur GitHub. Toute contribution est bienvenue — développement, suggestions, ou signalement de bugs.",
     'partnership_title' => 'Partenaires',

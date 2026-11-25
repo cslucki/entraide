@@ -51,7 +51,7 @@ return [
     'feed' => 'Flux',
     'messaging' => 'Messagerie',
     'new_announcement' => 'Nouvelle annonce',
-    'legal_notices' => 'Mentions légales',
+    'legal_notices' => 'Informations légales & sécurité',
     'my_space' => 'Mon espace',
     'edit_service' => 'Modifier le service',
     'edit_article' => "Modifier l'article",

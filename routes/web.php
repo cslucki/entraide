@@ -414,11 +414,14 @@ Route::get('/.well-known/assetlinks.json', AndroidAssetLinksController::class)
 Route::get('/search', [SearchController::class, 'index'])->middleware(['auth', 'organization.member'])->name('search');
 Route::view('/aide', 'help')->name('help');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
-// TASK-1898 — pages publiques exigees par Google Play (politique de
-// confidentialite et suppression de compte), sur le modele des mentions
-// legales : contenu global unique, aucune authentification.
-Route::view('/confidentialite', 'legal.privacy')->name('confidentialite');
-Route::view('/suppression-de-compte', 'legal.account-deletion')->name('suppression-de-compte');
+// TASK-1898 / TASK-1903 — URL publiques declarees a Google Play (politique de
+// confidentialite, suppression de compte, normes Securite des enfants). Depuis
+// TASK-1903, elles servent le CENTRE INSTITUTIONNEL unique (`mentions-legales`)
+// en « mode cible » : 200 direct, rubrique visee en premier et en <h1>.
+// Aucune redirection : un fragment `#…` n'atteint jamais le serveur ni le robot.
+Route::view('/confidentialite', 'mentions-legales', ['focus' => 'confidentialite'])->name('confidentialite');
+Route::view('/suppression-de-compte', 'mentions-legales', ['focus' => 'suppression-compte'])->name('suppression-de-compte');
+Route::view('/securite-enfants', 'mentions-legales', ['focus' => 'securite-enfants'])->name('securite-enfants');
 Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
 // TASK-1612 — Open Source Explorer.
@@ -1758,15 +1761,18 @@ Route::prefix('/org/{organization}')
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('mentions-legales');
 
-        // TASK-1898 — confidentialite et suppression de compte servies DANS le
-        // contexte de l'Organization, exactement comme les mentions legales
-        // ci-dessus : MEME vue que la route globale, contenu unique.
-        Route::view('/confidentialite', 'legal.privacy')
+        // TASK-1898 / TASK-1903 — confidentialite, suppression de compte et
+        // securite des enfants servies DANS le contexte de l'Organization :
+        // MEME vue (centre institutionnel) en mode cible, contenu unique.
+        Route::view('/confidentialite', 'mentions-legales', ['focus' => 'confidentialite'])
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('confidentialite');
-        Route::view('/suppression-de-compte', 'legal.account-deletion')
+        Route::view('/suppression-de-compte', 'mentions-legales', ['focus' => 'suppression-compte'])
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('suppression-de-compte');
+        Route::view('/securite-enfants', 'mentions-legales', ['focus' => 'securite-enfants'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('securite-enfants');
 
         // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
         // l'Organization, exactement comme les mentions legales ci-dessus :
