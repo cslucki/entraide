@@ -242,12 +242,10 @@ $secondaryCtaUrl = $safeUrl($settings['secondary_cta_url'] ?? null, route('organ
         <span class="foot-sep" aria-hidden="true">·</span>
         <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
       </span>
-      <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ org_trans('artscilab.footer_terms') }}</a>
-      {{-- TASK-1899 — pages exigees par Google Play (T1898), bornees a l'Organization. --}}
-      <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
-      <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
-      {{-- TASK-1903 --}}
-      <a href="{{ organizationScopedUrl('securite-enfants', 'organization.securite-enfants') }}" data-footer-child-safety>{{ __('footer.child_safety') }}</a>
+      {{-- TASK-1903 — un seul lien vers le centre institutionnel. L'ancien
+           libelle « Conditions d'utilisation » (artscilab.footer_terms) etait
+           trompeur : BouclePro n'a pas de CGU, ce lien mene aux mentions. --}}
+      <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}" data-footer-legal-center>{{ __('legal.center_title') }}</a>
       {{-- TASK-1613 — l'icone ouvre l'explorateur du depot, comme partout
            ailleurs. Cible : `/open-source/github`, une redirection
            BouclePro — jamais l'URL du depot, ni dans le HTML ni au survol. --}}

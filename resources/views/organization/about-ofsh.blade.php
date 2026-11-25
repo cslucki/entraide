@@ -314,14 +314,10 @@ $rubriques = array_filter([
            Ne pas le reintroduire sous un autre nom. --}}
       <a href="{{ route('organization.mycelium', ['organization' => $organization->slug]) }}" data-footer-mycelium>{{ __('mycelium.footer_link') }}</a>
       <a href="{{ route('organization.flowchart', ['organization' => $organization->slug]) }}" data-footer-flowchart>{{ __('footer.flowchart') }}</a>
-      <a href="{{ route('organization.mentions-legales', ['organization' => $organization->slug]) }}">{{ __('footer.mentions_legales') }}</a>
-      {{-- TASK-1899 — pages exigees par Google Play (T1898), bornees a l'Organization. --}}
-      <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
-      <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
-      {{-- TASK-1903 --}}
-      <a href="{{ organizationScopedUrl('securite-enfants', 'organization.securite-enfants') }}" data-footer-child-safety>{{ __('footer.child_safety') }}</a>
+      {{-- TASK-1903 — un seul lien vers le centre institutionnel. --}}
+      <a href="{{ route('organization.mentions-legales', ['organization' => $organization->slug]) }}" data-footer-legal-center>{{ __('legal.center_title') }}</a>
       <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
-      <a href="{{ route('organization.bug-reports.index', ['organization' => $organization->slug]) }}" data-footer-bug>{{ __('footer.bug') }}</a>
+      <a href="{{ route('organization.bug-reports.index', ['organization' => $organization->slug]) }}" data-footer-bug>{{ __('footer.bug_title') }}</a>
       <span>{{ config('app.version') }}</span>
     </div>
   </footer>

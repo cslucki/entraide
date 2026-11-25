@@ -39,10 +39,10 @@ class TASK1899ShowcaseFooterLegalLinksTest extends TestCase
 
         $html = $this->get('/org/vitrine-1899'.$suffixe)->assertOk()->getContent();
 
-        $this->assertStringContainsString('data-footer-privacy', $html, "[{$gabarit}{$suffixe}] lien confidentialite absent.");
-        $this->assertStringContainsString('data-footer-account-deletion', $html, "[{$gabarit}{$suffixe}] lien suppression absent.");
-        $this->assertStringContainsString('href="'.route('organization.confidentialite', $organization).'"', $html);
-        $this->assertStringContainsString('href="'.route('organization.suppression-de-compte', $organization).'"', $html);
+        // TASK-1903 — un seul lien, vers le centre institutionnel qui contient
+        // les rubriques confidentialite et suppression de compte.
+        $this->assertStringContainsString('data-footer-legal-center', $html, "[{$gabarit}{$suffixe}] lien institutionnel absent.");
+        $this->assertStringContainsString('href="'.route('organization.mentions-legales', $organization).'"', $html);
 
         // Les liens ne sortent pas de l'Organization pour un visiteur anonyme.
         $this->get(route('organization.confidentialite', $organization))->assertOk();

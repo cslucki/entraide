@@ -1,99 +1,142 @@
-<x-app-layout title="{{ __('legal.title') }}" :show-internal-navigation="auth()->check() && showsOrganizationInternalNavigation()">
+{{-- TASK-1903 — CENTRE INSTITUTIONNEL UNIQUE « Informations legales & securite ».
+
+     Une seule vue pour quatre rubriques : mentions legales, politique de
+     confidentialite, suppression de compte, securite des enfants (normes CSAE).
+     Les textes restent ceux de lang/{fr,en}/{legal,privacy,account_deletion,
+     child_safety}.php, rendus par legal.partials.sections ; rien n'est duplique.
+
+     Servie par huit routes (global + /org/{slug}) :
+       /mentions-legales                     -> centre complet ($focus absent)
+       /confidentialite                      -> $focus = 'confidentialite'
+       /suppression-de-compte                -> $focus = 'suppression-compte'
+       /securite-enfants                     -> $focus = 'securite-enfants'
+
+     MODE CIBLE (URL declarees a Google Play) : reponse 200 directe, sans
+     redirection ni JavaScript. La rubrique visee est rendue EN PREMIER et son
+     titre est le <h1> et le <title> de la page : un robot qui ignore les
+     fragments `#…` voit d'emblee « Politique de confidentialite », etc. Les
+     autres rubriques suivent, apres le sommaire.
+
+     Ancres stables : #mentions, #confidentialite, #suppression-compte,
+     #securite-enfants, #sommaire (+ sous-ancres CSAE : #signaler, #contact…). --}}
+@php
+    $focus = $focus ?? null;
+
+    $rubriques = [
+        'mentions' => [
+            'title' => __('legal.title'),
+            'intro' => __('legal.intro'),
+        ],
+        'confidentialite' => [
+            'title' => __('privacy.title'),
+            'updated' => __('privacy.updated'),
+            'intro' => __('privacy.intro'),
+            'sections' => __('privacy.sections'),
+        ],
+        'suppression-compte' => [
+            'title' => __('account_deletion.title'),
+            'updated' => __('account_deletion.updated'),
+            'intro' => __('account_deletion.intro'),
+            'sections' => __('account_deletion.sections'),
+        ],
+        'securite-enfants' => [
+            'title' => __('child_safety.title'),
+            'subtitle' => __('child_safety.heading'),
+            'updated' => __('child_safety.updated'),
+            'intro' => __('child_safety.intro'),
+            'sections' => __('child_safety.sections'),
+        ],
+    ];
+
+    if ($focus !== null && ! isset($rubriques[$focus])) {
+        $focus = null;
+    }
+
+    // Liens internes des textes (`link` d'une section) : ancres de cette page.
+    $links = [
+        'legal' => ['url' => '#mentions', 'label' => __('privacy.legal_link')],
+        'deletion' => ['url' => '#suppression-compte', 'label' => __('privacy.deletion_link')],
+        'contact' => ['url' => 'mailto:'.__('child_safety.contact_email'), 'label' => __('child_safety.contact_link')],
+    ];
+
+    $ordre = array_keys($rubriques);
+    if ($focus !== null) {
+        $ordre = array_merge([$focus], array_values(array_diff($ordre, [$focus])));
+    }
+
+    $pageTitle = $focus !== null ? $rubriques[$focus]['title'] : __('legal.center_title');
+@endphp
+<x-app-layout :title="$pageTitle" :show-internal-navigation="auth()->check() && showsOrganizationInternalNavigation()">
     <x-page-container>
-        <div class="mx-auto max-w-4xl rounded-[2rem] border border-[var(--bp-border)] bg-[var(--bp-surface)]/90 p-6 shadow-sm backdrop-blur md:p-10">
-            <div class="mb-8">
-                <p class="mb-3 inline-flex rounded-full bg-[color-mix(in_srgb,var(--bp-primary)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--bp-primary)]">
-                    {{ __('legal.title') }}
-                </p>
-                <p class="mt-2 max-w-2xl text-base leading-7 text-[var(--bp-muted)]">
-                    {{ __('legal.intro') }}
-                </p>
+        <div class="mx-auto max-w-4xl rounded-[2rem] border border-[var(--bp-border)] bg-[var(--bp-surface)]/90 p-6 shadow-sm backdrop-blur md:p-10"
+             data-legal-page="{{ $focus ?? 'center' }}">
+
+            <div class="mb-8 text-[var(--bp-muted)]">
+                @if ($focus !== null)
+                    {{-- Le centre, rappele en tete : il mene au sommaire. --}}
+                    <a href="#sommaire"
+                       class="mb-3 inline-flex rounded-full bg-[color-mix(in_srgb,var(--bp-primary)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--bp-primary)] hover:underline">
+                        {{ __('legal.center_title') }}
+                    </a>
+                @else
+                    <h1 class="text-2xl font-bold leading-tight text-[var(--bp-heading)] md:text-3xl">
+                        {{ __('legal.center_title') }}
+                    </h1>
+                    <p class="mt-3 max-w-2xl text-base leading-7">{{ __('legal.center_intro') }}</p>
+                @endif
             </div>
 
-            <div class="space-y-6 text-[var(--bp-muted)] text-sm leading-relaxed">
-                <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.editor_title') }}</h2>
-                    {!! __('legal.editor_text') !!}
-                    <address class="not-italic mt-2 space-y-1">
-                        <p class="font-medium text-[var(--bp-heading)]">
-                            Association AMT
-                        </p>
-                        <p>31b rue Espérandieu<br>13001 Marseille FRANCE</p>
-                        <p>RNA : W133002043</p>
-                        <p>SIRET : 47874023600029</p>
-                        <p>Code APE : 8559A — Formation continue d'adultes</p>
-                        <p>N° de déclaration d'activité d'organisme de formation : 93131908813</p>
-                        <p class="text-sm text-[var(--bp-muted)]">auprès de la DREETS PACA</p>
-                    </address>
+            @if ($focus === null)
+                @include('legal.partials.toc', ['rubriques' => $rubriques, 'focus' => $focus])
+            @endif
+
+            @foreach ($ordre as $id)
+                @php
+                    $rubrique = $rubriques[$id];
+                    $tag = $id === $focus ? 'h1' : 'h2';
+                    $sousTag = $id === $focus ? 'h2' : 'h3';
+                @endphp
+
+                <section id="{{ $id }}" data-legal-rubric="{{ $id }}"
+                         class="scroll-mt-24 text-[var(--bp-muted)] {{ $loop->first ? '' : 'mt-12 border-t border-[var(--bp-border)] pt-10' }}">
+                    <{{ $tag }} class="{{ $tag === 'h1' ? 'text-2xl md:text-3xl font-bold' : 'text-xl md:text-2xl font-bold' }} leading-tight text-[var(--bp-heading)]">
+                        {{ $rubrique['title'] }}
+                    </{{ $tag }}>
+                    @isset($rubrique['subtitle'])
+                        <p class="mt-1 text-base font-semibold">{{ $rubrique['subtitle'] }}</p>
+                    @endisset
+                    @isset($rubrique['updated'])
+                        <p class="mt-2 text-xs">{{ $rubrique['updated'] }}</p>
+                    @endisset
+                    <p class="mt-3 max-w-2xl text-base leading-7">{{ $rubrique['intro'] }}</p>
+
+                    @if ($id === 'securite-enfants')
+                        {{-- Le moyen de signalement, sans faire defiler la rubrique. --}}
+                        <div class="mt-6 rounded-3xl bg-[color-mix(in_srgb,var(--bp-primary)_8%,transparent)] p-5 ring-1 ring-[var(--bp-border)]" data-child-safety-contact>
+                            <p class="text-lg font-semibold text-[var(--bp-heading)]">{{ __('child_safety.report_title') }}</p>
+                            <p class="mt-1 text-sm">{{ __('child_safety.report_text') }}</p>
+                            <a href="mailto:{{ __('child_safety.contact_email') }}"
+                               class="mt-2 inline-flex break-all text-base font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+                                {{ __('child_safety.contact_email') }}
+                            </a>
+                        </div>
+                    @endif
+
+                    <div class="mt-6">
+                        @if ($id === 'mentions')
+                            @include('legal.partials.notice', ['headingTag' => $sousTag])
+                        @else
+                            @include('legal.partials.sections', ['sections' => $rubrique['sections'], 'links' => $links, 'headingTag' => $sousTag])
+                        @endif
+                    </div>
                 </section>
 
-                <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.director_title') }}</h2>
-                    <p>Cyril SLUCKI</p>
-                    <p class="mt-1">
-                        <a href="#" onclick="this.href='mailto:'+'cyril'+'@'+'teletravailleurs.com';return true;"
-                           class="text-indigo-600 dark:text-indigo-400 hover:underline">cyril@teletravailleurs.com</a>
-                    </p>
-                    <p>
-                        <a href="tel://+33637931282"
-                           class="text-indigo-600 dark:text-indigo-400 hover:underline">+336 37 93 12 82</a>
-                    </p>
-                </section>
-
-                <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.host_title') }}</h2>
-                    <p>
-                        <a href="https://cloud.laravel.com" target="_blank" rel="noopener noreferrer"
-                           class="text-indigo-600 dark:text-indigo-400 hover:underline">
-                            Laravel Cloud
-                        </a>
-                    </p>
-                </section>
-
-                {{-- TASK-1898 — donnees personnelles : les deux pages publiques. --}}
-                <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.privacy_title') }}</h2>
-                    <ul class="space-y-1">
-                        <li>
-                            <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}"
-                               class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ __('legal.privacy_link') }}</a>
-                        </li>
-                        <li>
-                            <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}"
-                               class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ __('legal.account_deletion_link') }}</a>
-                        </li>
-                        {{-- TASK-1903 --}}
-                        <li>
-                            <a href="{{ organizationScopedUrl('securite-enfants', 'organization.securite-enfants') }}"
-                               class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ __('footer.child_safety') }}</a>
-                        </li>
-                    </ul>
-                </section>
-
-                <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.opensource_title') }}</h2>
-                    <p>
-                        {{ __('legal.opensource_text') }}
-                    </p>
-                    <a href="https://github.com/cslucki/entraide"
-                       target="_blank" rel="noopener noreferrer"
-                       class="inline-flex items-center gap-2 mt-3 text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/>
-                        </svg>
-                        github.com/cslucki/entraide
-                    </a>
-                </section>
-
-                <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
-                    <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ __('legal.partnership_title') }}</h2>
-                    <p>{{ __('legal.partnership_text') }}</p>
-                    <a href="{{ route('partenaires.request.create') }}"
-                       class="inline-flex items-center gap-2 mt-3 text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-                        {{ __('legal.partnership_link') }}
-                    </a>
-                </section>
-            </div>
+                @if ($focus !== null && $loop->first)
+                    <div class="mt-12">
+                        @include('legal.partials.toc', ['rubriques' => $rubriques, 'focus' => $focus])
+                    </div>
+                @endif
+            @endforeach
         </div>
     </x-page-container>
 </x-app-layout>

@@ -13,13 +13,10 @@ return [
     'heading' => 'Our standards against child sexual abuse and exploitation',
     'updated' => 'Version of 25 November 2026',
     'intro' => 'These standards apply to BouclePro, a mutual-aid platform published by Association AMT: the bouclepro.com website, the spaces of the organisations that use it and the BouclePro Android app.',
-    'toc_title' => 'On this page',
     'report_title' => 'Report content or behaviour',
     'report_text' => 'Write to our designated child safety contact:',
     'contact_email' => 'cslucki@gmail.com',
     'contact_link' => 'Write to cslucki@gmail.com',
-    'legal_link' => 'Legal notice',
-    'privacy_link' => 'Privacy policy',
 
     'sections' => [
         [

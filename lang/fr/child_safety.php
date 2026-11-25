@@ -17,13 +17,10 @@ return [
     'heading' => 'Nos normes contre l’exploitation et les abus sexuels sur mineurs',
     'updated' => 'Version du 25 novembre 2026',
     'intro' => 'Ces normes s’appliquent à BouclePro, plateforme d’entraide éditée par l’Association AMT : le site bouclepro.com, les espaces des organisations qui l’utilisent et l’application Android BouclePro.',
-    'toc_title' => 'Sur cette page',
     'report_title' => 'Signaler un contenu ou un comportement',
     'report_text' => 'Écrivez au contact désigné pour la sécurité des enfants :',
     'contact_email' => 'cslucki@gmail.com',
     'contact_link' => 'Écrire à cslucki@gmail.com',
-    'legal_link' => 'Mentions légales',
-    'privacy_link' => 'Politique de confidentialité',
 
     'sections' => [
         [

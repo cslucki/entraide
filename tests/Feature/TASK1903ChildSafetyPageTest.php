@@ -8,10 +8,15 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * TASK-1903 — la page « Securite des enfants » (normes CSAE exigees par Google
- * Play) est publique, en francais et en anglais, servie en global ET dans le
- * contexte d'une Organization, reliee depuis les pieds de page et les mentions
- * legales, et n'affirme aucun mecanisme qui n'existe pas encore (S2a / S2b).
+ * TASK-1903 — centre institutionnel unique « Informations legales & securite »
+ * (/mentions-legales) : mentions legales, confidentialite, suppression de
+ * compte et normes Securite des enfants (CSAE, Google Play).
+ *
+ * Les trois URL declarees a Google Play (/confidentialite,
+ * /suppression-de-compte, /securite-enfants) repondent 200 DIRECTEMENT, sans
+ * redirection ni JavaScript, en « mode cible » : la rubrique visee est le <h1>,
+ * le <title>, et la premiere rubrique de la page. Le pied de page n'a plus
+ * qu'un lien institutionnel, et le lien des bugs est distinct.
  */
 class TASK1903ChildSafetyPageTest extends TestCase
 {
@@ -28,49 +33,118 @@ class TASK1903ChildSafetyPageTest extends TestCase
         ]);
     }
 
-    /** @return array<string, array{string, string, string}> */
-    public static function langues(): array
+    /** @return array<string, array{string, string, string}> route, ancre, fichier de langue */
+    public static function cibles(): array
     {
         return [
-            'fr' => ['fr', 'exploitation et d’abus sexuels sur mineurs', '18 ans'],
-            'en' => ['en', 'child sexual abuse and exploitation (CSAE)', 'aged 18'],
+            'confidentialite' => ['confidentialite', 'confidentialite', 'privacy'],
+            'suppression' => ['suppression-de-compte', 'suppression-compte', 'account_deletion'],
+            'securite enfants' => ['securite-enfants', 'securite-enfants', 'child_safety'],
         ];
     }
 
-    #[DataProvider('langues')]
-    public function test_la_page_globale_est_publique_et_porte_les_mentions_exigees(string $langue, string $interdiction, string $age): void
+    /** @return array<string, array{string}> */
+    public static function langues(): array
     {
-        $page = $this->withHeader('Accept-Language', $langue)
-            ->get('/securite-enfants')
-            ->assertOk();
+        return ['fr' => ['fr'], 'en' => ['en']];
+    }
 
+    /** Extrait le texte du premier <h1> de la page. */
+    private function premierH1(string $html): string
+    {
+        preg_match_all('#<h1[^>]*>(.*?)</h1>#s', $html, $m);
+
+        // Le layout porte deja un <h1> de marque ; celui de la page est le dernier.
+        return trim(html_entity_decode(strip_tags(end($m[1]) ?: ''), ENT_QUOTES));
+    }
+
+    public function test_le_centre_regroupe_les_quatre_rubriques_avec_des_ancres_stables(): void
+    {
+        $html = $this->withHeader('Accept-Language', 'fr')->get('/mentions-legales')->assertOk()->getContent();
+
+        foreach (['mentions', 'confidentialite', 'suppression-compte', 'securite-enfants'] as $ancre) {
+            $this->assertStringContainsString('id="'.$ancre.'"', $html, "ancre {$ancre}");
+            $this->assertStringContainsString('href="#'.$ancre.'"', $html, "sommaire {$ancre}");
+        }
+
+        app()->setLocale('fr');
+        $this->assertSame(__('legal.center_title'), $this->premierH1($html));
+        $this->assertStringContainsString('data-legal-page="center"', $html);
+        // Le titre contient « & » : echappe UNE seule fois (pas de « &amp;amp; »).
+        $this->assertMatchesRegularExpression('#<title>\s*'.preg_quote(e(__('legal.center_title')), '#').'#', $html);
+        $this->assertStringNotContainsString('&amp;amp;', $html);
+    }
+
+    #[DataProvider('cibles')]
+    public function test_chaque_url_google_play_repond_200_directement_en_mode_cible(string $route, string $ancre, string $fichier): void
+    {
+        foreach (['fr', 'en'] as $langue) {
+            $reponse = $this->withHeader('Accept-Language', $langue)->get('/'.$route);
+            $reponse->assertOk(); // jamais de redirection
+            $html = $reponse->getContent();
+
+            app()->setLocale($langue);
+            $titre = __($fichier.'.title');
+
+            $this->assertSame($titre, $this->premierH1($html), "[{$route} {$langue}] <h1>");
+            $this->assertMatchesRegularExpression('#<title>\s*'.preg_quote(e($titre), '#').'#', $html, "[{$route} {$langue}] <title>");
+            $this->assertStringContainsString('data-legal-page="'.$ancre.'"', $html);
+
+            // La rubrique visee est la PREMIERE rubrique rendue (lisible sans script).
+            preg_match('#data-legal-rubric="([^"]+)"#', $html, $premiere);
+            $this->assertSame($ancre, $premiere[1] ?? null, "[{$route} {$langue}] premiere rubrique");
+
+            // Son contenu complet est present : toutes ses sections.
+            foreach (__($fichier.'.sections') as $section) {
+                $this->assertStringContainsString(e($section['title']), $html);
+            }
+        }
+    }
+
+    #[DataProvider('cibles')]
+    public function test_le_mode_cible_suit_la_langue_de_l_organization(string $route, string $ancre, string $fichier): void
+    {
+        foreach (['fr', 'en'] as $langue) {
+            $this->organization->update(['locale' => $langue]);
+
+            $html = $this->get(route('organization.'.$route, $this->organization))->assertOk()->getContent();
+
+            app()->setLocale($langue);
+            $this->assertSame(__($fichier.'.title'), $this->premierH1($html), "[org {$route} {$langue}]");
+        }
+    }
+
+    #[DataProvider('langues')]
+    public function test_les_normes_csae_identifient_bouclepro_et_amt_et_le_contact(string $langue): void
+    {
         app()->setLocale($langue);
-        $page->assertSee(__('child_safety.heading'))
+        $interdiction = $langue === 'fr' ? 'exploitation et d’abus sexuels sur mineurs' : 'child sexual abuse and exploitation (CSAE)';
+
+        $this->withHeader('Accept-Language', $langue)
+            ->get('/securite-enfants')
+            ->assertOk()
             ->assertSee('BouclePro')
-            ->assertSee('AMT')
+            ->assertSee('Association AMT')
             ->assertSee($interdiction)
-            ->assertSee($age)
+            ->assertSee($langue === 'fr' ? '18 ans' : 'aged 18')
             ->assertSee('PHAROS')
             ->assertSee('href="mailto:cslucki@gmail.com"', false)
-            ->assertSee('id="signaler"', false)
-            ->assertSee('href="#signaler"', false);
+            ->assertSee('id="signaler"', false);
     }
 
-    #[DataProvider('langues')]
-    public function test_la_page_est_aussi_publique_dans_le_contexte_de_l_organization(string $langue, string $interdiction, string $age): void
+    public function test_la_suppression_de_compte_montre_ses_etapes_en_premier(): void
     {
-        // Dans le contexte d'une Organization, SetLocale fait primer la langue
-        // de l'Organization sur celle du navigateur.
-        $this->organization->update(['locale' => $langue]);
+        app()->setLocale('fr');
+        $html = $this->get('/suppression-de-compte')->assertOk()->getContent();
 
-        $this->get(route('organization.securite-enfants', $this->organization))
-            ->assertOk()
-            ->assertSee('data-legal-page="child-safety"', false)
-            ->assertSee($interdiction)
-            ->assertSee('cslucki@gmail.com');
+        $etape = e(__('account_deletion.sections.0.steps.0'));
+        $confidentialite = 'id="confidentialite"';
+
+        $this->assertStringContainsString($etape, $html);
+        $this->assertLessThan(strpos($html, $confidentialite), strpos($html, $etape), 'les etapes doivent preceder les autres rubriques');
     }
 
-    public function test_la_page_n_affirme_aucun_mecanisme_inexistant(): void
+    public function test_les_normes_n_affirment_aucun_mecanisme_inexistant(): void
     {
         foreach (['fr', 'en'] as $langue) {
             $texte = mb_strtolower(json_encode(require lang_path("{$langue}/child_safety.php"), JSON_UNESCAPED_UNICODE));
@@ -79,19 +153,6 @@ class TASK1903ChildSafetyPageTest extends TestCase
                 $this->assertStringNotContainsString($interdit, $texte, "[{$langue}] affirmation interdite : {$interdit}");
             }
         }
-    }
-
-    public function test_les_pieds_de_page_et_les_mentions_legales_menent_a_la_page(): void
-    {
-        $mentions = $this->get(route('mentions-legales'))->assertOk()->getContent();
-        $this->assertStringContainsString('href="'.route('securite-enfants').'"', $mentions);
-
-        $scoped = $this->get(route('organization.mentions-legales', $this->organization))->assertOk()->getContent();
-        $this->assertStringContainsString('href="'.route('organization.securite-enfants', $this->organization).'"', $scoped);
-
-        $accueil = $this->get(route('organization.home', $this->organization))->assertOk()->getContent();
-        $this->assertStringContainsString('data-footer-child-safety', $accueil);
-        $this->assertStringContainsString('href="'.route('organization.securite-enfants', $this->organization).'"', $accueil);
     }
 
     /** @return array<string, array{string, string}> */
@@ -106,7 +167,7 @@ class TASK1903ChildSafetyPageTest extends TestCase
     }
 
     #[DataProvider('vitrines')]
-    public function test_le_pied_de_chaque_vitrine_mene_a_la_page(string $gabarit, string $suffixe): void
+    public function test_le_pied_de_chaque_vitrine_n_a_plus_qu_un_lien_institutionnel(string $gabarit, string $suffixe): void
     {
         $organization = Organization::factory()->create([
             'slug' => 'vitrine-1903', 'is_active' => true, 'is_public' => true, 'locale' => 'fr',
@@ -115,8 +176,22 @@ class TASK1903ChildSafetyPageTest extends TestCase
 
         $html = $this->get('/org/vitrine-1903'.$suffixe)->assertOk()->getContent();
 
-        $this->assertStringContainsString('data-footer-child-safety', $html, "[{$gabarit}{$suffixe}] lien absent.");
-        $this->assertStringContainsString('href="'.route('organization.securite-enfants', $organization).'"', $html);
+        $this->assertSame(1, substr_count($html, 'data-footer-legal-center'), "[{$gabarit}{$suffixe}] un seul lien institutionnel");
+        $this->assertStringContainsString('href="'.route('organization.mentions-legales', $organization).'"', $html);
+        foreach (['data-footer-privacy', 'data-footer-account-deletion', 'data-footer-child-safety'] as $ancien) {
+            $this->assertStringNotContainsString($ancien, $html, "[{$gabarit}{$suffixe}] {$ancien} doit disparaitre");
+        }
+    }
+
+    public function test_le_pied_global_a_un_lien_institutionnel_et_un_lien_bugs_distinct(): void
+    {
+        app()->setLocale('fr');
+        $html = $this->get(route('organization.home', $this->organization))->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-footer-legal-center', $html);
+        $this->assertStringContainsString(e(__('legal.center_title')), $html);
+        $this->assertStringContainsString(__('footer.bug_title'), $html);
+        $this->assertStringNotContainsString('data-footer-privacy', $html);
     }
 
     public function test_les_textes_francais_et_anglais_ont_la_meme_structure_et_les_memes_ancres(): void
@@ -134,5 +209,7 @@ class TASK1903ChildSafetyPageTest extends TestCase
                 $this->assertCount(count($section[$bloc] ?? []), $en['sections'][$i][$bloc] ?? [], "section {$i} {$bloc}");
             }
         }
+
+        $this->assertSame(array_keys(require lang_path('fr/legal.php')), array_keys(require lang_path('en/legal.php')));
     }
 }
