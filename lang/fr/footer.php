@@ -7,9 +7,8 @@ return [
     'flowchart' => 'Logigramme',
     'kit_demo' => 'Kit démo',
     'opensource' => 'OpenSource',
-    'bug' => 'Un bug ?',
-    'bug_title' => 'Signaler un bug',
-    'bug_view_reported' => 'Voir les bugs signalés et corrigés',
+    'bug' => 'Signalement',
+    'bug_title' => 'Signalement',
     'bug_type' => 'Type de bug...',
     'bug_type_mobile' => 'Affichage mobile',
     'bug_type_function' => 'Fonctionnement',
@@ -21,5 +20,4 @@ return [
     'bug_guest_title' => 'Un bug ?',
     'bug_guest_text' => 'Connectez-vous pour nous envoyer un signalement précis.',
     'bug_guest_login' => 'Se connecter',
-    'bug_guest_view' => 'Voir les bugs',
 ];

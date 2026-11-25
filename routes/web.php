@@ -422,7 +422,11 @@ Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
 Route::view('/confidentialite', 'mentions-legales', ['focus' => 'confidentialite'])->name('confidentialite');
 Route::view('/suppression-de-compte', 'mentions-legales', ['focus' => 'suppression-compte'])->name('suppression-de-compte');
 Route::view('/securite-enfants', 'mentions-legales', ['focus' => 'securite-enfants'])->name('securite-enfants');
-Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
+// TASK-1904 — « Signalement » : page CONFIDENTIELLE (invite = invitation a se
+// connecter, aucune liste ; membre = ses seuls signalements). L'ancienne adresse
+// `/bugs` redirige, sans jamais rendre de liste.
+Route::get('/report', [BugReportController::class, 'index'])->name('bug-reports.index');
+Route::permanentRedirect('/bugs', '/report')->name('bug-reports.legacy');
 
 // TASK-1612 — Open Source Explorer.
 //
@@ -577,7 +581,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
     Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
     Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
-    Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
+    Route::post('/report', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
     // TASK-1730 (A5a) — passer a SON autre compte, dans une autre Organization.
     //
@@ -1719,7 +1723,11 @@ Route::prefix('/org/{organization}')
         // ou sans version active, la route rend 404 : publiquement, la
         // ressource n'existe pas.
         Route::get('/constitution', [MyceliumController::class, 'organization'])->name('constitution');
-        Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
+        // TASK-1904 — point d'entree unique des signalements de l'organisation.
+        // L'ancienne adresse redirige DANS ce groupe (meme garde membre : aucun
+        // oracle d'existence, aucune liste).
+        Route::get('/report', [BugReportController::class, 'index'])->name('bug-reports.index');
+        Route::permanentRedirect('/bugs', '/org/{organization}/report')->name('bug-reports.legacy');
 
         // TASK-1608 — la carte interactive de l'Organization.
         //
@@ -1949,7 +1957,7 @@ Route::prefix('/org/{organization}')
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');
             Route::post('/reports/user/{user}', [ReportController::class, 'orgStoreUser'])->middleware('throttle:5,1')->name('reports.user');
-            Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
+            Route::post('/report', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
             Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
             // TASK-1824 — jumelle prefixee de `profile.security`. Voir la

@@ -56,10 +56,11 @@ return [
             ],
             'items' => [
                 'by email to our designated contact: cslucki@gmail.com. This covers all BouclePro content. If possible, include the page address, the name of the account involved and the date;',
+                'with the "Report" form, available from the footer and the menu of BouclePro once logged in: choose the "Child safety" category. These reports are read only by the platform moderation team and handled first;',
                 'with the "Report" link available on profiles, offers and requests for help.',
             ],
             'after' => [
-                'The "Report" link is not yet available on other content (Feed, Loop messages, private messages, articles): for these, please email us.',
+                'The "Report" link is not yet available on other content (Feed, Loop messages, private messages, articles): for these, use the "Report" form and describe where the content is, or email us.',
                 'Never send us a copy of an illegal image or video: describe it and tell us where it is.',
             ],
             'link' => 'contact',

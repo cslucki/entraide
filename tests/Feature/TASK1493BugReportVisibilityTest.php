@@ -12,6 +12,10 @@ use Tests\TestCase;
  * TASK-1493 — la page de suivi des bugs reste publique, mais pas au-dela de la
  * publicite de son Organization.
  *
+ * TASK-1904 (decision MASTER D6) — TRANSPARENCE ABANDONNEE : plus aucune liste
+ * publique ni partagee ; chaque membre ne lit que SES signalements. Les
+ * gardes ci-dessous (invite, autre organisation) restent vraies.
+ *
  * ## Pourquoi cette page N'EST PAS fermee
  *
  * TASK-1489 l'avait inscrite comme defaut LATENT : 200 a un anonyme, aucune
@@ -102,29 +106,28 @@ class TASK1493BugReportVisibilityTest extends TestCase
         $this->assertStringNotContainsString('DETAIL CONFIDENTIEL T1493', $response->getContent());
     }
 
-    public function test_a_member_of_the_private_organization_reads_it_normally(): void
+    public function test_a_member_of_the_private_organization_no_longer_reads_another_members_report(): void
     {
+        // TASK-1904 (decision MASTER D6) — fin de la transparence : la page
+        // repond au membre, mais ne montre QUE ses signalements.
         $this->actingAs($this->privateMember)
             ->get(route('organization.bug-reports.index', [$this->private]))
             ->assertOk()
-            ->assertSee('DETAIL CONFIDENTIEL T1493');
+            ->assertDontSee('DETAIL CONFIDENTIEL T1493');
     }
 
     /**
-     * L'intention publique est preservee, et c'est le coeur de cette TASK : la
-     * page de transparence d'une Organization PUBLIQUE reste ouverte a l'invite.
+     * TASK-1692 avait rendu la page MEMBRE ; TASK-1904 la rend PERSONNELLE.
      */
-    public function test_the_bug_list_of_a_public_organization_is_member_only_since_t1692(): void
+    public function test_the_report_page_of_a_public_organization_is_member_only_and_personal(): void
     {
-        // CHANGEMENT D'INTENTION PRODUIT — TASK-1692.
         $this->get(route('organization.bug-reports.index', [$this->public]))
             ->assertRedirect(route('organization.login', ['organization' => $this->public->slug]));
 
-        // CONTRE-EPREUVE : la liste existe toujours pour un membre.
-        $this->actingAs(\App\Models\User::factory()->create(['organization_id' => $this->public->id]))
+        $this->actingAs(User::factory()->create(['organization_id' => $this->public->id]))
             ->get(route('organization.bug-reports.index', [$this->public]))
             ->assertOk()
-            ->assertSee('DETAIL VITRINE T1493');
+            ->assertDontSee('DETAIL VITRINE T1493');
     }
 
     /**
@@ -134,7 +137,7 @@ class TASK1493BugReportVisibilityTest extends TestCase
     public function test_a_guest_cannot_submit_a_bug_report(): void
     {
         $this->post(route('organization.bug-reports.store', [$this->public]), [
-            'reason' => 'Navigation',
+            'category' => 'technical_bug',
             'details' => 'Tentative anonyme T1493',
         ])->assertRedirect(route('organization.login', ['organization' => $this->public->slug]));
 
@@ -145,7 +148,7 @@ class TASK1493BugReportVisibilityTest extends TestCase
     public function test_a_member_can_still_submit_a_bug_report(): void
     {
         $this->actingAs($this->outsider)->post(route('organization.bug-reports.store', [$this->public]), [
-            'reason' => 'Navigation',
+            'category' => 'technical_bug',
             'details' => 'Signalement legitime T1493',
         ]);
 

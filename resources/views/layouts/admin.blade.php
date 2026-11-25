@@ -213,8 +213,8 @@
                             // TASK-1425 (CRM-15) : agregats CRM par Organization.
                             ['route' => 'admin.crm.overview', 'label' => __('admin.crm_overview_menu'), 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
                             ['route' => 'admin.categories', 'label' => 'Catégories', 'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z'],
-                            ['route' => 'admin.reports', 'label' => 'Signalements', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
-                            ['route' => 'admin.bug-reports', 'label' => 'Bugs', 'icon' => 'M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.5-2.5a3.375 3.375 0 00-4.773-4.773l-2.5 2.5m4.773 4.773l-4.773-4.773m0 0L3 6.75m3.647 3.647L3 14.25'],
+                            ['route' => 'admin.reports', 'label' => 'Signalements ciblés', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
+                            ['route' => 'admin.bug-reports', 'label' => 'Signalements', 'icon' => 'M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.5-2.5a3.375 3.375 0 00-4.773-4.773l-2.5 2.5m4.773 4.773l-4.773-4.773m0 0L3 6.75m3.647 3.647L3 14.25'],
                             ['route' => 'admin.referrals', 'label' => 'Invitations', 'icon' => 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z'],
                             ['route' => 'admin.organization-requests', 'label' => 'Demandes plateforme', 'icon' => 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z'],
                             ['route' => 'admin.translations', 'label' => 'Traductions', 'icon' => 'M3 5h12M9 3v2m0 4h.01M9 11h.01M9 15h.01M9 17h.01M12 3v3m0 4v11m-7-3a7 7 0 0114 0'],
@@ -702,6 +702,9 @@
                                 {{ $item['label'] }}
                                 @if($item['route'] === 'admin.reports' && ($pendingReportsCount ?? 0) > 0)
                                 <span class="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{{ $pendingReportsCount }}</span>
+                                @endif
+                                @if($item['route'] === 'admin.bug-reports' && ($pendingChildSafetyReportsCount ?? 0) > 0)
+                                <span class="ml-auto bg-red-700 text-white text-xs rounded-full px-1.5 h-5 flex items-center justify-center font-bold ring-2 ring-red-300" title="{{ __('bugs.categories.child_safety') }}" data-admin-child-safety-count>{{ $pendingChildSafetyReportsCount }}</span>
                                 @endif
                                 @if($item['route'] === 'admin.bug-reports' && ($pendingBugReportsCount ?? 0) > 0)
                                 <span class="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{{ $pendingBugReportsCount }}</span>

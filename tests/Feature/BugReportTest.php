@@ -18,8 +18,8 @@ class BugReportTest extends TestCase
         $user = User::factory()->create(['organization_id' => $organization->id]);
 
         $this->actingAs($user)
-            ->post('/bugs', [
-                'reason' => 'Affichage mobile',
+            ->post('/report', [
+                'category' => 'technical_bug',
                 'details' => 'Le footer prend trop de place sur mobile.',
                 'page_url' => 'https://test.laravel/explorer',
             ])
@@ -29,7 +29,7 @@ class BugReportTest extends TestCase
         $this->assertDatabaseHas('bug_reports', [
             'organization_id' => $organization->id,
             'reporter_id' => $user->id,
-            'reason' => 'Affichage mobile',
+            'category' => 'technical_bug',
             'status' => 'pending',
         ]);
     }
@@ -41,8 +41,8 @@ class BugReportTest extends TestCase
         $user = User::factory()->create(['organization_id' => $organization->id]);
 
         $this->actingAs($user)
-            ->post("/org/{$organization->slug}/bugs", [
-                'reason' => 'Navigation',
+            ->post("/org/{$organization->slug}/report", [
+                'category' => 'technical_bug',
                 'details' => 'Un lien ne répond pas dans le menu mobile.',
                 'page_url' => "https://test.laravel/org/{$organization->slug}/explorer",
             ])
@@ -52,38 +52,25 @@ class BugReportTest extends TestCase
         $this->assertDatabaseHas('bug_reports', [
             'organization_id' => $organization->id,
             'reporter_id' => $user->id,
-            'reason' => 'Navigation',
+            'category' => 'technical_bug',
             'status' => 'pending',
         ]);
     }
 
     /**
-     * TASK-1230 : noms DETERMINISTES — la page /bugs rend le nom de
-     * l'Organization (Faker `company()` dans la factory) et le HTML est
-     * fouille en entier par `assertDontSee('Doublon')`. Meme correction a la
-     * racine que TASK-1218 / TASK-1228 : aucun tirage Faker rendu sur la page,
-     * assertion metier inchangee.
+     * TASK-1904 (decision MASTER D6) — fin de la page PUBLIQUE de transparence
+     * (TASK-1493) : l'invite ne lit plus aucun signalement, meme corrige ; le
+     * global `/bugs` redirige vers `/report`.
      */
-    public function test_public_bug_list_shows_fixed_notes_and_hides_dismissed_bugs(): void
+    public function test_the_global_report_page_shows_no_report_to_a_guest(): void
     {
-        // TASK-1493 : la liste des bugs d'une Organization `is_public = false`
-        // n'est plus servie a un invite. Ce test mesure la page PUBLIQUE de
-        // transparence — le lecteur anonyme fait partie de ce qu'il exerce.
-        // L'Organization est declaree publique, ce qu'elle etait implicitement :
-        // le defaut `is_public => false` de la factory n'avait jamais ete un
-        // choix de ce fichier.
         $organization = Organization::factory()->create([
             'is_default' => true,
             'is_active' => true,
             'is_public' => true,
             'name' => 'Bug Report Sentinel Org',
-            'description' => 'Organisation de test des signalements.',
         ]);
-        $user = User::factory()->create([
-            'organization_id' => $organization->id,
-            'name' => 'Reporter',
-            'first_name' => 'Sentinel',
-        ]);
+        $user = User::factory()->create(['organization_id' => $organization->id]);
 
         BugReport::create([
             'organization_id' => $organization->id,
@@ -95,18 +82,13 @@ class BugReportTest extends TestCase
             'fixed_at' => now(),
         ]);
 
-        BugReport::create([
-            'organization_id' => $organization->id,
-            'reporter_id' => $user->id,
-            'reason' => 'Doublon',
-            'details' => 'Signalement ignoré.',
-            'status' => 'dismissed',
-        ]);
+        $this->get('/bugs')->assertRedirect('/report');
 
-        $this->get('/bugs')
+        $this->get('/report')
             ->assertOk()
-            ->assertSee('Footer simplifié et rendu responsive')
-            ->assertDontSee('Doublon');
+            ->assertSee('data-report-guest', false)
+            ->assertDontSee('Le footer déborde.')
+            ->assertDontSee('Footer simplifié et rendu responsive');
     }
 
     public function test_admin_can_mark_bug_as_fixed_with_optional_public_note(): void
