@@ -29,7 +29,7 @@ Feature graphic : « Ne plus avancer seul » (FR), « Move forward together » (
 
 - **Captures réelles** de l'interface BouclePro 1.901, thème sombre, prises le 25/11/2026 avec Playwright (fenêtre 360 × 640, densité 3) sur un environnement local, à partir d'une copie de la production anonymisée.
 - Organisation **fictive** « Collectif Horizon » et membre **fictif** Julien Lefèvre (membre simple). Aucune donnée personnelle réelle.
-- Version anglaise : interface en anglais (langue choisie dans l'application). Les **contenus** saisis par les membres fictifs restent en français : messages, titres, catégorie « Entraide », message système de sondage dans la Boucle.
+- Version anglaise : interface en anglais (langue choisie dans l'application) et contenus fictifs traduits en anglais dans l'environnement local seulement (organisation « Horizon Collective », messages, annonces, événements, demandes, catégorie « Mutual aid »). Les noms des membres fictifs sont conservés.
 - Mise en forme : accroche en Inter 800 et capture d'origine réduite à 840 px de large dans un cadre arrondi. Le dégradé reprend celui de la Feature Graphic du 24/11 (`#1b1fcc` → `#0c1135`).
 - Icône : celle de l'application Android (`store_icon.png` du projet TWA), même dessin que les icônes PWA `public/brand/icon-512.png`.
 
@@ -40,7 +40,7 @@ Dimensions, format PNG, absence de transparence (sauf l'icône) et poids, vérif
 - image de présentation ≤ 15 Mo ;
 - captures ≤ 8 Mo, ratio ≤ 2:1.
 
-Tous les fichiers sont conformes. Le plus lourd pèse 525 Ko.
+Tous les fichiers sont conformes. Le plus lourd pèse 541 Ko.
 
 ## Limites connues
 
