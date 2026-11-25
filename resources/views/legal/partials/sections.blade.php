@@ -3,12 +3,13 @@
      texte en dur. Chaque section peut porter : `paragraphs`, `items`
      (liste a puces), `steps` (liste numerotee), `after` (paragraphes apres
      la liste) et `link` (clef de $links : lien interne en fin de section).
+     TASK-1903 — `id` (facultatif) : ancre de la section, pour un sommaire.
 
      @param array $sections
      @param array<string, array{url: string, label: string}> $links --}}
 <div class="space-y-6 text-[var(--bp-muted)] text-sm leading-relaxed">
     @foreach ($sections as $section)
-        <section class="rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
+        <section @isset($section['id']) id="{{ $section['id'] }}" @endisset class="scroll-mt-24 rounded-3xl bg-[var(--bp-panel)] p-5 ring-1 ring-[var(--bp-border)]">
             <h2 class="text-lg font-semibold text-[var(--bp-heading)] mb-3">{{ $section['title'] }}</h2>
 
             @foreach ($section['paragraphs'] ?? [] as $paragraph)

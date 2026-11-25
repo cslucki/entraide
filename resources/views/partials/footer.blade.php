@@ -92,6 +92,12 @@
                    data-footer-account-deletion>
                     {{ __('footer.account_deletion') }}
                 </a>
+                {{-- TASK-1903 — normes Securite des enfants (Google Play). --}}
+                <a href="{{ organizationScopedUrl('securite-enfants', 'organization.securite-enfants') }}"
+                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
+                   data-footer-child-safety>
+                    {{ __('footer.child_safety') }}
+                </a>
                 {{-- TASK-1692 / MICRO-11.2D — « Kit demo » sort de la garde
                      tenant, comme les mentions legales juste au-dessus.
 

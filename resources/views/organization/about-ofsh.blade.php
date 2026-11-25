@@ -318,6 +318,8 @@ $rubriques = array_filter([
       {{-- TASK-1899 — pages exigees par Google Play (T1898), bornees a l'Organization. --}}
       <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
       <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
+      {{-- TASK-1903 --}}
+      <a href="{{ organizationScopedUrl('securite-enfants', 'organization.securite-enfants') }}" data-footer-child-safety>{{ __('footer.child_safety') }}</a>
       <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
       <a href="{{ route('organization.bug-reports.index', ['organization' => $organization->slug]) }}" data-footer-bug>{{ __('footer.bug') }}</a>
       <span>{{ config('app.version') }}</span>

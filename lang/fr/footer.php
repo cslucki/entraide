@@ -7,6 +7,8 @@ return [
     // TASK-1898
     'privacy' => 'Confidentialité',
     'account_deletion' => 'Supprimer mon compte',
+    // TASK-1903
+    'child_safety' => 'Sécurité des enfants',
     // TASK-1608 — le lien vers la carte interactive, juste a droite de Mycelium.
     'flowchart' => 'Logigramme',
     'kit_demo' => 'Kit démo',

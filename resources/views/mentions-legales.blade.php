@@ -62,6 +62,11 @@
                             <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}"
                                class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ __('legal.account_deletion_link') }}</a>
                         </li>
+                        {{-- TASK-1903 --}}
+                        <li>
+                            <a href="{{ organizationScopedUrl('securite-enfants', 'organization.securite-enfants') }}"
+                               class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ __('footer.child_safety') }}</a>
+                        </li>
                     </ul>
                 </section>
 

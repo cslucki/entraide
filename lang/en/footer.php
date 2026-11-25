@@ -7,6 +7,8 @@ return [
     // TASK-1898
     'privacy' => 'Privacy',
     'account_deletion' => 'Delete my account',
+    // TASK-1903
+    'child_safety' => 'Child safety',
     // TASK-1608 — the link to the interactive map, right after Mycelium.
     'flowchart' => 'Flowchart',
     'kit_demo' => 'Demo kit',

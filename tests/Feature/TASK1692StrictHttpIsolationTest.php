@@ -419,6 +419,8 @@ class TASK1692StrictHttpIsolationTest extends TestCase
             'GET org/{organization}/open-source',
             'GET org/{organization}/register',
             'GET org/{organization}/reset-password/{token}',
+            // TASK-1903 — normes Securite des enfants, montage des mentions legales.
+            'GET org/{organization}/securite-enfants',
             'GET org/{organization}/suppression-de-compte',
             'POST org/{organization}/forgot-password',
             'POST org/{organization}/login',

@@ -419,6 +419,9 @@ Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
 // legales : contenu global unique, aucune authentification.
 Route::view('/confidentialite', 'legal.privacy')->name('confidentialite');
 Route::view('/suppression-de-compte', 'legal.account-deletion')->name('suppression-de-compte');
+// TASK-1903 — normes contre l'exploitation et les abus sexuels sur mineurs
+// (Google Play « Child Safety Standards »), meme montage que ci-dessus.
+Route::view('/securite-enfants', 'legal.child-safety')->name('securite-enfants');
 Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
 
 // TASK-1612 — Open Source Explorer.
@@ -1767,6 +1770,10 @@ Route::prefix('/org/{organization}')
         Route::view('/suppression-de-compte', 'legal.account-deletion')
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('suppression-de-compte');
+        // TASK-1903 — normes Securite des enfants (Google Play), meme montage.
+        Route::view('/securite-enfants', 'legal.child-safety')
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('securite-enfants');
 
         // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
         // l'Organization, exactement comme les mentions legales ci-dessus :

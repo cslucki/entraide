@@ -459,6 +459,9 @@ $secondaryCtaUrl = $showInternalHomepageContent
         <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
         <span class="foot-sep" aria-hidden="true">·</span>
         <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
+        <span class="foot-sep" aria-hidden="true">·</span>
+        {{-- TASK-1903 --}}
+        <a href="{{ organizationScopedUrl('securite-enfants', 'organization.securite-enfants') }}" data-footer-child-safety>{{ __('footer.child_safety') }}</a>
       </span>
       <span class="foot-pair">
         <a href="{{ route('organization.bug-reports.index', $organization) }}" data-footer-bug>{{ __('footer.bug') }}</a>
