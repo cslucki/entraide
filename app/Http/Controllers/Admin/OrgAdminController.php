@@ -1135,10 +1135,14 @@ class OrgAdminController extends Controller
         // TASK-1904 (D3) — ni lu ni resolu par l'organisation.
         abort_if($bugReport->isChildSafety(), 404);
 
-        $bugReport->update([
-            'status' => 'resolved',
-            'fixed_at' => now(),
-        ]);
+        // TASK-1905 — l'auteur et la date de la resolution entrent dans l'historique.
+        \Illuminate\Support\Facades\DB::transaction(function () use ($bugReport): void {
+            $bugReport->update([
+                'status' => 'resolved',
+                'fixed_at' => now(),
+            ]);
+            $bugReport->recordAction(\App\Models\BugReportAction::RESOLVED, auth()->user());
+        });
 
         return back()->with('success', __('navigation.org_admin_report_resolved'));
     }

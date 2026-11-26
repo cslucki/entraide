@@ -145,6 +145,16 @@ class ScenarioSandboxPreflight
         'blog_post_user',
         'blog_snapshots',
         'blog_todo_threads',
+        // TASK-1905 — l'historique de traitement d'un signalement (auteur,
+        // action, note INTERNE de moderation). Hors portee par NATURE : ce
+        // n'est pas du contenu ecrit par un membre dans une sandbox, c'est la
+        // trace d'une decision de moderation (superadmin ou admin
+        // d'organisation). La ligne n'a pas d'`organization_id` : elle
+        // appartient a son signalement (`bug_reports`, lui-meme parcouru par
+        // son `organization_id`) et part avec lui (`cascadeOnDelete`).
+        // `actor_id` est nullable + nullOnDelete et declare `POLICY_RETAIN`
+        // dans `UserDataLifecycleRegistry`.
+        'bug_report_actions',
         // TASK-1803 — les destinataires d'un envoi en masse SuperAdmin
         // (`/admin/email-bulksending`). Hors portee par NATURE, pas par
         // omission : l'envoi parent (`bulk_email_sends`) peut cibler « toutes

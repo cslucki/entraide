@@ -376,6 +376,20 @@ class SystemEmailTemplateSeeder extends Seeder
             ],
         ],
 
+        // TASK-1905 (MASTER D2/D6) — alerte au contact designe a chaque
+        // nouveau signalement « Securite des enfants ». Ne porte JAMAIS la
+        // description, le signaleur ni l'URL du contenu. Pose AUSSI par la
+        // migration jumelle `2026_11_26_100100_add_child_safety_report_alert_email_template`.
+        'child_safety_report_alert' => [
+            'name_fr' => 'Alerte : signalement « Sécurité des enfants »',
+            'name_en' => 'Alert: "Child safety" report',
+            'subject_fr' => '[{{ app_name }}] Signalement prioritaire à examiner',
+            'subject_en' => '[{{ app_name }}] Priority report to review',
+            'content_html_fr' => '<p>Bonjour,</p><p>Un nouveau signalement de catégorie « Sécurité des enfants » a été enregistré le {{ report_date }} dans l’organisation <strong>{{ organization_name }}</strong>.</p><p>Il doit être examiné en priorité dans le back-office. Pour des raisons de confidentialité, ce message ne contient ni le contenu du signalement, ni l’identité de son auteur.</p><p><a href="{{ admin_url }}">Ouvrir les signalements en attente</a></p><p>La décision de modération reste humaine.</p>',
+            'content_html_en' => '<p>Hello,</p><p>A new "Child safety" report was recorded on {{ report_date }} in the organization <strong>{{ organization_name }}</strong>.</p><p>It must be reviewed first in the back-office. For confidentiality reasons, this message contains neither the content of the report nor the identity of its author.</p><p><a href="{{ admin_url }}">Open pending reports</a></p><p>The moderation decision remains human.</p>',
+            'variables' => ['organization_name', 'report_date', 'admin_url', 'app_name'],
+        ],
+
         'entraide_comment_created' => [
             'name_fr' => 'Commentaire sur votre entraide',
             'name_en' => 'Comment on your mutual aid',
