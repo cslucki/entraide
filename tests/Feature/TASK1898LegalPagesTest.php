@@ -80,10 +80,12 @@ class TASK1898LegalPagesTest extends TestCase
 
     public function test_le_pied_de_page_et_les_mentions_legales_menent_aux_deux_pages(): void
     {
-        $mentions = $this->get(route('mentions-legales'))->assertOk()->getContent();
-        foreach (['confidentialite', 'suppression-de-compte'] as $route) {
-            $this->assertStringContainsString('href="'.route($route).'"', $mentions);
-        }
+        // TASK-1903 — les deux contenus sont desormais des RUBRIQUES du centre
+        // institutionnel (/mentions-legales), dont le sommaire mene a leurs URL
+        // REELLES (jamais d'ancre) ; le pied n'a plus qu'un lien, vers ce centre.
+        $centre = $this->get(route('mentions-legales'))->assertOk()->getContent();
+        $this->assertStringContainsString('href="'.route('confidentialite').'"', $centre);
+        $this->assertStringContainsString('href="'.route('suppression-de-compte').'"', $centre);
 
         $scoped = $this->get(route('organization.mentions-legales', $this->organization))->assertOk()->getContent();
         $this->assertStringContainsString('href="'.route('organization.confidentialite', $this->organization).'"', $scoped);
@@ -92,10 +94,8 @@ class TASK1898LegalPagesTest extends TestCase
         // Le pied de page vit sur l'accueil public de l'Organization (et les
         // pages invitees), pas dans `x-app-layout` : on le lit la ou il est.
         $accueil = $this->get(route('organization.home', $this->organization))->assertOk()->getContent();
-        $this->assertStringContainsString('data-footer-privacy', $accueil);
-        $this->assertStringContainsString('data-footer-account-deletion', $accueil);
-        $this->assertStringContainsString('href="'.route('organization.confidentialite', $this->organization).'"', $accueil);
-        $this->assertStringContainsString('href="'.route('organization.suppression-de-compte', $this->organization).'"', $accueil);
+        $this->assertStringContainsString('data-footer-legal-center', $accueil);
+        $this->assertStringContainsString('href="'.route('organization.mentions-legales', $this->organization).'"', $accueil);
     }
 
     public function test_les_textes_francais_et_anglais_ont_la_meme_structure(): void

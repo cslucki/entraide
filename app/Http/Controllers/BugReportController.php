@@ -2,75 +2,60 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendChildSafetyReportAlert;
 use App\Models\BugReport;
+use App\Models\BugReportAction;
 use App\Models\Organization;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class BugReportController extends Controller
 {
     /**
-     * TASK-1493 — la page publique de suivi des bugs, bornee a la publicite de
-     * l'Organization.
+     * TASK-1904 — page « Signalement ». CONFIDENTIELLE (decision MASTER D6 :
+     * fin de la transparence publique de TASK-1493).
      *
-     * ## L'intention publique est REELLE, et c'est ce qui distingue ce cas
-     *
-     * Contrairement au commentaire « Public organization-scoped detail routes »
-     * de TASK-1488, qui s'est revele faux sur ses trois affirmations, la
-     * publicite de cette page est ECRITE et coherente :
-     *
-     * - `bugs.empty` dit « Aucun bug **public** pour le moment. » ;
-     * - `bugs.subtitle_org` parle des « corrections **publiees** » ;
-     * - la vue rend un bouton **Connexion** a l'invite, donc elle le prevoit.
-     *
-     * Cette page n'est donc PAS fermee. Elle reste ce qu'elle a ete concue pour
-     * etre : une page de transparence produit.
-     *
-     * ## Ce qui manquait
-     *
-     * Cette intention n'avait jamais ete confrontee a `is_public`. Le contenu
-     * affiche est du texte LIBRE ecrit par des membres — `details` accepte
-     * 2000 caracteres — et sur une Organization privee, le publier au Web
-     * revient a publier ce que ses membres ecrivent en interne.
-     *
-     * Mesure au HEAD : 200 a un anonyme. Aucune fuite constatee pour une seule
-     * raison — la table `bug_reports` est VIDE. Une table vide n'est pas une
-     * frontiere, et TASK-1489 l'avait deja inscrit comme defaut LATENT.
-     *
-     * ## La regle appliquee n'est pas neuve
-     *
-     * C'est exactement celle de TASK-1492 : la confidentialite d'une
-     * Organization s'etend a ce qu'elle publie. Organization publique -> page
-     * publique inchangee ; Organization privee -> reservee a ses membres.
+     * - Invite : invitation a se connecter, AUCUNE liste.
+     * - Connecte : le formulaire, et SES seuls signalements dans l'organisation
+     *   courante. Jamais ceux d'un autre membre, jamais d'une autre organisation.
      */
-    public function index(): View
+    public function index(Request $request): View
     {
         $organization = app()->bound('current_organization')
             ? app('current_organization')
             : DefaultOrganizationResolver::resolve();
 
-        if ($organization instanceof Organization) {
-            $this->assertOrganizationBugListIsReadable($organization);
-        }
+        $user = $request->user();
 
-        $bugReports = BugReport::with('organization')
-            ->when($organization, fn ($query) => $query->where('organization_id', $organization->id))
-            ->whereIn('status', ['pending', 'fixed'])
-            ->latest()
-            ->paginate(20);
+        $bugReports = $user !== null && $organization instanceof Organization
+            ? BugReport::where('organization_id', $organization->id)
+                ->where('reporter_id', $user->id)
+                ->latest()
+                ->paginate(20)
+            : null;
 
-        return view('bug-reports.index', compact('bugReports', 'organization'));
+        // Le « contenu concerne » : la page d'ou vient le membre, si elle est
+        // sur ce site et n'est pas la page Signalement elle-meme.
+        $referer = (string) $request->headers->get('referer', '');
+        $pageUrl = BugReport::isInternalUrl($referer) && ! preg_match('#/(report|bugs)/?$#', (string) parse_url($referer, PHP_URL_PATH))
+            ? $referer
+            : null;
+
+        return view('bug-reports.index', compact('bugReports', 'organization', 'pageUrl'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'reason' => ['required', 'string', 'max:255'],
+            'category' => ['required', 'string', Rule::in(BugReport::CATEGORIES)],
             'details' => ['required', 'string', 'max:2000'],
-            'page_url' => ['nullable', 'url', 'max:2048'],
+            'page_url' => ['nullable', 'string', 'max:2048'],
         ]);
 
         $organization = app()->bound('current_organization')
@@ -78,14 +63,14 @@ class BugReportController extends Controller
             : DefaultOrganizationResolver::resolve();
 
         if (! $organization) {
-            return back()->with('error', 'Impossible de rattacher ce bug à une organisation.');
+            return back()->with('error', __('bugs.no_organization'));
         }
 
         // TASK-1688 (P0-3) — ECRITURE CROSS-TENANT, prouvee puis fermee.
         //
         // ## Ce qui a ete mesure, en base isolee
         //
-        // Un membre de l'Organization A postait sur `/org/B/bugs` et la table
+        // Un membre de l'Organization A postait sur `/org/B/bugs` (desormais `/report`) et la table
         // `bug_reports` passait de 0 a 1, avec `organization_id = B` et
         // `reporter_id = <membre de A>`. HTTP 302, aucun refus.
         //
@@ -112,7 +97,7 @@ class BugReportController extends Controller
         //    du chemin, un signalement ne pourrait toujours pas atterrir
         //    ailleurs que la ou l'URL le dit.
         //
-        // La forme NON prefixee (`POST /bugs`) n'est pas touchee : mesure faite,
+        // La forme NON prefixee (`POST /report`, ex-`/bugs`) n'est pas touchee : mesure faite,
         // elle rattache deja le signalement a l'Organization de l'auteur, donc
         // le premier predicat y passe. Elle ne porte pas de parametre
         // d'Organization, donc le second ne s'y applique pas.
@@ -134,41 +119,35 @@ class BugReportController extends Controller
             abort_unless($slugDemande === $organization->slug, 404);
         }
 
-        BugReport::create([
+        $report = BugReport::create([
             'organization_id' => $organization->id,
             'reporter_id' => $auteur->id,
-            'reason' => $data['reason'],
+            'category' => $data['category'],
+            // `reason` (NOT NULL, historique) porte la cle de categorie.
+            'reason' => $data['category'],
             'details' => $data['details'],
-            'page_url' => $data['page_url'] ?? url()->previous(),
+            // Une URL externe n'est jamais conservee (pas de lien piege dans le back-office).
+            'page_url' => BugReport::isInternalUrl($data['page_url'] ?? null) ? $data['page_url'] : null,
             'user_agent' => Str::limit((string) $request->userAgent(), 1000, ''),
         ]);
 
-        return back()->with('success', 'Bug signalé. Merci pour votre aide !');
-    }
-
-    /**
-     * Meme regle et meme forme que
-     * `BlogController::assertOrganizationBlogIsReadable()` (TASK-1492), et pour
-     * la meme raison : la confidentialite d'une Organization s'etend a ce
-     * qu'elle publie.
-     *
-     * Refus en 404 comme les gardes voisines — un 403 confirmerait a un tiers
-     * que cette Organization existe. Le SuperAdmin garde l'acces transverse,
-     * avec le meme predicat `is_admin` que `EnsureOrganizationMember` et
-     * `OrgAdminMiddleware`.
-     */
-    private function assertOrganizationBugListIsReadable(Organization $organization): void
-    {
-        if ($organization->is_public) {
-            return;
+        // TASK-1905 — alerte au contact designe, HORS de la requete (job apres
+        // commit). Le signalement est deja enregistre : une file indisponible
+        // ne doit jamais faire echouer l'envoi du membre.
+        if ($report->isChildSafety()) {
+            try {
+                // `Bus::dispatch()` et non `::dispatch()` : la mise en file a lieu
+                // ICI, dans ce try, et non dans le destructeur d'un PendingDispatch.
+                Bus::dispatch(new SendChildSafetyReportAlert($report->id));
+            } catch (\Throwable $e) {
+                Log::critical('child_safety_alert: mise en file impossible, aucune alerte envoyee.', [
+                    'bug_report_id' => $report->id,
+                    'exception' => $e::class,
+                ]);
+                $report->recordAction(BugReportAction::ALERT_FAILED);
+            }
         }
 
-        $user = auth()->user();
-
-        if ($user?->is_admin) {
-            return;
-        }
-
-        abort_unless($user && $user->organization_id === $organization->id, 404);
+        return back()->with('success', __('bugs.sent'));
     }
 }

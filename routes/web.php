@@ -414,12 +414,19 @@ Route::get('/.well-known/assetlinks.json', AndroidAssetLinksController::class)
 Route::get('/search', [SearchController::class, 'index'])->middleware(['auth', 'organization.member'])->name('search');
 Route::view('/aide', 'help')->name('help');
 Route::view('/mentions-legales', 'mentions-legales')->name('mentions-legales');
-// TASK-1898 — pages publiques exigees par Google Play (politique de
-// confidentialite et suppression de compte), sur le modele des mentions
-// legales : contenu global unique, aucune authentification.
-Route::view('/confidentialite', 'legal.privacy')->name('confidentialite');
-Route::view('/suppression-de-compte', 'legal.account-deletion')->name('suppression-de-compte');
-Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
+// TASK-1898 / TASK-1903 — URL publiques declarees a Google Play (politique de
+// confidentialite, suppression de compte, normes Securite des enfants). Depuis
+// TASK-1903, elles servent le CENTRE INSTITUTIONNEL unique (`mentions-legales`)
+// en « mode cible » : 200 direct, rubrique visee en premier et en <h1>.
+// Aucune redirection : un fragment `#…` n'atteint jamais le serveur ni le robot.
+Route::view('/confidentialite', 'mentions-legales', ['focus' => 'confidentialite'])->name('confidentialite');
+Route::view('/suppression-de-compte', 'mentions-legales', ['focus' => 'suppression-compte'])->name('suppression-de-compte');
+Route::view('/securite-enfants', 'mentions-legales', ['focus' => 'securite-enfants'])->name('securite-enfants');
+// TASK-1904 — « Signalement » : page CONFIDENTIELLE (invite = invitation a se
+// connecter, aucune liste ; membre = ses seuls signalements). L'ancienne adresse
+// `/bugs` redirige, sans jamais rendre de liste.
+Route::get('/report', [BugReportController::class, 'index'])->name('bug-reports.index');
+Route::permanentRedirect('/bugs', '/report')->name('bug-reports.legacy');
 
 // TASK-1612 — Open Source Explorer.
 //
@@ -574,7 +581,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/reports/service/{service}', [ReportController::class, 'storeService'])->middleware('throttle:5,1')->name('reports.service');
     Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'storeRequest'])->middleware('throttle:5,1')->name('reports.request');
     Route::post('/reports/user/{user}', [ReportController::class, 'storeUser'])->middleware('throttle:5,1')->name('reports.user');
-    Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
+    Route::post('/report', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
     // TASK-1730 (A5a) — passer a SON autre compte, dans une autre Organization.
     //
@@ -1716,7 +1723,11 @@ Route::prefix('/org/{organization}')
         // ou sans version active, la route rend 404 : publiquement, la
         // ressource n'existe pas.
         Route::get('/constitution', [MyceliumController::class, 'organization'])->name('constitution');
-        Route::get('/bugs', [BugReportController::class, 'index'])->name('bug-reports.index');
+        // TASK-1904 — point d'entree unique des signalements de l'organisation.
+        // L'ancienne adresse redirige DANS ce groupe (meme garde membre : aucun
+        // oracle d'existence, aucune liste).
+        Route::get('/report', [BugReportController::class, 'index'])->name('bug-reports.index');
+        Route::permanentRedirect('/bugs', '/org/{organization}/report')->name('bug-reports.legacy');
 
         // TASK-1608 — la carte interactive de l'Organization.
         //
@@ -1758,15 +1769,18 @@ Route::prefix('/org/{organization}')
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('mentions-legales');
 
-        // TASK-1898 — confidentialite et suppression de compte servies DANS le
-        // contexte de l'Organization, exactement comme les mentions legales
-        // ci-dessus : MEME vue que la route globale, contenu unique.
-        Route::view('/confidentialite', 'legal.privacy')
+        // TASK-1898 / TASK-1903 — confidentialite, suppression de compte et
+        // securite des enfants servies DANS le contexte de l'Organization :
+        // MEME vue (centre institutionnel) en mode cible, contenu unique.
+        Route::view('/confidentialite', 'mentions-legales', ['focus' => 'confidentialite'])
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('confidentialite');
-        Route::view('/suppression-de-compte', 'legal.account-deletion')
+        Route::view('/suppression-de-compte', 'mentions-legales', ['focus' => 'suppression-compte'])
             ->withoutMiddleware(['auth', 'organization.member'])
             ->name('suppression-de-compte');
+        Route::view('/securite-enfants', 'mentions-legales', ['focus' => 'securite-enfants'])
+            ->withoutMiddleware(['auth', 'organization.member'])
+            ->name('securite-enfants');
 
         // TASK-1613 — l'explorateur Open Source servi DANS le contexte de
         // l'Organization, exactement comme les mentions legales ci-dessus :
@@ -1943,7 +1957,7 @@ Route::prefix('/org/{organization}')
             Route::post('/reports/service/{service}', [ReportController::class, 'orgStoreService'])->middleware('throttle:5,1')->name('reports.service');
             Route::post('/reports/request/{serviceRequest}', [ReportController::class, 'orgStoreRequest'])->middleware('throttle:5,1')->name('reports.request');
             Route::post('/reports/user/{user}', [ReportController::class, 'orgStoreUser'])->middleware('throttle:5,1')->name('reports.user');
-            Route::post('/bugs', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
+            Route::post('/report', [BugReportController::class, 'store'])->middleware('throttle:5,1')->name('bug-reports.store');
 
             Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
             // TASK-1824 — jumelle prefixee de `profile.security`. Voir la

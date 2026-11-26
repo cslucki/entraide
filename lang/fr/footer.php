@@ -3,17 +3,12 @@
 return [
     'by_amt' => 'Un projet porté par l\'AMT',
     'partner_artscilab' => 'en partenariat avec ArtSciLab',
-    'mentions_legales' => 'Mentions légales',
-    // TASK-1898
-    'privacy' => 'Confidentialité',
-    'account_deletion' => 'Supprimer mon compte',
     // TASK-1608 — le lien vers la carte interactive, juste a droite de Mycelium.
     'flowchart' => 'Logigramme',
     'kit_demo' => 'Kit démo',
     'opensource' => 'OpenSource',
-    'bug' => 'Un bug ?',
-    'bug_title' => 'Signaler un bug',
-    'bug_view_reported' => 'Voir les bugs signalés et corrigés',
+    'bug' => 'Signalement',
+    'bug_title' => 'Signalement',
     'bug_type' => 'Type de bug...',
     'bug_type_mobile' => 'Affichage mobile',
     'bug_type_function' => 'Fonctionnement',
@@ -25,5 +20,4 @@ return [
     'bug_guest_title' => 'Un bug ?',
     'bug_guest_text' => 'Connectez-vous pour nous envoyer un signalement précis.',
     'bug_guest_login' => 'Se connecter',
-    'bug_guest_view' => 'Voir les bugs',
 ];

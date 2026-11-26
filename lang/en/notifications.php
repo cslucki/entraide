@@ -339,6 +339,12 @@ return [
         // TASK-1809 §4 — fallback. The authoritative template is the
         // administrable `entraide_review_received` (seeder + migration);
         // this only serves if it is missing.
+        // TASK-1905 — repli si le gabarit global est absent.
+        'child_safety_report_alert' => [
+            'subject' => '[:app] Priority report to review',
+            'body' => '<p>A new "Child safety" report was recorded on :date in the organization <strong>:org</strong>. This message contains neither its content nor the identity of its author.</p><p><a href=":url">Open pending reports</a></p>',
+        ],
+
         'entraide_review_received' => [
             'subject' => ':aide left you a review!',
             'body' => '<p>Hello,</p><p>:aide left you a review for your mutual aid.</p><p style="font-size:20px;letter-spacing:2px">:etoiles <span style="font-size:14px;color:#777">(:note)</span></p><p>:commentaire</p><p>Thank you for keeping mutual aid alive on BouclePro.</p>',

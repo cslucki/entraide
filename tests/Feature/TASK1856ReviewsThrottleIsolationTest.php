@@ -92,12 +92,12 @@ class TASK1856ReviewsThrottleIsolationTest extends TestCase
         // `5,1` — avant ce correctif, ces 5 appels auraient AUSSI rempli
         // le compteur de `reviews.store` pour ce meme utilisateur.
         for ($i = 1; $i <= 5; $i++) {
-            $this->actingAs($this->buyer)->post('/bugs', []);
+            $this->actingAs($this->buyer)->post('/report', []);
         }
 
         // Sanity : le compteur BRUT partage fonctionne toujours comme avant
         // (regression), un 6e appel SUR CETTE MEME route reste limite.
-        $this->actingAs($this->buyer)->post('/bugs', [])
+        $this->actingAs($this->buyer)->post('/report', [])
             ->assertStatus(429, 'Precondition non prise : le compteur brut partage doit toujours limiter apres 5 appels.');
 
         // Le fait reel teste : reviews.store, pour ce MEME utilisateur, n'a
@@ -122,7 +122,7 @@ class TASK1856ReviewsThrottleIsolationTest extends TestCase
         // Le compteur BRUT partage (`bug-reports.store` et les six autres
         // routes `throttle:5,1`) n'a RIEN consomme : son premier appel pour
         // ce meme utilisateur passe encore.
-        $this->actingAs($this->buyer)->post('/bugs', [])
+        $this->actingAs($this->buyer)->post('/report', [])
             ->assertStatus(302, "bug-reports.store ne doit jamais etre limite par les 5 appels consommes sur reviews.store.");
     }
 

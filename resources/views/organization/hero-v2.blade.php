@@ -452,16 +452,11 @@ $secondaryCtaUrl = $showInternalHomepageContent
              n'en pose jamais l'URL dans le HTML. --}}
         <a href="{{ route('organization.open-source', ['organization' => $organization->slug]) }}" data-footer-opensource>{{ __('footer.opensource') }}</a>
         <span class="foot-sep" aria-hidden="true">·</span>
-        <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}">{{ __('footer.mentions_legales') }}</a>
-      </span>
-      {{-- TASK-1899 — pages exigees par Google Play (T1898), bornees a l'Organization. --}}
-      <span class="foot-pair">
-        <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}" data-footer-privacy>{{ __('footer.privacy') }}</a>
-        <span class="foot-sep" aria-hidden="true">·</span>
-        <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}" data-footer-account-deletion>{{ __('footer.account_deletion') }}</a>
+        {{-- TASK-1903 — un seul lien vers le centre institutionnel. --}}
+        <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}" data-footer-legal-center>{{ __('legal.center_title') }}</a>
       </span>
       <span class="foot-pair">
-        <a href="{{ route('organization.bug-reports.index', $organization) }}" data-footer-bug>{{ __('footer.bug') }}</a>
+        <a href="{{ route('organization.bug-reports.index', $organization) }}" data-footer-bug>{{ __('footer.bug_title') }}</a>
         <span class="foot-sep" aria-hidden="true">·</span>
         {{-- TASK-1698 — l'icone GitHub n'exige RIEN (`open-source.github` n'a ni
              `auth` ni `EnsureOrganizationMember`). Elle etait pourtant enfermee

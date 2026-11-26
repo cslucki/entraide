@@ -539,9 +539,19 @@ class AppServiceProvider extends ServiceProvider
         // demonstration) n'est plus suffisant pour celle-ci.
         Gate::define('superadmin-push-all-devices', [SuperAdminPushAccessPolicy::class, 'estAutorise']);
 
+        // TASK-1905 (D3) — signalements « Securite des enfants » : superadmin strict.
+        Gate::define('manage-child-safety-reports', [\App\Support\Reports\ChildSafetyReportAccessPolicy::class, 'estAutorise']);
+
         View::composer('layouts.admin', function ($view) {
             $view->with('pendingReportsCount', Report::where('status', 'pending')->count());
-            $view->with('pendingBugReportsCount', BugReport::where('status', 'pending')->count());
+            $view->with('pendingBugReportsCount', BugReport::where('status', 'pending')
+                ->when(! Gate::allows('manage-child-safety-reports'), fn ($query) => $query->visibleByOrganizationAdmin())
+                ->count());
+            // TASK-1904 — compteur DISTINCT des signalements « Securite des enfants » en attente.
+            // TASK-1905 (D3) — compte seulement pour qui peut les lire.
+            $view->with('pendingChildSafetyReportsCount', Gate::allows('manage-child-safety-reports')
+                ? BugReport::where('status', 'pending')->where('category', BugReport::CHILD_SAFETY)->count()
+                : 0);
             $view->with('pendingOrganizationRequestsCount', OrganizationRequest::where('status', 'pending')->count());
         });
 

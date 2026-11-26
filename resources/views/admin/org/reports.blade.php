@@ -1,3 +1,5 @@
+{{-- TASK-1904 — signalements de CETTE organisation, hors « Securite des
+     enfants » (superadmin seul, decision MASTER D3 : filtre dans le controleur). --}}
 <x-org-admin-layout :title="__('navigation.org_admin_reports')" :organization="$organization">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ __('navigation.org_admin_reports') }}</h1>
@@ -7,13 +9,19 @@
     <form method="GET" class="mb-5 flex flex-wrap gap-3">
         <input type="text" name="search" value="{{ request('search') }}" placeholder="{{ __('navigation.org_admin_search_report') }}"
             class="flex-1 min-w-48 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-500">
+        <select name="category" data-report-category-filter class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
+            <option value="">{{ __('bugs.category_label') }}</option>
+            @foreach(array_diff(\App\Models\BugReport::CATEGORIES, [\App\Models\BugReport::CHILD_SAFETY]) as $category)
+            <option value="{{ $category }}" @selected(request('category') === $category)>{{ __('bugs.categories.'.$category) }}</option>
+            @endforeach
+        </select>
         <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm">
             <option value="">{{ __('navigation.org_admin_all_statuses') }}</option>
             <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>{{ __('navigation.org_admin_report_status_pending') }}</option>
             <option value="resolved" {{ request('status') === 'resolved' ? 'selected' : '' }}>{{ __('navigation.org_admin_report_status_resolved') }}</option>
         </select>
         <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">{{ __('navigation.org_admin_filter') }}</button>
-        @if(request()->hasAny(['search', 'status']))
+        @if(request()->hasAny(['search', 'status', 'category']))
         <a href="{{ route('organization.admin.reports', $organization) }}" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400">{{ __('navigation.org_admin_clear') }}</a>
         @endif
     </form>
@@ -34,7 +42,10 @@
                 @forelse($bugReports as $report)
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 {{ $report->status === 'resolved' ? 'opacity-50' : '' }}">
                     <td class="px-4 py-3">
-                        <p class="font-medium text-gray-900 dark:text-gray-100">{{ $report->reason }}</p>
+                        <p class="font-medium text-gray-900 dark:text-gray-100" data-report-category="{{ $report->category }}">{{ __('bugs.categories.'.$report->category) }}</p>
+                        @if($report->reason !== $report->category)
+                        <p class="text-xs text-gray-700 dark:text-gray-300">{{ $report->reason }}</p>
+                        @endif
                         @if($report->details)
                         <p class="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{{ $report->details }}</p>
                         @endif

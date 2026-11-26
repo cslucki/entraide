@@ -76,21 +76,13 @@
                         </a>
                     @endif
                 </span>
+                {{-- TASK-1903 — UN seul lien vers le centre institutionnel
+                     (mentions legales, confidentialite, suppression de compte,
+                     securite des enfants), au lieu de quatre. --}}
                 <a href="{{ organizationScopedUrl('mentions-legales', 'organization.mentions-legales') }}"
-                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors">
-                    {{ __('footer.mentions_legales') }}
-                </a>
-                {{-- TASK-1898 — pages exigees par Google Play, bornees a
-                     l'Organization courante comme les mentions legales. --}}
-                <a href="{{ organizationScopedUrl('confidentialite', 'organization.confidentialite') }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
-                   data-footer-privacy>
-                    {{ __('footer.privacy') }}
-                </a>
-                <a href="{{ organizationScopedUrl('suppression-de-compte', 'organization.suppression-de-compte') }}"
-                   class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
-                   data-footer-account-deletion>
-                    {{ __('footer.account_deletion') }}
+                   data-footer-legal-center>
+                    {{ __('legal.center_title') }}
                 </a>
                 {{-- TASK-1692 / MICRO-11.2D — « Kit demo » sort de la garde
                      tenant, comme les mentions legales juste au-dessus.
@@ -158,7 +150,7 @@
                 {{-- TASK-1605 — arbitrage MASTER : PAS de popup Alpine.
                      « Un bug ? » mene a la vraie page de signalement, deja
                      bornee a l'Organization (`organization.bug-reports.index`,
-                     `GET /org/{organization}/bugs`). Le backend existait deja :
+                     `GET /org/{organization}/report` depuis TASK-1904). Le backend existait deja :
                      rien n'a ete reinvente, seul le popup disparait.
 
                      Ce qui etait ici : un `<button>` basculant
@@ -169,7 +161,10 @@
                 <a href="{{ $bugReportIndexRoute }}"
                    class="px-2 hover:text-gray-700 dark:hover:text-gray-200 hover:underline transition-colors"
                    data-footer-bug-report>
-                    {{ __('footer.bug') }}
+                    {{-- TASK-1904 — « Signalement » : point d'entree unique
+                         et confidentiel (bugs, comportements, contenus,
+                         securite des enfants), `/org/{slug}/report`. --}}
+                    {{ __('footer.bug_title') }}
                 </a>
             </div>
 
