@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendChildSafetyReportAlert;
 use App\Models\BugReport;
+use App\Models\BugReportAction;
 use App\Models\Organization;
 use App\Support\Tenancy\DefaultOrganizationResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -115,7 +119,7 @@ class BugReportController extends Controller
             abort_unless($slugDemande === $organization->slug, 404);
         }
 
-        BugReport::create([
+        $report = BugReport::create([
             'organization_id' => $organization->id,
             'reporter_id' => $auteur->id,
             'category' => $data['category'],
@@ -126,6 +130,23 @@ class BugReportController extends Controller
             'page_url' => BugReport::isInternalUrl($data['page_url'] ?? null) ? $data['page_url'] : null,
             'user_agent' => Str::limit((string) $request->userAgent(), 1000, ''),
         ]);
+
+        // TASK-1905 — alerte au contact designe, HORS de la requete (job apres
+        // commit). Le signalement est deja enregistre : une file indisponible
+        // ne doit jamais faire echouer l'envoi du membre.
+        if ($report->isChildSafety()) {
+            try {
+                // `Bus::dispatch()` et non `::dispatch()` : la mise en file a lieu
+                // ICI, dans ce try, et non dans le destructeur d'un PendingDispatch.
+                Bus::dispatch(new SendChildSafetyReportAlert($report->id));
+            } catch (\Throwable $e) {
+                Log::critical('child_safety_alert: mise en file impossible, aucune alerte envoyee.', [
+                    'bug_report_id' => $report->id,
+                    'exception' => $e::class,
+                ]);
+                $report->recordAction(BugReportAction::ALERT_FAILED);
+            }
+        }
 
         return back()->with('success', __('bugs.sent'));
     }

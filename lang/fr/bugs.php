@@ -28,6 +28,17 @@ return [
     'empty' => 'Vous n’avez envoyé aucun signalement.',
     'guest_text' => 'Connectez-vous pour envoyer un signalement. Les signalements sont confidentiels et ne sont jamais affichés publiquement.',
     'guest_child_safety' => 'Sans compte, pour un problème de sécurité des enfants, consultez :',
+    // TASK-1905 — historique des traitements (back-office uniquement).
+    'actions' => [
+        'fixed' => 'Traité',
+        'dismissed' => 'Classé',
+        'resolved' => 'Résolu (organisation)',
+        'alert_sent' => 'Alerte email envoyée',
+        'alert_failed' => 'Échec de l’alerte email',
+        'alert_not_configured' => 'Alerte email non configurée',
+        'system' => 'système',
+    ],
+    'internal_note' => 'Note interne',
     'status_pending' => 'En attente',
     'status_reported' => 'Signalé',
     'status_fixed' => 'Corrigé',

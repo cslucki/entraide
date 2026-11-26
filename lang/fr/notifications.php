@@ -381,6 +381,12 @@ return [
         // `entraide_review_received` (seeder + migration) ; ceci ne sert que
         // s'il manque. `:aide`, `:etoiles`, `:note`, `:commentaire` restent
         // des JETONS, meme regle que les reprs ci-dessus.
+        // TASK-1905 — repli si le gabarit global est absent.
+        'child_safety_report_alert' => [
+            'subject' => '[:app] Signalement prioritaire à examiner',
+            'body' => '<p>Un nouveau signalement « Sécurité des enfants » a été enregistré le :date dans l’organisation <strong>:org</strong>. Il ne contient ici ni son contenu, ni l’identité de son auteur.</p><p><a href=":url">Ouvrir les signalements en attente</a></p>',
+        ],
+
         'entraide_review_received' => [
             'subject' => ':aide vous a laissé une évaluation !',
             'body' => '<p>Bonjour,</p><p>:aide vous a laissé une évaluation pour votre entraide.</p><p style="font-size:20px;letter-spacing:2px">:etoiles <span style="font-size:14px;color:#777">(:note)</span></p><p>:commentaire</p><p>Merci de faire vivre l’entraide sur BouclePro.</p>',

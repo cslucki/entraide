@@ -28,6 +28,17 @@ return [
     'empty' => 'You have not sent any report.',
     'guest_text' => 'Log in to send a report. Reports are confidential and never shown publicly.',
     'guest_child_safety' => 'Without an account, for a child safety issue, see:',
+    // TASK-1905 — historique des traitements (back-office uniquement).
+    'actions' => [
+        'fixed' => 'Handled',
+        'dismissed' => 'Dismissed',
+        'resolved' => 'Resolved (organization)',
+        'alert_sent' => 'Email alert sent',
+        'alert_failed' => 'Email alert failed',
+        'alert_not_configured' => 'Email alert not configured',
+        'system' => 'system',
+    ],
+    'internal_note' => 'Internal note',
     'status_pending' => 'Pending',
     'status_reported' => 'Reported',
     'status_fixed' => 'Fixed',

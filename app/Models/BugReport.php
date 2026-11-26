@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * TASK-1904 — « Signalement » : dispositif unique et confidentiel (bugs,
@@ -47,7 +48,37 @@ class BugReport extends Model
     {
         return [
             'fixed_at' => 'datetime',
+            'child_safety_alerted_at' => 'datetime',
         ];
+    }
+
+    /**
+     * TASK-1905 (decision MASTER D4) — un signalement « Securite des enfants »
+     * n'est JAMAIS supprime definitivement, par aucun chemin Eloquent.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (BugReport $report): void {
+            if ($report->isChildSafety()) {
+                throw new \LogicException('TASK-1905 : un signalement « Securite des enfants » ne peut pas etre supprime.');
+            }
+        });
+    }
+
+    /** TASK-1905 — historique des traitements (notes INTERNES). */
+    public function actions(): HasMany
+    {
+        return $this->hasMany(BugReportAction::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    /** TASK-1905 — trace une action dans l'historique. */
+    public function recordAction(string $action, ?User $actor = null, ?string $note = null): BugReportAction
+    {
+        return $this->actions()->create([
+            'actor_id' => $actor?->id,
+            'action' => $action,
+            'note' => $note !== null && trim($note) !== '' ? trim($note) : null,
+        ]);
     }
 
     public function organization(): BelongsTo

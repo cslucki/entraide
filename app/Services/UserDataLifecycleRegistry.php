@@ -102,6 +102,7 @@ class UserDataLifecycleRegistry
             ['key' => 'blog_todos_assigned_to', 'type' => 'sql', 'table' => 'blog_todos', 'column' => 'assigned_to', 'policy' => self::POLICY_DETACH, 'org_scope' => 'through_blog_post', 'justification' => 'Assignment can be detached.'],
             ['key' => 'blog_todos_user_id', 'type' => 'sql', 'table' => 'blog_todos', 'column' => 'user_id', 'policy' => self::POLICY_ANONYMIZE, 'org_scope' => 'through_blog_post', 'justification' => 'Todo author identity needs anonymization.'],
             ['key' => 'bug_reports', 'type' => 'sql', 'table' => 'bug_reports', 'column' => 'reporter_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'Reports (bugs and moderation, TASK-1904) are platform support and moderation audit records.'],
+            ['key' => 'bug_report_actions_actor_id', 'type' => 'sql', 'table' => 'bug_report_actions', 'column' => 'actor_id', 'policy' => self::POLICY_RETAIN, 'org_scope' => 'none', 'justification' => 'TASK-1905 — the report handling history (who handled a report, when, internal note) is moderation audit data and must remain answerable; the FK is nullOnDelete.'],
             // TASK-1803 — `bulk_email_sends.organization_id` ne designe PAS
             // l'Organization du createur mais la CIBLE de l'envoi (NULL = toutes
             // les Organizations) : un `org_scope` 'direct' serait donc un
