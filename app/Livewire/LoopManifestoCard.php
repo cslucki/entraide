@@ -7,6 +7,7 @@ use App\Models\BlogSnapshot;
 use App\Models\Dossier;
 use App\Models\Loop;
 use App\Models\LoopMember;
+use App\Services\Blog\BlogHtmlSanitizer;
 use App\Services\LoopManifestoService;
 use App\Services\Loops\LoopRootDocumentService;
 use App\Support\Loops\LoopPermissionResolver;
@@ -317,17 +318,10 @@ class LoopManifestoCard extends Component
         // Same allowlist as Loop::manifestoHtmlForAdmin(), h1 included.
         $allowed = ['h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'a', 'code', 'pre', 'blockquote'];
 
-        // Whole blocks first: strip_tags removes the tags but keeps their text,
-        // so a <script> would survive as visible "alert(1)" gibberish. Inert,
-        // but it has no business being displayed.
-        $html = preg_replace('#<(script|style|template)\b[^>]*>.*?</\1>#is', '', (string) $manifesto->content);
-
-        $html = strip_tags((string) $html, '<'.implode('><', $allowed).'>');
-
-        $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
-        $html = preg_replace('/<(\w+)\s[^>]*(?:javascript|data)\s*:\s*[^"\'>\s]+/i', '<$1', $html);
-
-        return (string) $html;
+        // TASK-1906 — meme liste reduite qu'avant, mais lue par le filtre du
+        // blog (arbre HTML5, attributs en liste blanche) au lieu de regex qui
+        // laissaient passer `onclick=…` sans guillemets ou `x-init`.
+        return app(BlogHtmlSanitizer::class)->sanitizeHtml((string) $manifesto->content, $allowed);
     }
 
     public function placeholder()

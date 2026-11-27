@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
+use App\Services\Blog\BlogHtmlSanitizer;
 use App\Support\Images\ImageVariantResolver;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -307,5 +308,16 @@ class BlogPost extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * TASK-1906 — le contenu tel qu'on peut l'afficher BRUT : repasse par le
+     * filtre a chaque rendu, comme le Flux. Couvre les articles enregistres
+     * avant le durcissement et ceux ecrits sans l'editeur (clonage de comptes,
+     * documents de Boucle inseres directement).
+     */
+    public function contenuAffichable(): string
+    {
+        return app(BlogHtmlSanitizer::class)->sanitizeHtml((string) $this->content);
     }
 }

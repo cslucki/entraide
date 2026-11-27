@@ -1126,7 +1126,8 @@ class BlogController extends Controller implements HasMiddleware
     private function extractPublishedToc(BlogPost $post): array
     {
         $headers = [];
-        $postContent = $post->content;
+        // TASK-1906 — rendu brut plus bas : le contenu repasse par le filtre.
+        $postContent = $post->contenuAffichable();
 
         if (! $post->show_toc) {
             return [$headers, $postContent];

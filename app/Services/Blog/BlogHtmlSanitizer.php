@@ -95,8 +95,18 @@ class BlogHtmlSanitizer
 
     private const ANNOTATION_ID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
 
-    public function sanitizeHtml(string $html): string
+    /** Balises permises pour l'appel en cours (liste reduite possible). */
+    private array $allowedTags = self::ALLOWED_HTML_TAGS;
+
+    /**
+     * @param  list<string>|null  $allowedTags  liste REDUITE pour une surface plus etroite
+     *                                          (document racine d'une Boucle) ; attributs et URL
+     *                                          restent ceux de ce filtre.
+     */
+    public function sanitizeHtml(string $html, ?array $allowedTags = null): string
     {
+        $this->allowedTags = $allowedTags ?? self::ALLOWED_HTML_TAGS;
+
         // Conserves de l'ancien filtre : ni PHP ni moustaches Blade/Alpine.
         $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html) ?? '';
         $html = preg_replace('/\{\{.*?\}\}/s', '', $html) ?? '';
@@ -137,6 +147,11 @@ class BlogHtmlSanitizer
         $tag = strtolower($element->localName);
 
         if ($tag === 'iframe') {
+            if (! in_array('iframe', $this->allowedTags, true)) {
+                $element->remove();
+
+                return;
+            }
             $src = $element->getAttribute('src');
             if ($src === null || ! $this->isAllowedIframeSrc($src)) {
                 $element->remove();
@@ -155,7 +170,7 @@ class BlogHtmlSanitizer
             return;
         }
 
-        if (! in_array($tag, self::ALLOWED_HTML_TAGS, true)) {
+        if (! in_array($tag, $this->allowedTags, true)) {
             // Balise inconnue (span, mark, blockquote…) : on garde son texte,
             // exactement comme strip_tags() le faisait.
             $this->cleanChildren($element);
