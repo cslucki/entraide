@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\ExtractBlogPostFileText;
 use App\Models\BlogPostFile;
 use App\Services\Blog\BlogPostReadAccess;
 use App\Services\Dossiers\DossierFileTransport;
@@ -96,10 +95,7 @@ class BlogPostFileController extends Controller
             'size' => (int) $upload->getSize(),
         ]);
 
-        // TASK-1907 — texte du PDF extrait hors requete (recherche, IA).
-        if ($file->kind === BlogPostFile::KIND_PDF) {
-            ExtractBlogPostFileText::dispatch($file->id)->afterCommit();
-        }
+        // Le texte d'un PDF est extrait hors requete par `blog:extract-file-texts`.
 
         return response()->json([
             'id' => $file->id,

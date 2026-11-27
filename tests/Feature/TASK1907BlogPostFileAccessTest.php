@@ -7,6 +7,7 @@ use App\Models\BlogPostFile;
 use App\Models\Category;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\AccountCloner;
 use App\Services\Blog\BlogHtmlSanitizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -194,7 +195,10 @@ class TASK1907BlogPostFileAccessTest extends TestCase
     {
         $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', base64_decode(self::PDF_AVEC_TEXTE)))->json('id');
 
-        // File de test synchrone : l'extraction a deja tourne.
+        // Extraction hors requete : rien au depot, tout au passage planifie.
+        $this->assertNull(BlogPostFile::findOrFail($id)->extracted_at);
+        $this->artisan('blog:extract-file-texts')->assertSuccessful();
+
         $fichier = BlogPostFile::findOrFail($id);
         $this->assertNotNull($fichier->extracted_at);
         $this->assertStringContainsString('zebre-violet', (string) $fichier->extracted_text);
@@ -210,5 +214,60 @@ class TASK1907BlogPostFileAccessTest extends TestCase
         // PDF retire du contenu : il n'alimente plus l'index de l'article.
         $post->update(['content' => '<p>Plus de PDF</p>']);
         $this->assertSame('', $post->fresh()->texteDesPdfCites());
+    }
+
+    public function test_supprimer_definitivement_l_article_supprime_ses_fichiers_du_disque(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+        $chemin = BlogPostFile::findOrFail($id)->path;
+        $post = $this->article($this->auteur, $this->marqueur($id));
+
+        // Suppression douce : l'article peut revenir, le fichier reste.
+        $post->delete();
+        Storage::disk(BlogPostFile::DISK)->assertExists($chemin);
+        $this->lire($this->membre, $id)->assertNotFound();
+
+        $post->forceDelete();
+        Storage::disk(BlogPostFile::DISK)->assertMissing($chemin);
+        $this->assertNull(BlogPostFile::find($id));
+    }
+
+    public function test_un_fichier_jamais_rattache_est_purge_apres_sept_jours(): void
+    {
+        $ancien = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Ancien.pdf', self::PDF))->json('id');
+        $recent = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Recent.pdf', self::PDF))->json('id');
+        $rattache = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Rattache.pdf', self::PDF))->json('id');
+        $this->article($this->auteur, $this->marqueur($rattache));
+
+        BlogPostFile::whereIn('id', [$ancien, $rattache])->update(['created_at' => now()->subDays(8)]);
+        $cheminAncien = BlogPostFile::findOrFail($ancien)->path;
+
+        $this->artisan('blog:purge-orphan-files')->assertSuccessful();
+
+        $this->assertNull(BlogPostFile::find($ancien));
+        Storage::disk(BlogPostFile::DISK)->assertMissing($cheminAncien);
+        $this->assertNotNull(BlogPostFile::find($recent));
+        $this->assertNotNull(BlogPostFile::find($rattache));
+    }
+
+    public function test_le_clonage_de_compte_duplique_les_fichiers_de_l_article(): void
+    {
+        Storage::fake('public');
+        $cible = Organization::factory()->create(['is_active' => true]);
+
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+        $original = $this->article($this->auteur, $this->marqueur($id));
+
+        $clone = app(AccountCloner::class)->cloner($this->auteur, $cible)[0];
+
+        $copie = BlogPost::withoutGlobalScopes()->where('user_id', $clone->id)->firstOrFail();
+        $fichier = BlogPostFile::withoutGlobalScopes()->where('blog_post_id', $copie->id)->firstOrFail();
+
+        $this->assertNotSame($id, $fichier->id);
+        $this->assertSame((string) $cible->id, (string) $fichier->organization_id);
+        $this->assertStringContainsString('data-bp-file-id="'.$fichier->id.'"', $copie->content);
+        $this->assertSame(self::PDF, Storage::disk(BlogPostFile::DISK)->get($fichier->path));
+        // L'original garde son fichier.
+        $this->assertSame($original->id, BlogPostFile::findOrFail($id)->blog_post_id);
     }
 }

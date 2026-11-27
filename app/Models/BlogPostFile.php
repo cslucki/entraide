@@ -6,6 +6,7 @@ use App\Models\Traits\HasOrganizationId;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * TASK-1907 — un fichier PRIVE d'article (PDF ou audio).
@@ -48,6 +49,17 @@ class BlogPostFile extends Model
             'size' => 'integer',
             'extracted_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Supprimer la ligne supprime le fichier sur le disque prive : jamais de
+     * fichier sans ligne (illisible par la route, mais toujours stocke).
+     */
+    protected static function booted(): void
+    {
+        static::deleted(function (self $file) {
+            Storage::disk($file->disk)->delete($file->path);
+        });
     }
 
     public function blogPost(): BelongsTo

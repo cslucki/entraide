@@ -90,6 +90,14 @@ class BlogPost extends Model
             $post->read_time = max(1, (int) ceil($wordCount / 200));
         });
 
+        // TASK-1907 — suppression DEFINITIVE d'un article : ses fichiers prives
+        // partent avec lui, disque compris (la cascade SQL seule laisserait
+        // les fichiers stockes). Une suppression douce les garde : l'article
+        // peut etre restaure, et la route les refuse tant qu'il est supprime.
+        static::forceDeleting(function (self $post) {
+            $post->files()->get()->each->delete();
+        });
+
         // TASK-1907 — les fichiers prives cites par le contenu sont rattaches
         // a l'article, et en prennent les droits de lecture.
         static::saved(function (self $post) {

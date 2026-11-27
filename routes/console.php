@@ -122,4 +122,9 @@ Schedule::command('notifications:recover-stale-deliveries')->everyFiveMinutes()-
 // ci-dessus (doc Laravel Cloud, replicas). Laravel Cloud ne lit cette liste
 // qu'AU DEPLOIEMENT (runbook T1830) : le Scheduler est actif en PROD (mesure
 // CLI 22/11), un redeploiement suffit.
+// TASK-1907 — PDF et audios d'articles : texte des PDF (recherche, IA) hors
+// requete, et fichiers deposes jamais rattaches supprimes apres 7 jours.
+Schedule::command('blog:extract-file-texts')->everyFiveMinutes()->withoutOverlapping(10)->onOneServer();
+Schedule::command('blog:purge-orphan-files')->daily()->onOneServer();
+
 Schedule::command('messages:purge-expired-voices')->everyFifteenMinutes()->withoutOverlapping(10)->onOneServer();
