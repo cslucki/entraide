@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ExtractBlogPostFileText;
 use App\Models\BlogPostFile;
 use App\Services\Blog\BlogPostReadAccess;
 use App\Services\Dossiers\DossierFileTransport;
@@ -94,6 +95,11 @@ class BlogPostFileController extends Controller
             'mime' => $mime,
             'size' => (int) $upload->getSize(),
         ]);
+
+        // TASK-1907 — texte du PDF extrait hors requete (recherche, IA).
+        if ($file->kind === BlogPostFile::KIND_PDF) {
+            ExtractBlogPostFileText::dispatch($file->id)->afterCommit();
+        }
 
         return response()->json([
             'id' => $file->id,

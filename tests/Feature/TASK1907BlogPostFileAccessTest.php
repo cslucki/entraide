@@ -186,4 +186,29 @@ class TASK1907BlogPostFileAccessTest extends TestCase
         $reponse->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $this->assertStringStartsWith('%PDF-1.4', $reponse->streamedContent());
     }
+
+    /** PDF de 2 pages avec du texte reel (page 2 : « zebre-violet »). */
+    private const PDF_AVEC_TEXTE = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA1IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNyAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA3NCA+PgpzdHJlYW0KQlQgL0YxIDE4IFRmIDUwIDc1MCBUZCAoUkVDRVRURSBUMTkwNyBwYWdlIDEgOiBndWlkZSBkZSBjb29wZXJhdGlvbikgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0gL0NvbnRlbnRzIDYgMCBSIC9SZXNvdXJjZXMgPDwgL0ZvbnQgPDwgL0YxIDcgMCBSID4+ID4+ID4+CmVuZG9iago2IDAgb2JqCjw8IC9MZW5ndGggNzQgPj4Kc3RyZWFtCkJUIC9GMSAxOCBUZiA1MCA3NTAgVGQgKFJFQ0VUVEUgVDE5MDcgcGFnZSAyIDogbW90LWNsZSB6ZWJyZS12aW9sZXQpIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNyAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA4CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMjEgMDAwMDAgbiAKMDAwMDAwMDI0NyAwMDAwMCBuIAowMDAwMDAwMzcxIDAwMDAwIG4gCjAwMDAwMDA0OTcgMDAwMDAgbiAKMDAwMDAwMDYyMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDggL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjY5MQolJUVPRgo=';
+
+    public function test_le_texte_du_pdf_est_extrait_et_trouve_par_la_recherche_et_l_index(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', base64_decode(self::PDF_AVEC_TEXTE)))->json('id');
+
+        // File de test synchrone : l'extraction a deja tourne.
+        $fichier = BlogPostFile::findOrFail($id);
+        $this->assertNotNull($fichier->extracted_at);
+        $this->assertStringContainsString('zebre-violet', (string) $fichier->extracted_text);
+
+        $post = $this->article($this->auteur, $this->marqueur($id));
+        $this->assertStringContainsString('zebre-violet', $post->fresh()->texteDesPdfCites());
+
+        $this->actingAs($this->membre)
+            ->get(route('search', ['q' => 'zebre-violet']))
+            ->assertOk()
+            ->assertSee($post->title);
+
+        // PDF retire du contenu : il n'alimente plus l'index de l'article.
+        $post->update(['content' => '<p>Plus de PDF</p>']);
+        $this->assertSame('', $post->fresh()->texteDesPdfCites());
+    }
 }

@@ -99,6 +99,30 @@ class BlogPost extends Model
         });
     }
 
+    /**
+     * TASK-1907 — texte extrait des PDF CITES par le contenu actuel (un PDF
+     * retire du texte n'est plus indexe), chacun precede de son nom.
+     * Chaine vide s'il n'y en a aucun.
+     */
+    public function texteDesPdfCites(): string
+    {
+        $ids = BlogPostFileBinder::citedIds($this->content);
+
+        if ($ids === []) {
+            return '';
+        }
+
+        return $this->files()
+            ->where('kind', BlogPostFile::KIND_PDF)
+            ->whereIn('id', $ids)
+            ->whereNotNull('extracted_text')
+            ->where('extracted_text', '!=', '')
+            ->orderBy('created_at')
+            ->get(['original_name', 'extracted_text'])
+            ->map(fn (BlogPostFile $file) => trim($file->original_name."\n".$file->extracted_text))
+            ->implode("\n\n");
+    }
+
     /** TASK-1907 — fichiers prives (PDF, audio) rattaches a l'article. */
     public function files(): HasMany
     {

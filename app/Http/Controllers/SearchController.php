@@ -67,6 +67,8 @@ class SearchController extends Controller
             ->whereHas('user', fn ($query) => $query->activeAccount())
             ->where(fn ($query) => $query->where('title', $likeOperator, $like)
                 ->orWhere('content', $likeOperator, $like)
+                // TASK-1907 — texte des PDF de l'article (meme perimetre `published()`).
+                ->orWhereHas('files', fn ($q) => $q->where('extracted_text', $likeOperator, $like))
                 ->orWhereHas('tags', fn ($q) => $q->where('name', $likeOperator, $like))
                 ->orWhereHas('category', fn ($q) => $q->where('name_b2c', $likeOperator, $like)->orWhere('name_b2b', $likeOperator, $like))
             )
