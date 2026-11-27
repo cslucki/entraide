@@ -42,6 +42,16 @@ class DossierArticleIndexer
             }
 
             $text = $this->extractor->extract((string) $post->content);
+
+            // TASK-1907 — le texte des PDF cites par l'article rejoint son
+            // index, sous la meme audience (memes chunks, meme Dossier). Rien
+            // n'est ajoute sans PDF : le texte, donc les empreintes des chunks
+            // existants, restent identiques et aucun article n'est re-vectorise.
+            $pdfText = $post->texteDesPdfCites();
+            if ($pdfText !== '') {
+                $text .= "\n\n".$pdfText;
+            }
+
             $chunks = $this->chunker->chunk($text);
 
             if ($chunks === []) {

@@ -44,6 +44,7 @@
         "filepond": "^4.32.12",
         "filepond-plugin-file-validate-size": "^2.2.8",
         "filepond-plugin-file-validate-type": "^1.2.9",
+        "pdfjs-dist": "^6.5.438",
         "sortablejs": "1.15.7"
     }
 }

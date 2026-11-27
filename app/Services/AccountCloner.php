@@ -4,12 +4,14 @@ namespace App\Services;
 
 use App\Jobs\ProcessImageVariants;
 use App\Models\BlogPost;
+use App\Models\BlogPostFile;
 use App\Models\Category;
 use App\Models\ImageVariant;
 use App\Models\Loop;
 use App\Models\Organization;
 use App\Models\Scopes\BelongsToOrganizationScope;
 use App\Models\User;
+use App\Services\Blog\BlogPostFileBinder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -48,6 +50,9 @@ final class AccountCloner
     /** @var list<string> fichiers copies, effaces si le clonage echoue */
     private array $copies = [];
 
+    /** @var list<string> TASK-1907 — fichiers prives copies (disque `blog_files`), effaces si echec */
+    private array $copiesPrivees = [];
+
     public function __construct(private readonly UserSlugService $slugs) {}
 
     /** Les comptes d'une Organization, hors portee de tenant (contexte superadmin). */
@@ -78,6 +83,7 @@ final class AccountCloner
         }
 
         $this->copies = [];
+        $this->copiesPrivees = [];
 
         try {
             return DB::transaction(function () use ($source, $cible, $options) {
@@ -108,6 +114,7 @@ final class AccountCloner
             });
         } catch (\Throwable $e) {
             Storage::disk('public')->delete($this->copies);
+            Storage::disk(BlogPostFile::DISK)->delete($this->copiesPrivees);
 
             throw $e;
         }
@@ -131,6 +138,8 @@ final class AccountCloner
             'views_count' => 0,
         ]);
         $copie->save();
+
+        $this->copierFichiersPrives($billet, $copie, $clone, $cible);
 
         if ($copie->image) {
             ProcessImageVariants::forUpload('blog_cover', $copie->image, (string) $cible->id);
@@ -209,5 +218,62 @@ final class AccountCloner
         }
 
         return $html;
+    }
+
+    /**
+     * TASK-1907 — les PDF et audios prives cites par le billet.
+     *
+     * Un fichier appartient a UN article : le marqueur copie tel quel ne
+     * rendrait rien sur la copie (le fichier est rattache a l'original). Chaque
+     * fichier cite est donc duplique sur le disque prive, rattache a la copie,
+     * et son identifiant remplace dans le contenu.
+     */
+    private function copierFichiersPrives(BlogPost $billet, BlogPost $copie, User $clone, Organization $cible): void
+    {
+        $ids = BlogPostFileBinder::citedIds($billet->content);
+
+        if ($ids === []) {
+            return;
+        }
+
+        $disque = Storage::disk(BlogPostFile::DISK);
+        $contenu = (string) $copie->content;
+
+        $fichiers = BlogPostFile::query()
+            ->withoutGlobalScopes()
+            ->where('blog_post_id', $billet->id)
+            ->whereIn('id', $ids)
+            ->get();
+
+        foreach ($fichiers as $fichier) {
+            if (! $disque->exists($fichier->path)) {
+                continue;
+            }
+
+            $chemin = $cible->id.'/'.Str::uuid().'.'.(pathinfo($fichier->path, PATHINFO_EXTENSION) ?: 'bin');
+            $disque->copy($fichier->path, $chemin);
+            $this->copiesPrivees[] = $chemin;
+
+            $nouveau = new BlogPostFile;
+            $nouveau->forceFill([
+                'organization_id' => $cible->id,
+                'blog_post_id' => $copie->id,
+                'user_id' => $clone->id,
+                'kind' => $fichier->kind,
+                'disk' => BlogPostFile::DISK,
+                'path' => $chemin,
+                'original_name' => $fichier->original_name,
+                'mime' => $fichier->mime,
+                'size' => $fichier->size,
+                'extracted_text' => $fichier->extracted_text,
+                'extracted_at' => $fichier->extracted_at,
+            ])->save();
+
+            $contenu = str_replace('data-bp-file-id="'.$fichier->id.'"', 'data-bp-file-id="'.$nouveau->id.'"', $contenu);
+        }
+
+        if ($contenu !== $copie->content) {
+            $copie->forceFill(['content' => $contenu])->save();
+        }
     }
 }

@@ -1,0 +1,273 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\BlogPost;
+use App\Models\BlogPostFile;
+use App\Models\Category;
+use App\Models\Organization;
+use App\Models\User;
+use App\Services\AccountCloner;
+use App\Services\Blog\BlogHtmlSanitizer;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
+use Tests\TestCase;
+
+/**
+ * TASK-1907 — un fichier prive d'article n'est lu qu'avec les droits de
+ * l'article ; avant rattachement, par son seul deposant.
+ */
+class TASK1907BlogPostFileAccessTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private const PDF = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n";
+
+    private Organization $org;
+
+    private User $auteur;
+
+    private User $membre;
+
+    private User $etranger;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Storage::fake(BlogPostFile::DISK);
+
+        $this->org = Organization::factory()->create(['is_public' => false, 'slug' => 't1907-privee', 'is_active' => true]);
+        $autre = Organization::factory()->create(['is_public' => true, 'slug' => 't1907-autre', 'is_active' => true, 'is_default' => true]);
+
+        $this->auteur = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => false]);
+        $this->membre = User::factory()->create(['organization_id' => $this->org->id, 'is_admin' => false]);
+        $this->etranger = User::factory()->create(['organization_id' => $autre->id, 'is_admin' => false]);
+    }
+
+    private function deposer(User $user, UploadedFile $fichier): TestResponse
+    {
+        return $this->actingAs($user)->postJson(
+            route('organization.blog.files.store', [$this->org]),
+            ['file' => $fichier],
+        );
+    }
+
+    private function lire(?User $user, string $id): TestResponse
+    {
+        if ($user) {
+            $this->actingAs($user);
+        }
+
+        return $this->get(route('organization.blog.files.show', [$this->org, $id]));
+    }
+
+    private function article(User $auteur, string $contenu): BlogPost
+    {
+        return BlogPost::create([
+            'user_id' => $auteur->id,
+            'organization_id' => $this->org->id,
+            'category_id' => Category::factory()->create(['organization_id' => $this->org->id])->id,
+            'title' => 'Article T1907 '.uniqid(),
+            'content' => $contenu,
+            'status' => 'published',
+            'published_at' => now()->subMinute(),
+        ]);
+    }
+
+    private function marqueur(string $id): string
+    {
+        return '<p>Avant</p><figure data-bp-file="pdf" data-bp-file-id="'.$id.'"></figure>';
+    }
+
+    public function test_un_pdf_est_depose_sur_le_disque_prive_et_lu_par_son_seul_deposant_avant_rattachement(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))
+            ->assertCreated()
+            ->assertJsonPath('kind', 'pdf')
+            ->json('id');
+
+        $fichier = BlogPostFile::findOrFail($id);
+        Storage::disk(BlogPostFile::DISK)->assertExists($fichier->path);
+        $this->assertNull($fichier->blog_post_id);
+
+        $this->lire($this->auteur, $id)->assertOk();
+        $this->lire($this->membre, $id)->assertNotFound();
+    }
+
+    public function test_un_faux_pdf_est_refuse(): void
+    {
+        $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('faux.pdf', '<html><script>alert(1)</script></html>'))
+            ->assertStatus(422);
+
+        $this->assertSame(0, BlogPostFile::count());
+    }
+
+    public function test_rattache_le_fichier_prend_les_droits_de_l_article(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+
+        $post = $this->article($this->auteur, $this->marqueur($id));
+
+        $this->assertSame($post->id, BlogPostFile::findOrFail($id)->blog_post_id);
+        $this->lire($this->membre, $id)->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        auth()->logout();
+        // Anonyme : renvoye a la connexion par le groupe de routes, jamais servi.
+        $this->assertNotSame(200, $this->lire(null, $id)->getStatusCode());
+        $this->lire($this->etranger, $id)->assertNotFound();
+
+        $post->update(['status' => 'draft']);
+        $this->lire($this->membre, $id)->assertNotFound();
+    }
+
+    public function test_citer_le_fichier_d_un_autre_ne_l_approprie_pas(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+
+        // Fichier libre, mais depose par quelqu'un d'autre que l'auteur.
+        $this->article($this->membre, $this->marqueur($id));
+        $this->assertNull(BlogPostFile::findOrFail($id)->blog_post_id);
+
+        // Fichier deja rattache : un second article ne le reprend pas.
+        $premier = $this->article($this->auteur, $this->marqueur($id));
+        $this->article($this->auteur, $this->marqueur($id));
+        $this->assertSame($premier->id, BlogPostFile::findOrFail($id)->blog_post_id);
+    }
+
+    public function test_le_filtre_ne_garde_le_marqueur_que_pour_un_article_et_le_vide(): void
+    {
+        $sanitizer = app(BlogHtmlSanitizer::class);
+        $id = '0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
+        $html = '<figure data-bp-file="audio" data-bp-file-id="'.$id.'" data-bp-file-name="Episode 1.mp3" onclick="alert(1)" style="position:fixed"><audio src="https://evil.example/x.mp3"></audio>texte</figure>';
+
+        $article = $sanitizer->sanitizeHtml($html, allowFileMarkers: true);
+        $this->assertSame('<figure data-bp-file="audio" data-bp-file-id="'.$id.'" data-bp-file-name="Episode 1.mp3"></figure>', $article);
+
+        // Ailleurs (Flux, RSS) : la figure est deballee, rien du marqueur ne reste.
+        $this->assertStringNotContainsString('data-bp-file', $sanitizer->sanitizeHtml($html));
+
+        // Type ou identifiant invalide : pas de marqueur.
+        $this->assertStringNotContainsString('data-bp-file', $sanitizer->sanitizeHtml(str_replace('"audio"', '"video"', $html), allowFileMarkers: true));
+        $this->assertStringNotContainsString('data-bp-file', $sanitizer->sanitizeHtml(str_replace($id, 'pas-un-uuid', $html), allowFileMarkers: true));
+    }
+
+    public function test_l_affichage_construit_le_lecteur_seulement_pour_un_fichier_de_cet_article(): void
+    {
+        $audio = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Episode.mp3', "ID3\x03\x00\x00\x00\x00\x00\x00".str_repeat("\xFF\xFB\x90\x00", 64)));
+        $pdfId = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+
+        $autre = $this->article($this->auteur, $this->marqueur($pdfId));
+        $post = $this->article($this->auteur, $this->marqueur($pdfId).'<figure data-bp-file="audio" data-bp-file-id="'.$audio->json('id').'"></figure>');
+
+        $audio->assertCreated();
+        $rendu = $post->fresh()->contenuAffichable();
+
+        // L'audio est a cet article : lecteur construit, adresse = route gardee.
+        $this->assertStringContainsString('<audio controls="" preload="none" src="'.route('organization.blog.files.show', [$this->org, $audio->json('id')]).'"', $rendu);
+        $this->assertStringContainsString('<figcaption>Episode.mp3</figcaption>', $rendu);
+        // Le PDF appartient a l'AUTRE article : rien n'est rendu ici.
+        $this->assertStringNotContainsString($pdfId, $rendu);
+        $this->assertStringContainsString('data-bp-pdf-src="'.route('organization.blog.files.show', [$this->org, $pdfId]).'"', $autre->fresh()->contenuAffichable());
+    }
+
+    public function test_sur_un_disque_distant_le_pdf_passe_par_l_application_sans_redirection(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+        $this->article($this->auteur, $this->marqueur($id));
+
+        // Disque declare distant (R2 en PROD) : PDF.js ne doit pas etre renvoye
+        // vers une URL signee d'un autre domaine (CORS).
+        config(['filesystems.disks.'.BlogPostFile::DISK.'.driver' => 's3']);
+
+        $reponse = $this->lire($this->membre, $id);
+
+        $reponse->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-1.4', $reponse->streamedContent());
+    }
+
+    /** PDF de 2 pages avec du texte reel (page 2 : « zebre-violet »). */
+    private const PDF_AVEC_TEXTE = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA1IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNyAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA3NCA+PgpzdHJlYW0KQlQgL0YxIDE4IFRmIDUwIDc1MCBUZCAoUkVDRVRURSBUMTkwNyBwYWdlIDEgOiBndWlkZSBkZSBjb29wZXJhdGlvbikgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0gL0NvbnRlbnRzIDYgMCBSIC9SZXNvdXJjZXMgPDwgL0ZvbnQgPDwgL0YxIDcgMCBSID4+ID4+ID4+CmVuZG9iago2IDAgb2JqCjw8IC9MZW5ndGggNzQgPj4Kc3RyZWFtCkJUIC9GMSAxOCBUZiA1MCA3NTAgVGQgKFJFQ0VUVEUgVDE5MDcgcGFnZSAyIDogbW90LWNsZSB6ZWJyZS12aW9sZXQpIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNyAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA4CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMjEgMDAwMDAgbiAKMDAwMDAwMDI0NyAwMDAwMCBuIAowMDAwMDAwMzcxIDAwMDAwIG4gCjAwMDAwMDA0OTcgMDAwMDAgbiAKMDAwMDAwMDYyMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDggL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjY5MQolJUVPRgo=';
+
+    public function test_le_texte_du_pdf_est_extrait_et_trouve_par_la_recherche_et_l_index(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', base64_decode(self::PDF_AVEC_TEXTE)))->json('id');
+
+        // Extraction hors requete : rien au depot, tout au passage planifie.
+        $this->assertNull(BlogPostFile::findOrFail($id)->extracted_at);
+        $this->artisan('blog:extract-file-texts')->assertSuccessful();
+
+        $fichier = BlogPostFile::findOrFail($id);
+        $this->assertNotNull($fichier->extracted_at);
+        $this->assertStringContainsString('zebre-violet', (string) $fichier->extracted_text);
+
+        $post = $this->article($this->auteur, $this->marqueur($id));
+        $this->assertStringContainsString('zebre-violet', $post->fresh()->texteDesPdfCites());
+
+        $this->actingAs($this->membre)
+            ->get(route('search', ['q' => 'zebre-violet']))
+            ->assertOk()
+            ->assertSee($post->title);
+
+        // PDF retire du contenu : il n'alimente plus l'index de l'article.
+        $post->update(['content' => '<p>Plus de PDF</p>']);
+        $this->assertSame('', $post->fresh()->texteDesPdfCites());
+    }
+
+    public function test_supprimer_definitivement_l_article_supprime_ses_fichiers_du_disque(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+        $chemin = BlogPostFile::findOrFail($id)->path;
+        $post = $this->article($this->auteur, $this->marqueur($id));
+
+        // Suppression douce : l'article peut revenir, le fichier reste.
+        $post->delete();
+        Storage::disk(BlogPostFile::DISK)->assertExists($chemin);
+        $this->lire($this->membre, $id)->assertNotFound();
+
+        $post->forceDelete();
+        Storage::disk(BlogPostFile::DISK)->assertMissing($chemin);
+        $this->assertNull(BlogPostFile::find($id));
+    }
+
+    public function test_un_fichier_jamais_rattache_est_purge_apres_sept_jours(): void
+    {
+        $ancien = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Ancien.pdf', self::PDF))->json('id');
+        $recent = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Recent.pdf', self::PDF))->json('id');
+        $rattache = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Rattache.pdf', self::PDF))->json('id');
+        $this->article($this->auteur, $this->marqueur($rattache));
+
+        BlogPostFile::whereIn('id', [$ancien, $rattache])->update(['created_at' => now()->subDays(8)]);
+        $cheminAncien = BlogPostFile::findOrFail($ancien)->path;
+
+        $this->artisan('blog:purge-orphan-files')->assertSuccessful();
+
+        $this->assertNull(BlogPostFile::find($ancien));
+        Storage::disk(BlogPostFile::DISK)->assertMissing($cheminAncien);
+        $this->assertNotNull(BlogPostFile::find($recent));
+        $this->assertNotNull(BlogPostFile::find($rattache));
+    }
+
+    public function test_le_clonage_de_compte_duplique_les_fichiers_de_l_article(): void
+    {
+        Storage::fake('public');
+        $cible = Organization::factory()->create(['is_active' => true]);
+
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+        $original = $this->article($this->auteur, $this->marqueur($id));
+
+        $clone = app(AccountCloner::class)->cloner($this->auteur, $cible)[0];
+
+        $copie = BlogPost::withoutGlobalScopes()->where('user_id', $clone->id)->firstOrFail();
+        $fichier = BlogPostFile::withoutGlobalScopes()->where('blog_post_id', $copie->id)->firstOrFail();
+
+        $this->assertNotSame($id, $fichier->id);
+        $this->assertSame((string) $cible->id, (string) $fichier->organization_id);
+        $this->assertStringContainsString('data-bp-file-id="'.$fichier->id.'"', $copie->content);
+        $this->assertSame(self::PDF, Storage::disk(BlogPostFile::DISK)->get($fichier->path));
+        // L'original garde son fichier.
+        $this->assertSame($original->id, BlogPostFile::findOrFail($id)->blog_post_id);
+    }
+}

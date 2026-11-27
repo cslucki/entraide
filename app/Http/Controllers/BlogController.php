@@ -5,13 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\BlogComment;
 use App\Models\BlogPost;
 use App\Services\Blog\BlogHtmlSanitizer;
+use App\Services\Blog\BlogPostReadAccess;
 use App\Jobs\ProcessImageVariants;
 use App\Support\Images\ImageSource;
 use App\Support\Images\ImageVariantResolver;
 use App\Support\Images\ImageVariantService;
 use App\Models\BlogSnapshot;
 use App\Models\Category;
-use App\Models\Loop;
 use App\Models\LoopMember;
 use App\Models\Organization;
 use App\Models\Tag;
@@ -169,12 +169,10 @@ class BlogController extends Controller implements HasMiddleware
             abort(404);
         }
 
-        if ($post->status !== 'published' && auth()->id() !== $post->user_id && ! auth()->user()?->is_admin && ! $post->coAuthors()->where('user_id', auth()->id())->exists()) {
-            abort(404);
-        }
-
-        $this->assertOrganizationBlogIsReadable($organization);
-        $this->assertPrivateLoopManifestoIsReadable($post);
+        // TASK-1907 — droits de lecture factorises (statut, blog d'une
+        // Organization privee, Manifeste d'une Boucle privee) : les fichiers
+        // prives de l'article appliquent la MEME regle.
+        abort_unless(app(BlogPostReadAccess::class)->allows($post, auth()->user()), 404);
 
         $post->increment('views_count');
         // TASK-1884 #4 : co-auteurs charges pour etre affiches a cote de l'auteur.
@@ -221,96 +219,13 @@ class BlogController extends Controller implements HasMiddleware
     }
 
     /**
-     * A published article is normally readable by the whole Organization. That
-     * is wrong for one case (TASK-1079): an article designated as the Manifesto
-     * of a *private* Loop. Publishing it makes it visible on that Loop's
-     * presentation page, but the Loop's confidentiality must extend to the
-     * article itself — otherwise the direct /blog/{slug} URL walks straight
-     * around it.
-     *
-     * Only active members of that Loop, and platform super-admins, may read it.
-     */
-    private function assertPrivateLoopManifestoIsReadable(BlogPost $post): void
-    {
-        $loop = Loop::where('manifesto_blog_post_id', $post->id)
-            ->where('visibility', 'private')
-            ->first();
-
-        if (! $loop) {
-            return;
-        }
-
-        $user = auth()->user();
-
-        if ($user?->is_admin) {
-            return;
-        }
-
-        $isMember = $user && LoopMember::where('loop_id', $loop->id)
-            ->where('user_id', $user->id)
-            ->where('status', 'active')
-            ->exists();
-
-        abort_unless($isMember, 404);
-    }
-
-    /**
      * TASK-1492 — la confidentialite d'une Organization s'etend a son blog.
-     *
-     * ## L'autorite n'est pas inventee ici, elle est CONTINUEE
-     *
-     * `assertPrivateLoopManifestoIsReadable()`, juste au-dessus, ecrit deja le
-     * contrat en toutes lettres (TASK-1079) :
-     *
-     * > « A published article is normally readable by the whole **Organization**.
-     * >   [...] the Loop's confidentiality must extend to the article itself —
-     * >   otherwise the direct /blog/{slug} URL walks straight around it. »
-     *
-     * Publier rend donc un article lisible par l'ORGANIZATION, pas par le Web.
-     * Et la confidentialite d'un contenant s'etend a l'article qu'il porte.
-     * TASK-1079 l'a applique a une Boucle privee ; il manquait le contenant le
-     * plus englobant de tous — l'Organization elle-meme.
-     *
-     * ## Ce qui a ete mesure au HEAD 8f540d69
-     *
-     * `test20260822` (`is_public = false`), article publie
-     * `02-design-cadre-du-dialogue` :
-     *
-     * | Lecteur | Statut | Titre rendu |
-     * |---|---|---|
-     * | membre de test20260822 | 200 | oui |
-     * | membre d'une AUTRE Organization | **200** | **oui** |
-     * | anonyme complet | **200** | **oui** |
-     *
-     * `BlogController` ne filtrait que sur `organization_id` : ni appartenance,
-     * ni publicite. La meme forme de defaut que TASK-1479 et TASK-1488.
-     *
-     * ## Ce que cette garde ne change PAS
-     *
-     * Une Organization PUBLIQUE garde exactement son contrat de blog actuel :
-     * un article publie y reste lisible par un invite. C'est la raison d'etre du
-     * blog comme surface d'acquisition, et rien ici ne la touche. Le SuperAdmin
-     * conserve son acces transverse, avec le meme predicat `is_admin` que
-     * `EnsureOrganizationMember` et `OrgAdminMiddleware` — ouvrir un
-     * contournement neuf a l'occasion d'un correctif de fuite serait le
-     * contraire du but.
-     *
-     * Le refus est un 404, comme les deux gardes voisines et pour la meme
-     * raison : un 403 confirmerait a un tiers que cette Organization existe.
+     * Regle et historique : `BlogPostReadAccess::organizationBlogIsReadable()`
+     * (TASK-1907). Refus = 404 : un 403 confirmerait que l'Organization existe.
      */
     private function assertOrganizationBlogIsReadable(Organization $organization): void
     {
-        if ($organization->is_public) {
-            return;
-        }
-
-        $user = auth()->user();
-
-        if ($user?->is_admin) {
-            return;
-        }
-
-        abort_unless($user && $user->organization_id === $organization->id, 404);
+        abort_unless(app(BlogPostReadAccess::class)->organizationBlogIsReadable($organization, auth()->user()), 404);
     }
 
     public function orgShow(string $org, BlogPost $post): View
@@ -1060,7 +975,8 @@ class BlogController extends Controller implements HasMiddleware
      */
     private function sanitizeHtml(string $html): string
     {
-        return app(BlogHtmlSanitizer::class)->sanitizeHtml($html);
+        // TASK-1907 : un article garde ses marqueurs de fichiers prives.
+        return app(BlogHtmlSanitizer::class)->sanitizeHtml($html, allowFileMarkers: true);
     }
 
     /**

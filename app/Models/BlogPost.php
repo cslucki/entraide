@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
 use App\Services\Blog\BlogHtmlSanitizer;
+use App\Services\Blog\BlogPostFileBinder;
+use App\Services\Blog\BlogPostFileRenderer;
 use App\Support\Images\ImageVariantResolver;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -87,6 +89,52 @@ class BlogPost extends Model
             $wordCount = str_word_count(strip_tags($post->content ?? ''));
             $post->read_time = max(1, (int) ceil($wordCount / 200));
         });
+
+        // TASK-1907 — suppression DEFINITIVE d'un article : ses fichiers prives
+        // partent avec lui, disque compris (la cascade SQL seule laisserait
+        // les fichiers stockes). Une suppression douce les garde : l'article
+        // peut etre restaure, et la route les refuse tant qu'il est supprime.
+        static::forceDeleting(function (self $post) {
+            $post->files()->get()->each->delete();
+        });
+
+        // TASK-1907 — les fichiers prives cites par le contenu sont rattaches
+        // a l'article, et en prennent les droits de lecture.
+        static::saved(function (self $post) {
+            if ($post->wasRecentlyCreated || $post->wasChanged('content')) {
+                app(BlogPostFileBinder::class)->bind($post);
+            }
+        });
+    }
+
+    /**
+     * TASK-1907 — texte extrait des PDF CITES par le contenu actuel (un PDF
+     * retire du texte n'est plus indexe), chacun precede de son nom.
+     * Chaine vide s'il n'y en a aucun.
+     */
+    public function texteDesPdfCites(): string
+    {
+        $ids = BlogPostFileBinder::citedIds($this->content);
+
+        if ($ids === []) {
+            return '';
+        }
+
+        return $this->files()
+            ->where('kind', BlogPostFile::KIND_PDF)
+            ->whereIn('id', $ids)
+            ->whereNotNull('extracted_text')
+            ->where('extracted_text', '!=', '')
+            ->orderBy('created_at')
+            ->get(['original_name', 'extracted_text'])
+            ->map(fn (BlogPostFile $file) => trim($file->original_name."\n".$file->extracted_text))
+            ->implode("\n\n");
+    }
+
+    /** TASK-1907 — fichiers prives (PDF, audio) rattaches a l'article. */
+    public function files(): HasMany
+    {
+        return $this->hasMany(BlogPostFile::class);
     }
 
     /**
@@ -315,9 +363,14 @@ class BlogPost extends Model
      * filtre a chaque rendu, comme le Flux. Couvre les articles enregistres
      * avant le durcissement et ceux ecrits sans l'editeur (clonage de comptes,
      * documents de Boucle inseres directement).
+     *
+     * TASK-1907 — les marqueurs de fichiers prives deviennent leur lecteur,
+     * seulement pour les fichiers rattaches a CET article.
      */
     public function contenuAffichable(): string
     {
-        return app(BlogHtmlSanitizer::class)->sanitizeHtml((string) $this->content);
+        $html = app(BlogHtmlSanitizer::class)->sanitizeHtml((string) $this->content, allowFileMarkers: true);
+
+        return app(BlogPostFileRenderer::class)->render($this, $html);
     }
 }

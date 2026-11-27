@@ -1,5 +1,5 @@
 @inject('_aiGate', 'App\\Support\\Ai\\AiSurfaceGate')
-@props(['name' => 'content', 'value' => '', 'postId' => null, 'invalid' => false, 'routeAiGenerate' => null, 'routeAiCorrect' => null, 'routeAiRemaining' => null, 'routeUpload' => null, 'routeAnnotationStore' => null, 'routeAnnotationContentSave' => null])
+@props(['name' => 'content', 'value' => '', 'postId' => null, 'invalid' => false, 'routeAiGenerate' => null, 'routeAiCorrect' => null, 'routeAiRemaining' => null, 'routeUpload' => null, 'routeFileUpload' => null, 'routeFileShow' => null, 'routeAnnotationStore' => null, 'routeAnnotationContentSave' => null])
 
 <style>
 .bp-resize-handle {
@@ -205,6 +205,55 @@
   outline: 2px solid #6366f1;
   border-radius: 0.5rem;
 }
+
+/* TASK-1907 — apercu d'un PDF ou d'un audio prive dans l'editeur */
+.ProseMirror figure.bp-file-editor {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #f9fafb;
+  color: #111827;
+}
+.ProseMirror figure.bp-file-editor.ProseMirror-selectednode {
+  outline: 2px solid #6366f1;
+}
+.ProseMirror .bp-file-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+.ProseMirror .bp-file-editor-badge {
+  font-weight: 700;
+  font-size: 0.6875rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  background: #e0e7ff;
+  color: #3730a3;
+}
+.ProseMirror .bp-file-editor-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ProseMirror figure.bp-file-editor audio {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.dark .ProseMirror figure.bp-file-editor,
+.bp-editor-dark .ProseMirror figure.bp-file-editor {
+  border-color: #374151;
+  background: #1f2937;
+  color: #e5e7eb;
+}
+.dark .ProseMirror .bp-file-editor-badge,
+.bp-editor-dark .ProseMirror .bp-file-editor-badge {
+  background: #312e81;
+  color: #e0e7ff;
+}
 </style>
 
 <div
@@ -224,6 +273,13 @@
     data-editor-annotation-too-short="{{ __('blog.annotation_selection_too_short') }}"
     data-editor-annotation-too-long="{{ __('blog.annotation_selection_too_long') }}"
     data-route-upload="{{ $routeUpload ?? route('blog.upload-image') }}"
+    {{-- TASK-1907 : PDF et audio prives. `routeFileShow` = gabarit avec l'uuid nul. --}}
+    data-route-file-upload="{{ $routeFileUpload ?? route('blog.files.store') }}"
+    data-route-file-show="{{ $routeFileShow ?? route('blog.files.show', ['file' => '00000000-0000-0000-0000-000000000000']) }}"
+    data-editor-file-too-large="{{ __('blog.editor_file_too_large') }}"
+    data-editor-file-pdf="{{ __('blog.editor_file_pdf') }}"
+    data-editor-file-audio="{{ __('blog.editor_file_audio') }}"
+    data-editor-file-open="{{ __('blog.editor_file_open') }}"
     data-route-ai-remaining="{{ $routeAiRemaining ?? route('blog.ai-remaining') }}"
     data-route-ai-generate="{{ $routeAiGenerate ?? route('blog.ai-generate') }}"
     data-route-ai-correct="{{ $routeAiCorrect ?? route('blog.ai-correct') }}"
@@ -372,6 +428,20 @@
             <span x-text="activeStates?.imageResized ? '100%' : '50%'"></span>
         </button>
         <input type="file" accept="image/*" class="hidden" x-ref="imageInput" @change="uploadImage($event)">
+
+        {{-- TASK-1907 : PDF et audio prives --}}
+        <button type="button" @click="triggerFileUpload('pdf')" title="{{ __('blog.editor_insert_pdf') }}"
+            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            <span class="ml-0.5">PDF</span>
+        </button>
+        <button type="button" @click="triggerFileUpload('audio')" title="{{ __('blog.editor_insert_audio') }}"
+            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+            <span class="ml-0.5">Audio</span>
+        </button>
+        <input type="file" accept="application/pdf,.pdf" class="hidden" x-ref="pdfInput" @change="uploadFile($event, 'pdf')">
+        <input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a" class="hidden" x-ref="audioInput" @change="uploadFile($event, 'audio')">
 
         <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
 

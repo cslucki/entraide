@@ -800,6 +800,9 @@ function registerBlogEditor() {
         methodSelectionActive: false,
         csrfToken: '',
         uploadRoute: '',
+        fileUploadRoute: '',
+        fileShowTemplate: '',
+        fileMessages: {},
         aiRemainingRoute: '',
         aiGenerateRoute: '',
         aiCorrectRoute: '',
@@ -837,6 +840,15 @@ function registerBlogEditor() {
             this.msgCorrectRequire = root.dataset.editorCorrectRequire || '';
             this.msgAnnotationTooShort = root.dataset.editorAnnotationTooShort || '';
             this.uploadRoute = root.dataset.routeUpload || '';
+            // TASK-1907 — fichiers prives (PDF, audio).
+            this.fileUploadRoute = root.dataset.routeFileUpload || '';
+            this.fileShowTemplate = root.dataset.routeFileShow || '';
+            this.fileMessages = {
+                tooLarge: root.dataset.editorFileTooLarge || '',
+                pdf: root.dataset.editorFilePdf || 'PDF',
+                audio: root.dataset.editorFileAudio || 'Audio',
+                open: root.dataset.editorFileOpen || 'Ouvrir',
+            };
             this.aiRemainingRoute = root.dataset.routeAiRemaining || '';
             this.aiGenerateRoute = root.dataset.routeAiGenerate || '';
             this.aiCorrectRoute = root.dataset.routeAiCorrect || '';
@@ -855,6 +867,8 @@ function registerBlogEditor() {
             editor = createEditor(editorEl, {
                 content: this.content,
                 placeholder: 'Rédigez votre article…',
+                fileUrl: (id) => this.fileShowTemplate ? this.fileShowTemplate.replace('00000000-0000-0000-0000-000000000000', id) : '',
+                fileLabels: { pdf: this.fileMessages.pdf, audio: this.fileMessages.audio, open: this.fileMessages.open },
                 onUpdate: (html) => {
                     this.content = html;
                     this.syncHidden();
@@ -1089,6 +1103,49 @@ function registerBlogEditor() {
 
         triggerImageUpload() {
             this.$refs.imageInput.click();
+        },
+
+        // TASK-1907 — depot d'un PDF ou d'un audio prive, insere comme marqueur.
+        triggerFileUpload(kind) {
+            (kind === 'audio' ? this.$refs.audioInput : this.$refs.pdfInput).click();
+        },
+
+        uploadFile(event, kind) {
+            const file = event.target.files[0];
+            if (!file || !this.fileUploadRoute) return;
+
+            const maxBytes = (kind === 'audio' ? 30 : 20) * 1024 * 1024;
+            if (file.size > maxBytes) {
+                this.error = (this.fileMessages.tooLarge || '').replace(':max', kind === 'audio' ? '30' : '20');
+                event.target.value = '';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            this.loading = true;
+            this.error = '';
+
+            fetch(this.fileUploadRoute, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' },
+                body: formData,
+            })
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (ok && data.id && editor) {
+                    editor.chain().focus().insertPrivateFile({ kind: data.kind, id: data.id, name: data.name }).run();
+                    this.syncHidden();
+                } else {
+                    this.error = data.message || data.error || this.errorUpload;
+                }
+            })
+            .catch(() => { this.error = this.errorUpload; })
+            .finally(() => {
+                this.loading = false;
+                event.target.value = '';
+            });
         },
 
         toggleFullscreen() {
@@ -8843,3 +8900,16 @@ registerRoadmapMenu();
 //
 // Il vit desormais dans `<x-pwa-boot />`, inclus par tout document HTML
 // complet — voir le docbloc du composant pour la raison complete.
+
+// TASK-1907 — visionneuse PDF.js des articles, chargee seulement si la page
+// contient un PDF d'article (module separe : aucune autre page ne le telecharge).
+function initBlogPdfViewers() {
+    if (!document.querySelector('figure[data-bp-pdf-src]')) return;
+    import('./blog-pdf-viewer.js').then(({ initPdfViewers }) => initPdfViewers());
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBlogPdfViewers);
+} else {
+    initBlogPdfViewers();
+}
+document.addEventListener('livewire:navigated', initBlogPdfViewers);

@@ -178,6 +178,6 @@ class BlogSnapshotController extends Controller
      */
     private function sanitizeHtml(string $html): string
     {
-        return app(BlogHtmlSanitizer::class)->sanitizeHtml($html);
+        return app(BlogHtmlSanitizer::class)->sanitizeHtml($html, allowFileMarkers: true);
     }
 }
