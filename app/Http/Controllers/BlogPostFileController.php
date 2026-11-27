@@ -8,6 +8,7 @@ use App\Services\Dossiers\DossierFileTransport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -109,7 +110,8 @@ class BlogPostFileController extends Controller
         abort_unless($organization && $file->organization_id === $organization->id, 404);
         abort_unless($this->mayRead($file, $request), 404);
 
-        $response = $this->transport->apercuDepuis($file->disk, $file->path, $file->original_name, $file->mime);
+        $response = $this->pdfStreamedFromRemoteDisk($file)
+            ?? $this->transport->apercuDepuis($file->disk, $file->path, $file->original_name, $file->mime);
 
         if (! $response instanceof RedirectResponse) {
             $response->headers->set('X-Content-Type-Options', 'nosniff');
@@ -127,6 +129,27 @@ class BlogPostFileController extends Controller
     public function orgShow(Request $request, string $org, BlogPostFile $file): RedirectResponse|StreamedResponse|BinaryFileResponse
     {
         return $this->show($request, $file);
+    }
+
+    /**
+     * Sur un disque distant (R2 en PROD), le transport commun REDIRIGE vers une
+     * URL signee. Un lecteur `<audio>` suit sans souci ; PDF.js, lui, lit le
+     * fichier en `fetch()` : une redirection vers un autre domaine exigerait
+     * une regle CORS sur le bucket. Un PDF (20 Mo au plus) passe donc par
+     * l'application, en flux : aucune configuration R2 a toucher.
+     */
+    private function pdfStreamedFromRemoteDisk(BlogPostFile $file): ?StreamedResponse
+    {
+        if ($file->kind !== BlogPostFile::KIND_PDF || config("filesystems.disks.{$file->disk}.driver") === 'local') {
+            return null;
+        }
+
+        $disk = Storage::disk($file->disk);
+        abort_unless($disk->exists($file->path), 404);
+
+        return $disk->response($file->path, $file->original_name, [
+            'Content-Type' => 'application/pdf',
+        ], 'inline');
     }
 
     private function mayRead(BlogPostFile $file, Request $request): bool

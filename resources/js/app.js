@@ -8900,3 +8900,16 @@ registerRoadmapMenu();
 //
 // Il vit desormais dans `<x-pwa-boot />`, inclus par tout document HTML
 // complet — voir le docbloc du composant pour la raison complete.
+
+// TASK-1907 — visionneuse PDF.js des articles, chargee seulement si la page
+// contient un PDF d'article (module separe : aucune autre page ne le telecharge).
+function initBlogPdfViewers() {
+    if (!document.querySelector('figure[data-bp-pdf-src]')) return;
+    import('./blog-pdf-viewer.js').then(({ initPdfViewers }) => initPdfViewers());
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBlogPdfViewers);
+} else {
+    initBlogPdfViewers();
+}
+document.addEventListener('livewire:navigated', initBlogPdfViewers);

@@ -171,4 +171,19 @@ class TASK1907BlogPostFileAccessTest extends TestCase
         $this->assertStringNotContainsString($pdfId, $rendu);
         $this->assertStringContainsString('data-bp-pdf-src="'.route('organization.blog.files.show', [$this->org, $pdfId]).'"', $autre->fresh()->contenuAffichable());
     }
+
+    public function test_sur_un_disque_distant_le_pdf_passe_par_l_application_sans_redirection(): void
+    {
+        $id = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+        $this->article($this->auteur, $this->marqueur($id));
+
+        // Disque declare distant (R2 en PROD) : PDF.js ne doit pas etre renvoye
+        // vers une URL signee d'un autre domaine (CORS).
+        config(['filesystems.disks.'.BlogPostFile::DISK.'.driver' => 's3']);
+
+        $reponse = $this->lire($this->membre, $id);
+
+        $reponse->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-1.4', $reponse->streamedContent());
+    }
 }
