@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
 use App\Services\Blog\BlogHtmlSanitizer;
+use App\Services\Blog\BlogPostFileBinder;
 use App\Support\Images\ImageVariantResolver;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -87,6 +88,20 @@ class BlogPost extends Model
             $wordCount = str_word_count(strip_tags($post->content ?? ''));
             $post->read_time = max(1, (int) ceil($wordCount / 200));
         });
+
+        // TASK-1907 — les fichiers prives cites par le contenu sont rattaches
+        // a l'article, et en prennent les droits de lecture.
+        static::saved(function (self $post) {
+            if ($post->wasRecentlyCreated || $post->wasChanged('content')) {
+                app(BlogPostFileBinder::class)->bind($post);
+            }
+        });
+    }
+
+    /** TASK-1907 — fichiers prives (PDF, audio) rattaches a l'article. */
+    public function files(): HasMany
+    {
+        return $this->hasMany(BlogPostFile::class);
     }
 
     /**

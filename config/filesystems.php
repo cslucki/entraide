@@ -176,6 +176,37 @@ return [
             ],
         ],
 
+
+        /*
+         * TASK-1907 — fichiers PRIVES des articles de blog (PDF, audio).
+         *
+         * Meme doctrine que `message_files` : ni `serve` ni `url`, la SEULE
+         * porte est la route gardee `blog.files.show`, qui applique les droits
+         * de l'article. En distant, le driver suit `MESSAGE_FILES_DRIVER` sauf
+         * `BLOG_FILES_DRIVER` explicite : aucune variable neuve n'est requise
+         * en PROD. Les objets vont dans le meme bucket prive, sous leur propre
+         * racine (`root`, qui sert aussi de prefixe en S3) : jamais melanges aux
+         * pieces de messagerie ni vises par la regle d'expiration des vocaux.
+         */
+        'blog_files' => [
+            'driver' => env('BLOG_FILES_DRIVER', env('MESSAGE_FILES_DRIVER', 'local')),
+            'root' => storage_path('app/private/blog-files'),
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => false,
+            'report' => false,
+            'permissions' => [
+                'dir' => [
+                    'public' => 0755,
+                    'private' => 0770,
+                ],
+            ],
+        ],
+
     ],
 
     /*

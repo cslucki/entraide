@@ -84,6 +84,7 @@ use App\Http\Controllers\BlogAnnotationReplyController;
 use App\Http\Controllers\BlogCoAuthorController;
 use App\Http\Controllers\BlogCommentController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\BlogPostFileController;
 use App\Http\Controllers\BlogDossierApiController;
 use App\Http\Controllers\BlogExplorerController;
 use App\Http\Controllers\BlogInvitationController;
@@ -288,6 +289,8 @@ Route::middleware('auth')->group(function () {
 
     // Blog editor AJAX endpoints
     Route::post('/blog/upload-image', [BlogController::class, 'uploadImage'])->name('blog.upload-image');
+    // TASK-1907 — depot d'un fichier PRIVE d'article (PDF, audio).
+    Route::post('/blog/fichiers', [BlogPostFileController::class, 'store'])->middleware('throttle:10,1')->name('blog.files.store');
     Route::post('/blog/ai-generate', [BlogController::class, 'aiGenerate'])->name('blog.ai-generate');
     Route::post('/blog/ai-correct', [BlogController::class, 'aiCorrect'])->name('blog.ai-correct');
     Route::post('/blog/ai-method-selection', [BlogController::class, 'aiMethodSelection'])->name('blog.ai-method-selection');
@@ -362,6 +365,8 @@ Route::middleware('auth')->group(function () {
 });
 
 // Blog — wildcard slug EN DERNIER
+// TASK-1907 — lecture d'un fichier prive d'article : memes droits que l'article.
+Route::get('/blog/fichiers/{file}', [BlogPostFileController::class, 'show'])->name('blog.files.show')->whereUuid('file');
 Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
 
 // Blog invitation public routes (no auth required)
@@ -2211,6 +2216,7 @@ Route::prefix('/org/{organization}')
                 Route::post('/blog/{post:slug}/commentaires', [BlogCommentController::class, 'orgStore'])->name('blog.comment.store');
                 Route::delete('/commentaires/{comment}', [BlogCommentController::class, 'orgDestroy'])->name('blog.comment.destroy');
                 Route::post('/blog/upload-image', [BlogController::class, 'orgUploadImage'])->name('blog.upload-image');
+                Route::post('/blog/fichiers', [BlogPostFileController::class, 'orgStore'])->middleware('throttle:10,1')->name('blog.files.store');
                 Route::post('/blog/ai-generate', [BlogController::class, 'orgAiGenerate'])->name('blog.ai-generate');
                 Route::post('/blog/ai-correct', [BlogController::class, 'orgAiCorrect'])->name('blog.ai-correct');
                 Route::post('/blog/ai-method-selection', [BlogController::class, 'orgAiMethodSelection'])->name('blog.ai-method-selection');
@@ -2589,5 +2595,6 @@ Route::prefix('/org/{organization}')
         Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
         Route::get('/blog/categorie/{slug}', [BlogController::class, 'orgByCategory'])->name('blog.category');
         Route::get('/blog/tag/{slug}', [BlogController::class, 'orgByTag'])->name('blog.tag');
+        Route::get('/blog/fichiers/{file}', [BlogPostFileController::class, 'orgShow'])->name('blog.files.show')->whereUuid('file');
         Route::get('/blog/{post:slug}', [BlogController::class, 'orgShow'])->name('blog.show');
     });
