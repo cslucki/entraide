@@ -2,31 +2,38 @@
 
 namespace App\Services\Blog;
 
+use Dom\Element;
+use Dom\HTMLDocument;
+use Dom\Node;
+use Dom\Text;
+
 /**
- * TASK-1785 — la sanitation HTML du blog, extraite pour etre REUTILISABLE.
+ * Le filtre HTML du blog, partage par l'editeur d'articles, la restauration
+ * d'une version (`BlogSnapshotController`), l'import RSS et le Flux
+ * (`FeedPost::nettoyerContenu`). Le contenu filtre est rendu BRUT
+ * (`{!! $postContent !!}`) : ce filtre est la seule barriere.
  *
- * ## Pourquoi une extraction, et pas une seconde sanitation
+ * ## TASK-1906 — une liste blanche sur un vrai arbre HTML
  *
- * Ce code vivait en `private` dans `BlogController`. L'importateur RSS doit
- * assainir du HTML venu d'un site tiers, et le CDC demande de « reutiliser la
- * sanitation HTML existante » : depuis un service, une methode privee de
- * controleur est inatteignable.
+ * Jusqu'ici : `strip_tags()` puis des expressions regulieres. Elles lisaient
+ * le HTML autrement qu'un navigateur, et laissaient passer
+ * `<img src=x onerror=…>` (sans guillemets), `<iframe srcdoc=…>`,
+ * `<iframe src='…'>` vers n'importe quel site, `jav&#x61;script:`, et tout
+ * attribut Alpine (`x-init`, `@click`) — execute sur une page qui charge Alpine.
  *
- * Le choix etait donc entre extraire et DUPLIQUER. Dupliquer aurait donne deux
- * sanitations qui divergent — et le jour ou l'une se durcit sans l'autre, c'est
- * la plus faible qui decide de ce qui entre en base. Un XSS vivrait alors dans
- * la copie oubliee.
+ * Desormais le HTML est lu par l'analyseur HTML5 de PHP (`Dom\HTMLDocument`,
+ * le meme algorithme que les navigateurs), puis chaque element et chaque
+ * attribut doit figurer sur une liste blanche. Les valeurs d'URL sont
+ * controlees APRES decodage des entites, comme le navigateur les lira.
  *
- * ## Deplacement FIDELE, et comment on le sait
+ * Pourquoi pas `symfony/html-sanitizer` : il reecrit le texte en entites
+ * (`'` -> `&#039;`, `@` -> `&#64;`), ce qui aurait modifie presque chaque
+ * article francais et les `@mentions` du Flux. Le serialiseur HTML5 natif
+ * n'echappe que `&`, `<`, `>` et l'espace insecable : le texte ressort tel quel.
  *
- * Rien n'a ete reecrit : les quatre methodes et les deux listes sont copiees a
- * l'identique, et `BlogController` DELEGUE desormais au lieu de porter le code.
- * La preuve n'est pas une relecture a l'oeil — c'est la suite blog existante,
- * qui couvre deja le comportement de cette sanitation et doit rester verte.
- *
- * Les commentaires d'origine sont conserves tels quels : ils portent des
- * decisions (TASK-1084 sur `h1`, la liste d'iframes approuvees) qui valent
- * autant ici qu'avant.
+ * Le comportement visible est conserve : memes balises, memes iframes video,
+ * memes annotations, et `style` toujours retire hors tableaux et videos
+ * (voir `TASK1906BlogHtmlSanitizerTest`).
  */
 class BlogHtmlSanitizer
 {
@@ -43,129 +50,261 @@ class BlogHtmlSanitizer
         'div', 'iframe',
     ];
 
-
     public const ALLOWED_IFRAME_DOMAINS = [
         'youtube.com', 'www.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com',
         'vimeo.com', 'player.vimeo.com',
         'dailymotion.com', 'www.dailymotion.com',
     ];
 
+    /**
+     * Attributs permis, par balise. Tout le reste disparait — `on*`, `style`
+     * (sauf ci-dessous), `srcdoc`, `x-*`, `@*`, `:*`, `id`, `class`…
+     * Releve du contenu reel (jumeau PROD 1.905, 27/11) : liens
+     * `href/target/rel/class`, tableaux `colspan/rowspan` et `col style`,
+     * video `div data-media-embed style` + iframe, images `src/alt/width/height`.
+     */
+    private const ALLOWED_ATTRIBUTES = [
+        'a' => ['href', 'target', 'rel', 'title', 'class'],
+        'img' => ['src', 'alt', 'title', 'width', 'height', 'data-resized'],
+        'iframe' => ['src', 'width', 'height', 'frameborder', 'allowfullscreen', 'allow', 'title'],
+        'div' => ['data-media-embed', 'style'],
+        'table' => ['data-borderless'],
+        'td' => ['colspan', 'rowspan', 'colwidth'],
+        'th' => ['colspan', 'rowspan', 'colwidth'],
+        'col' => ['style', 'span'],
+        'colgroup' => ['style', 'span'],
+        'ol' => ['start'],
+        'code' => ['class'],
+    ];
+
+    /** Elements supprimes AVEC leur contenu (le reste des inconnus est deballe). */
+    private const DROPPED_WITH_CONTENT = [
+        'script', 'style', 'template', 'noscript', 'textarea', 'select', 'option',
+        'object', 'embed', 'applet', 'svg', 'math', 'title', 'head', 'frame',
+        'frameset', 'audio', 'video', 'canvas', 'iframe', 'base', 'link', 'meta',
+    ];
+
+    /** Proprietes CSS permises, par balise (valeur controlee par motif). */
+    private const ALLOWED_STYLES = [
+        'col' => ['width' => self::CSS_LENGTH, 'min-width' => self::CSS_LENGTH],
+        'colgroup' => ['width' => self::CSS_LENGTH, 'min-width' => self::CSS_LENGTH],
+        'div' => ['aspect-ratio' => '/^\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?$/'],
+    ];
+
+    private const CSS_LENGTH = '/^\d+(\.\d+)?(px|%|em|rem)$/';
+
+    private const ANNOTATION_ID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
+
     public function sanitizeHtml(string $html): string
     {
-        // Step 1 — extract valid annotation spans as safe placeholders
-        $annotationSpans = [];
-        $html = $this->extractAnnotationSpans($html, $annotationSpans);
+        // Conserves de l'ancien filtre : ni PHP ni moustaches Blade/Alpine.
+        $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html) ?? '';
+        $html = preg_replace('/\{\{.*?\}\}/s', '', $html) ?? '';
 
-        // Step 2 — standard sanitization (span is NOT in allowed tags)
-        $allowed = self::ALLOWED_HTML_TAGS;
-        $html = strip_tags($html, '<'.implode('><', $allowed).'>');
-
-        $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
-        $html = preg_replace('/<(\w+)\s[^>]*javascript\s*:\s*[^"\'>\s]+/i', '<$1', $html);
-        $html = preg_replace('/<(\w+)\s[^>]*data\s*:\s*[^"\'>\s]+/i', '<$1', $html);
-        $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html);
-        $html = preg_replace('/\{\{.*?\}\}/s', '', $html);
-        $html = $this->stripStyleAttribute($html);
-
-        // Remove iframes pointing to non-approved domains
-        if (str_contains($html, 'iframe')) {
-            $html = $this->filterIframeDomains($html);
+        if (trim($html) === '') {
+            return $html;
         }
 
-        // Step 3 — restore annotation spans from placeholders
-        foreach ($annotationSpans as $key => $safeSpan) {
-            $html = str_replace($key, $safeSpan, $html);
+        $document = HTMLDocument::createFromString(
+            '<!DOCTYPE html><html><body>'.$html.'</body></html>',
+            LIBXML_NOERROR,
+            'UTF-8',
+        );
+        $body = $document->body;
+        if ($body === null) {
+            return '';
         }
 
-        return $html;
+        $this->cleanChildren($body);
+
+        return $body->innerHTML;
     }
 
-    private function stripStyleAttribute(string $html): string
+    private function cleanChildren(Node $parent): void
     {
-        return preg_replace_callback(
-            '/<(\w+)\b([^>]*)>/i',
-            function (array $match): string {
-                $tag = strtolower($match[1]);
-                $attrs = $match[2];
-                if (in_array($tag, ['col', 'colgroup', 'div'], true)) {
-                    return $match[0];
-                }
-                $attrs = preg_replace('/\s+style\s*=\s*"[^"]*"/i', '', $attrs);
-                $attrs = preg_replace("/\s+style\s*=\s*'[^']*'/i", '', $attrs);
-
-                return '<'.$match[1].$attrs.'>';
-            },
-            $html
-        );
+        foreach (iterator_to_array($parent->childNodes) as $node) {
+            if ($node instanceof Element) {
+                $this->cleanElement($node);
+            } elseif (! $node instanceof Text) {
+                // Commentaires, CDATA, instructions : retires, comme strip_tags().
+                $node->remove();
+            }
+        }
     }
 
-    private function filterIframeDomains(string $html): string
+    private function cleanElement(Element $element): void
     {
-        return preg_replace_callback(
-            '/(<iframe\b[^>]*>)(.*?)(<\/iframe>)/is',
-            function (array $match): string {
-                $openTag = $match[1];
-                $inner = $match[2];
-                $closeTag = $match[3];
+        $tag = strtolower($element->localName);
 
-                if (preg_match('/\bsrc\s*=\s*"([^"]*)"/i', $openTag, $srcMatch)) {
-                    if (! $this->isAllowedIframeDomain($srcMatch[1])) {
-                        return '';
-                    }
-                }
+        if ($tag === 'iframe') {
+            $src = $element->getAttribute('src');
+            if ($src === null || ! $this->isAllowedIframeSrc($src)) {
+                $element->remove();
 
-                return $openTag.$inner.$closeTag;
-            },
-            $html
-        );
+                return;
+            }
+        } elseif (in_array($tag, self::DROPPED_WITH_CONTENT, true)) {
+            $element->remove();
+
+            return;
+        }
+
+        if ($tag === 'span' && $this->keepAnnotationSpan($element)) {
+            $this->cleanChildren($element);
+
+            return;
+        }
+
+        if (! in_array($tag, self::ALLOWED_HTML_TAGS, true)) {
+            // Balise inconnue (span, mark, blockquote…) : on garde son texte,
+            // exactement comme strip_tags() le faisait.
+            $this->cleanChildren($element);
+            $element->replaceWith(...iterator_to_array($element->childNodes));
+
+            return;
+        }
+
+        $this->cleanAttributes($element, $tag);
+        $this->cleanChildren($element);
     }
 
-    private function isAllowedIframeDomain(string $url): bool
+    private function cleanAttributes(Element $element, string $tag): void
     {
-        $host = parse_url($url, PHP_URL_HOST);
-        if (! $host) {
+        $allowed = self::ALLOWED_ATTRIBUTES[$tag] ?? [];
+
+        foreach (iterator_to_array($element->attributes) as $attribute) {
+            $name = strtolower($attribute->name);
+            $value = $attribute->value;
+
+            $keep = in_array($name, $allowed, true) && $this->isAllowedValue($tag, $name, $value, $element);
+
+            if (! $keep) {
+                $element->removeAttribute($attribute->name);
+            }
+        }
+    }
+
+    private function isAllowedValue(string $tag, string $name, string $value, Element $element): bool
+    {
+        return match ($name) {
+            'href' => $this->isSafeUrl($value, ['http', 'https', 'mailto', 'tel']),
+            'src' => $tag === 'iframe' ? $this->isAllowedIframeSrc($value) : $this->isSafeUrl($value, ['http', 'https']),
+            'target' => $value === '_blank',
+            'rel' => (bool) preg_match('/^[a-z ]*$/i', $value),
+            'class' => $this->isAllowedClass($tag, $value),
+            'style' => $this->keepAllowedStyle($tag, $value, $element),
+            'width', 'height' => (bool) preg_match('/^\d+(\.\d+)?(px|%)?$/', $value),
+            'colspan', 'rowspan', 'span', 'start', 'frameborder', 'data-resized' => (bool) preg_match('/^\d+$/', $value),
+            'colwidth' => (bool) preg_match('/^\d+(,\d+)*$/', $value),
+            'allow' => (bool) preg_match('/^[a-z\-; ]*$/i', $value),
+            'allowfullscreen', 'data-borderless', 'data-media-embed', 'alt', 'title' => true,
+            default => false,
+        };
+    }
+
+    /**
+     * Le navigateur ignore les caracteres de controle et les blancs d'une URL
+     * (`java\tscript:`) : on les retire AVANT de lire le schema. La valeur
+     * recue est deja decodee (`&#x61;` -> `a`) par l'analyseur.
+     */
+    private function isSafeUrl(string $url, array $schemes): bool
+    {
+        $normalized = preg_replace('/[\x00-\x20\x7F]+/', '', $url) ?? '';
+
+        if (preg_match('/^([a-z][a-z0-9+.\-]*):/i', $normalized, $match)) {
+            return in_array(strtolower($match[1]), $schemes, true);
+        }
+
+        // Relative (`/storage/…`, `#ancre`, `?q=`) : meme site.
+        return true;
+    }
+
+    private function isAllowedIframeSrc(string $url): bool
+    {
+        $normalized = preg_replace('/[\x00-\x20\x7F]+/', '', $url) ?? '';
+
+        if (strtolower((string) parse_url($normalized, PHP_URL_SCHEME)) !== 'https') {
             return false;
         }
-        $host = strtolower($host);
 
-        return in_array($host, self::ALLOWED_IFRAME_DOMAINS, true);
+        $host = strtolower((string) parse_url($normalized, PHP_URL_HOST));
+
+        return $host !== '' && in_array($host, self::ALLOWED_IFRAME_DOMAINS, true);
     }
 
-    private function extractAnnotationSpans(string $html, array &$protected): string
+    private function isAllowedClass(string $tag, string $value): bool
     {
-        $previous = null;
-
-        while ($previous !== $html) {
-            $previous = $html;
-            $html = preg_replace_callback(
-                '/<span\b([^>]*)>((?:(?!<\/?span\b).)*)<\/span>/is',
-                function (array $match) use (&$protected): string {
-                    $attrs = $match[1];
-                    $inner = $match[2];
-
-                    if (preg_match('/data-annotation-id\s*=\s*"([^"]+)"/i', $attrs, $idMatch)) {
-                        $id = $idMatch[1];
-                        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)) {
-                            $classMatch = [];
-                            $hasClass = preg_match('/class\s*=\s*"([^"]*)"/i', $attrs, $classMatch);
-                            $classes = $hasClass ? preg_split('/\s+/', trim($classMatch[1])) : [];
-                            if (in_array('bp-annotation-mark', $classes, true)) {
-                                $openKey = '@@@BPAO_'.count($protected).'@@@';
-                                $closeKey = '@@@BPAC_'.count($protected).'@@@';
-                                $protected[$openKey] = '<span data-annotation-id="'.$id.'" class="bp-annotation-mark">';
-                                $protected[$closeKey] = '</span>';
-
-                                return $openKey.$inner.$closeKey;
-                            }
-                        }
-                    }
-
-                    return $inner;
-                },
-                $html
-            );
+        $tokens = preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($tokens === []) {
+            return false;
         }
 
-        return $html;
+        foreach ($tokens as $token) {
+            $ok = match ($tag) {
+                'a' => $token === 'article-editor-link',
+                'code' => (bool) preg_match('/^language-[a-z0-9+#\-]+$/i', $token),
+                default => false,
+            };
+            if (! $ok) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Garde la valeur d'origine si TOUTES ses declarations sont permises ; sinon
+     * la reecrit avec les seules declarations permises (ou la retire).
+     */
+    private function keepAllowedStyle(string $tag, string $value, Element $element): bool
+    {
+        $rules = self::ALLOWED_STYLES[$tag] ?? [];
+        if ($rules === []) {
+            return false;
+        }
+
+        $kept = [];
+        $all = true;
+        foreach (array_filter(array_map('trim', explode(';', $value))) as $declaration) {
+            [$property, $propertyValue] = array_pad(array_map('trim', explode(':', $declaration, 2)), 2, '');
+            $property = strtolower($property);
+            if (isset($rules[$property]) && preg_match($rules[$property], $propertyValue)) {
+                $kept[] = $property.': '.$propertyValue;
+            } else {
+                $all = false;
+            }
+        }
+
+        if ($kept === []) {
+            return false;
+        }
+        if (! $all) {
+            $element->setAttribute('style', implode('; ', $kept));
+        }
+
+        return true;
+    }
+
+    /**
+     * Un span ne survit que s'il porte une annotation valide (TASK-980) ; il
+     * est alors reecrit avec ses deux seuls attributs, dans cet ordre.
+     */
+    private function keepAnnotationSpan(Element $span): bool
+    {
+        $id = (string) $span->getAttribute('data-annotation-id');
+        $classes = preg_split('/\s+/', trim((string) $span->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        if (! preg_match(self::ANNOTATION_ID, $id) || ! in_array('bp-annotation-mark', $classes, true)) {
+            return false;
+        }
+
+        foreach (iterator_to_array($span->attributes) as $attribute) {
+            $span->removeAttribute($attribute->name);
+        }
+        $span->setAttribute('data-annotation-id', $id);
+        $span->setAttribute('class', 'bp-annotation-mark');
+
+        return true;
     }
 }
