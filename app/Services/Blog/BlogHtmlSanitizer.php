@@ -99,13 +99,27 @@ class BlogHtmlSanitizer
     private array $allowedTags = self::ALLOWED_HTML_TAGS;
 
     /**
+     * TASK-1907 — marqueur d'un fichier prive d'article :
+     * `<figure data-bp-file="pdf|audio" data-bp-file-id="uuid" data-bp-file-name="…">`.
+     * Il ne porte AUCUNE URL : le lecteur est construit a l'affichage
+     * (`BlogPostFileRenderer`), apres verification que le fichier appartient
+     * bien a l'article. Permis seulement quand l'appelant le demande (article
+     * de blog) ; ailleurs (Flux, RSS, document de Boucle) la figure est deballee.
+     */
+    private bool $allowFileMarkers = false;
+
+    private const FILE_KINDS = ['pdf', 'audio'];
+
+    /**
      * @param  list<string>|null  $allowedTags  liste REDUITE pour une surface plus etroite
      *                                          (document racine d'une Boucle) ; attributs et URL
      *                                          restent ceux de ce filtre.
+     * @param  bool  $allowFileMarkers  TASK-1907 : garder les marqueurs de fichiers prives.
      */
-    public function sanitizeHtml(string $html, ?array $allowedTags = null): string
+    public function sanitizeHtml(string $html, ?array $allowedTags = null, bool $allowFileMarkers = false): string
     {
         $this->allowedTags = $allowedTags ?? self::ALLOWED_HTML_TAGS;
+        $this->allowFileMarkers = $allowFileMarkers;
 
         // Conserves de l'ancien filtre : ni PHP ni moustaches Blade/Alpine.
         $html = preg_replace('/<\?php|<\%|<\%\=|<\?xml/i', '', $html) ?? '';
@@ -161,6 +175,10 @@ class BlogHtmlSanitizer
         } elseif (in_array($tag, self::DROPPED_WITH_CONTENT, true)) {
             $element->remove();
 
+            return;
+        }
+
+        if ($tag === 'figure' && $this->allowFileMarkers && $this->keepFileMarker($element)) {
             return;
         }
 
@@ -319,6 +337,38 @@ class BlogHtmlSanitizer
         }
         $span->setAttribute('data-annotation-id', $id);
         $span->setAttribute('class', 'bp-annotation-mark');
+
+        return true;
+    }
+
+    /**
+     * TASK-1907 — une figure ne survit que si elle est un marqueur de fichier
+     * valide ; elle est alors VIDEE et reecrite avec ses trois seuls attributs.
+     */
+    private function keepFileMarker(Element $figure): bool
+    {
+        $kind = (string) $figure->getAttribute('data-bp-file');
+        $id = strtolower((string) $figure->getAttribute('data-bp-file-id'));
+        $name = (string) $figure->getAttribute('data-bp-file-name');
+
+        if (! in_array($kind, self::FILE_KINDS, true) || ! preg_match(self::ANNOTATION_ID, $id)) {
+            return false;
+        }
+
+        $name = mb_substr(trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $name) ?? ''), 0, 200);
+
+        foreach (iterator_to_array($figure->attributes) as $attribute) {
+            $figure->removeAttribute($attribute->name);
+        }
+        foreach (iterator_to_array($figure->childNodes) as $child) {
+            $child->remove();
+        }
+
+        $figure->setAttribute('data-bp-file', $kind);
+        $figure->setAttribute('data-bp-file-id', $id);
+        if ($name !== '') {
+            $figure->setAttribute('data-bp-file-name', $name);
+        }
 
         return true;
     }

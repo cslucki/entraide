@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Traits\HasOrganizationId;
 use App\Services\Blog\BlogHtmlSanitizer;
 use App\Services\Blog\BlogPostFileBinder;
+use App\Services\Blog\BlogPostFileRenderer;
 use App\Support\Images\ImageVariantResolver;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -330,9 +331,14 @@ class BlogPost extends Model
      * filtre a chaque rendu, comme le Flux. Couvre les articles enregistres
      * avant le durcissement et ceux ecrits sans l'editeur (clonage de comptes,
      * documents de Boucle inseres directement).
+     *
+     * TASK-1907 — les marqueurs de fichiers prives deviennent leur lecteur,
+     * seulement pour les fichiers rattaches a CET article.
      */
     public function contenuAffichable(): string
     {
-        return app(BlogHtmlSanitizer::class)->sanitizeHtml((string) $this->content);
+        $html = app(BlogHtmlSanitizer::class)->sanitizeHtml((string) $this->content, allowFileMarkers: true);
+
+        return app(BlogPostFileRenderer::class)->render($this, $html);
     }
 }

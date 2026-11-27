@@ -7,6 +7,7 @@ use App\Models\BlogPostFile;
 use App\Models\Category;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Blog\BlogHtmlSanitizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -133,5 +134,41 @@ class TASK1907BlogPostFileAccessTest extends TestCase
         $premier = $this->article($this->auteur, $this->marqueur($id));
         $this->article($this->auteur, $this->marqueur($id));
         $this->assertSame($premier->id, BlogPostFile::findOrFail($id)->blog_post_id);
+    }
+
+    public function test_le_filtre_ne_garde_le_marqueur_que_pour_un_article_et_le_vide(): void
+    {
+        $sanitizer = app(BlogHtmlSanitizer::class);
+        $id = '0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
+        $html = '<figure data-bp-file="audio" data-bp-file-id="'.$id.'" data-bp-file-name="Episode 1.mp3" onclick="alert(1)" style="position:fixed"><audio src="https://evil.example/x.mp3"></audio>texte</figure>';
+
+        $article = $sanitizer->sanitizeHtml($html, allowFileMarkers: true);
+        $this->assertSame('<figure data-bp-file="audio" data-bp-file-id="'.$id.'" data-bp-file-name="Episode 1.mp3"></figure>', $article);
+
+        // Ailleurs (Flux, RSS) : la figure est deballee, rien du marqueur ne reste.
+        $this->assertStringNotContainsString('data-bp-file', $sanitizer->sanitizeHtml($html));
+
+        // Type ou identifiant invalide : pas de marqueur.
+        $this->assertStringNotContainsString('data-bp-file', $sanitizer->sanitizeHtml(str_replace('"audio"', '"video"', $html), allowFileMarkers: true));
+        $this->assertStringNotContainsString('data-bp-file', $sanitizer->sanitizeHtml(str_replace($id, 'pas-un-uuid', $html), allowFileMarkers: true));
+    }
+
+    public function test_l_affichage_construit_le_lecteur_seulement_pour_un_fichier_de_cet_article(): void
+    {
+        $audio = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Episode.mp3', "ID3\x03\x00\x00\x00\x00\x00\x00".str_repeat("\xFF\xFB\x90\x00", 64)));
+        $pdfId = $this->deposer($this->auteur, UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF))->json('id');
+
+        $autre = $this->article($this->auteur, $this->marqueur($pdfId));
+        $post = $this->article($this->auteur, $this->marqueur($pdfId).'<figure data-bp-file="audio" data-bp-file-id="'.$audio->json('id').'"></figure>');
+
+        $audio->assertCreated();
+        $rendu = $post->fresh()->contenuAffichable();
+
+        // L'audio est a cet article : lecteur construit, adresse = route gardee.
+        $this->assertStringContainsString('<audio controls="" preload="none" src="'.route('organization.blog.files.show', [$this->org, $audio->json('id')]).'"', $rendu);
+        $this->assertStringContainsString('<figcaption>Episode.mp3</figcaption>', $rendu);
+        // Le PDF appartient a l'AUTRE article : rien n'est rendu ici.
+        $this->assertStringNotContainsString($pdfId, $rendu);
+        $this->assertStringContainsString('data-bp-pdf-src="'.route('organization.blog.files.show', [$this->org, $pdfId]).'"', $autre->fresh()->contenuAffichable());
     }
 }

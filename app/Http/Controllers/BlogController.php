@@ -975,7 +975,8 @@ class BlogController extends Controller implements HasMiddleware
      */
     private function sanitizeHtml(string $html): string
     {
-        return app(BlogHtmlSanitizer::class)->sanitizeHtml($html);
+        // TASK-1907 : un article garde ses marqueurs de fichiers prives.
+        return app(BlogHtmlSanitizer::class)->sanitizeHtml($html, allowFileMarkers: true);
     }
 
     /**
