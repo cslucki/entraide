@@ -10,12 +10,13 @@ import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Annotation from './tiptap/annotation-mark.js';
 import { MediaEmbed } from './tiptap/media-embed-node.js';
+import { PrivateFile } from './tiptap/private-file-node.js';
 import { Markdown } from '@tiptap/markdown';
 import { createMarkdownPasteHandler } from './tiptap/markdown-paste.js';
 
 const editors = new WeakMap();
 
-export function createEditor(element, { content = '', onUpdate = null, placeholder = 'Rédigez votre article…' } = {}) {
+export function createEditor(element, { content = '', onUpdate = null, placeholder = 'Rédigez votre article…', fileUrl = () => '', fileLabels = undefined } = {}) {
     if (editors.has(element)) {
         editors.get(element).destroy();
     }
@@ -157,6 +158,8 @@ export function createEditor(element, { content = '', onUpdate = null, placehold
                 HTMLAttributes: {},
             }),
             MediaEmbed,
+            // TASK-1907 — PDF et audio prives (marqueur sans URL).
+            PrivateFile.configure({ fileUrl, ...(fileLabels ? { labels: fileLabels } : {}) }),
             // Already a dependency of this project, and already used by the
             // other editor. It parses pasted Markdown into real nodes instead
             // of the single grey code block users were getting.

@@ -207,6 +207,8 @@
                         :route-ai-correct="$_blogRoute('ai-correct')"
                         :route-ai-remaining="$_blogRoute('ai-remaining')"
                         :route-upload="$_blogRoute('upload-image')"
+                        :route-file-upload="$_blogRoute('files.store')"
+                        :route-file-show="$_blogRoute('files.show', ['file' => '00000000-0000-0000-0000-000000000000'])"
                         :route-annotation-store="$_blogRoute('annotations.store', ['post' => $post])"
                         :route-annotation-content-save="$_blogRoute('save-content', ['post' => $post])"
                     />
