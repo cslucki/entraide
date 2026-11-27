@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasOrganizationId;
+use App\Services\Blog\BlogHtmlSanitizer;
 use App\Support\Images\ImageVariantResolver;
 use Database\Factories\LoopFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -313,11 +314,10 @@ class Loop extends Model
         // Markdown paste opens with one.
         $allowed = ['h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'a', 'code', 'pre', 'blockquote'];
 
-        $html = preg_replace('#<(script|style|template)\b[^>]*>.*?</\1>#is', '', (string) $manifesto->content);
-        $html = strip_tags((string) $html, '<'.implode('><', $allowed).'>');
-        $html = preg_replace('/<(\w+)\s[^>]*on\w+\s*=\s*["\'][^"\']*["\']/i', '<$1', $html);
-
-        return (string) preg_replace('/<(\w+)\s[^>]*(?:javascript|data)\s*:\s*[^"\'>\s]+/i', '<$1', $html);
+        // TASK-1906 — meme liste reduite qu'avant, mais lue par le filtre du
+        // blog (arbre HTML5, attributs en liste blanche) au lieu de regex qui
+        // laissaient passer `onclick=…` sans guillemets ou `x-init`.
+        return app(BlogHtmlSanitizer::class)->sanitizeHtml((string) $manifesto->content, $allowed);
     }
 
     /**

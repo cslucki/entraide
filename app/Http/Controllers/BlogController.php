@@ -55,9 +55,8 @@ class BlogController extends Controller implements HasMiddleware
      * par diverger, et c'est la plus permissive qui decide de ce qui entre en
      * base. Une seule source, deux noms.
      *
-     * ⚠️ `BlogSnapshotController:13,23` porte, lui, ses PROPRES copies des deux
-     * listes. Cette duplication PREEXISTE a TASK-1785 et n'est pas traitee ici
-     * — signalee a MASTER a part.
+     * TASK-1906 — `BlogSnapshotController` delegue lui aussi au service : la
+     * copie qu'il portait (signalee par TASK-1785) a disparu.
      */
     private const ALLOWED_HTML_TAGS = BlogHtmlSanitizer::ALLOWED_HTML_TAGS;
 
@@ -1127,7 +1126,8 @@ class BlogController extends Controller implements HasMiddleware
     private function extractPublishedToc(BlogPost $post): array
     {
         $headers = [];
-        $postContent = $post->content;
+        // TASK-1906 — rendu brut plus bas : le contenu repasse par le filtre.
+        $postContent = $post->contenuAffichable();
 
         if (! $post->show_toc) {
             return [$headers, $postContent];

@@ -65,7 +65,8 @@
             </div>
 
             <div class="max-h-[50vh] overflow-y-auto rounded-xl border border-[var(--bp-border)] bg-white p-3 text-gray-800 dark:bg-gray-900 dark:text-gray-200 prose prose-sm dark:prose-invert max-w-none [&_img[data-resized]]:!max-w-[70%] [&_pre]:bg-gray-100 [&_pre]:dark:bg-gray-800 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:overflow-x-auto [&_code]:bg-gray-100 [&_code]:dark:bg-gray-800 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:block">
-                {!! $detailArticle->content !!}
+                {{-- TASK-1906 — contenu refiltre au rendu. --}}
+                {!! $detailArticle->contenuAffichable() !!}
             </div>
 
             <div class="flex flex-wrap gap-2">
