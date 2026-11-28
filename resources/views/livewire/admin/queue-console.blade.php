@@ -70,6 +70,7 @@
         <section class="{{ $card }}" data-marqueur="files">
             <h2 class="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.queue_console.queues_title') }}</h2>
             <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.queue_console.queues_hint') }}</p>
+            <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
@@ -77,6 +78,8 @@
                         <th class="py-1 text-right font-medium">{{ __('admin.queue_console.col_pending') }}</th>
                         <th class="py-1 text-right font-medium">{{ __('admin.queue_console.col_running') }}</th>
                         <th class="py-1 text-right font-medium">{{ __('admin.queue_console.col_oldest') }}</th>
+                        <th class="py-1 text-right font-medium">{{ __('admin.queue_console.col_processed_24h') }}</th>
+                        <th class="py-1 text-right font-medium">{{ __('admin.queue_console.col_failed_24h') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -86,20 +89,26 @@
                             <td class="py-1.5 text-right text-gray-900 dark:text-gray-100">{{ $q['pending'] }}</td>
                             <td class="py-1.5 text-right text-gray-900 dark:text-gray-100">{{ $q['running'] }}</td>
                             <td @class(['py-1.5 text-right', 'font-semibold text-red-600 dark:text-red-400' => ($q['oldest_seconds'] ?? 0) > \App\Support\Queues\QueueSupervision::ALERT_AFTER_SECONDS, 'text-gray-500 dark:text-gray-400' => ($q['oldest_seconds'] ?? 0) <= \App\Support\Queues\QueueSupervision::ALERT_AFTER_SECONDS])>{{ $age($q['oldest_seconds']) }}</td>
+                            <td class="py-1.5 text-right text-gray-900 dark:text-gray-100" data-processed="{{ $q['processed_24h'] }}">{{ $q['processed_24h'] }}</td>
+                            <td @class(['py-1.5 text-right', 'font-semibold text-red-600 dark:text-red-400' => $q['failed_24h'] > 0, 'text-gray-500 dark:text-gray-400' => $q['failed_24h'] === 0])>{{ $q['failed_24h'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
+            </div>
         </section>
     </div>
 
     {{-- Mode manuel --}}
     <section class="{{ $card }} mt-5" data-marqueur="mode-manuel"
-             x-data="{ running: false, left: {{ $pendingTotal }}, async start() { this.running = true; while (this.running) { this.left = await $wire.processOne(); if (this.left <= 0) break; } this.running = false; } }">
+             x-data="{ running: false, left: null, async start() { this.running = true; while (this.running) { this.left = await $wire.processOne(); if (this.left <= 0) break; } this.running = false; } }">
+        {{-- Le compteur et l'etat du bouton viennent du SERVEUR a chaque rendu :
+             Livewire ne reinitialise pas x-data, une valeur Alpine figee au
+             chargement desactivait le bouton alors que des jobs attendaient. --}}
         <h2 class="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.queue_console.manual_title') }}</h2>
         <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ __('admin.queue_console.manual_hint') }}</p>
         <div class="flex flex-wrap items-center gap-3">
-            <button type="button" x-show="!running" @click="start()" :disabled="left <= 0"
+            <button type="button" x-show="!running" @click="start()" @disabled($pendingTotal === 0)
                     class="{{ $btn }} bg-indigo-600 text-white hover:bg-indigo-700" data-marqueur="manuel-demarrer">
                 {{ __('admin.queue_console.manual_start') }}
             </button>
@@ -108,7 +117,7 @@
                 {{ __('admin.queue_console.manual_stop') }}
             </button>
             <span class="text-xs text-gray-600 dark:text-gray-300" data-marqueur="manuel-restants">
-                {{ __('admin.queue_console.manual_left') }} <span x-text="left"></span>
+                {{ __('admin.queue_console.manual_left') }} <span x-show="running && left !== null" x-text="left" x-cloak></span><span x-show="!running || left === null">{{ $pendingTotal }}</span>
             </span>
         </div>
     </section>
@@ -136,6 +145,17 @@
     {{-- Articles --}}
     <section class="{{ $card }} mt-5" data-marqueur="articles">
         <h2 class="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ __('admin.queue_console.articles_title') }}</h2>
+
+        <div class="mb-4 grid grid-cols-2 gap-3" data-marqueur="totaux">
+            <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
+                <p class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ $totals['pdf_extracted'] }} <span class="text-sm font-normal text-gray-500 dark:text-gray-400">/ {{ $totals['pdf_total'] }}</span></p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.queue_console.total_pdf_extracted') }}</p>
+            </div>
+            <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
+                <p class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ $totals['articles_indexed'] }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('admin.queue_console.total_articles_indexed', ['chunks' => $totals['article_chunks']]) }}</p>
+            </div>
+        </div>
 
         <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('admin.queue_console.pdf_title', ['count' => $pdfTotal]) }}</h3>
         @forelse($pdfs as $pdf)

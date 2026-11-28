@@ -180,4 +180,59 @@ class TASK1909QueueConsoleTest extends TestCase
             ->assertSet('error', null)
             ->assertSet('notice', __('admin.queue_console.reindex_not_in_dossier', ['title' => 'Article T1909 en attente']));
     }
+
+    /**
+     * Recette Chrome du 28/11 : un compteur Alpine fige au chargement
+     * desactivait « Traiter maintenant » alors que des jobs attendaient.
+     * L'etat du bouton vient desormais du serveur, a chaque rendu.
+     */
+    public function test_le_bouton_du_mode_manuel_suit_le_serveur(): void
+    {
+        $admin = $this->admin();
+        // La balise <button> du mode manuel, quel que soit l'ordre de ses attributs.
+        $bouton = function () use ($admin): string {
+            preg_match('/<button\b[^>]*data-marqueur="manuel-demarrer"[^>]*>/s', Livewire::actingAs($admin)->test(QueueConsole::class)->html(), $m);
+
+            return $m[0] ?? '';
+        };
+
+        $this->assertMatchesRegularExpression('/\sdisabled(?=[\s>=])/', $bouton());
+
+        $this->queueOneArticleJob();
+
+        $this->assertDoesNotMatchRegularExpression('/\sdisabled(?=[\s>=])/', $bouton());
+    }
+
+    /**
+     * Demande de Cyril en recette : voir le travail FAIT, pas seulement
+     * l'attente.
+     */
+    public function test_la_console_compte_les_jobs_traites_sur_24_h_et_les_totaux(): void
+    {
+        $this->queueOneArticleJob();
+        $this->queueOneArticleJob();
+
+        $component = Livewire::actingAs($this->admin())->test(QueueConsole::class);
+        $component->instance()->processOne();
+        $component->instance()->processOne();
+
+        $articles = collect(app(QueueSupervision::class)->queues())
+            ->firstWhere('queue', DossierArticleIndexingDispatcher::DEDICATED_QUEUE);
+
+        $this->assertSame(2, $articles['processed_24h']);
+        $this->assertSame(0, $articles['failed_24h']);
+
+        $this->travel(25)->hours();
+        $articles = collect(app(QueueSupervision::class)->queues())
+            ->firstWhere('queue', DossierArticleIndexingDispatcher::DEDICATED_QUEUE);
+        $this->assertSame(0, $articles['processed_24h'], 'au-dela de 24 h, le compteur ne compte plus');
+
+        $this->assertSame(
+            ['pdf_extracted' => 0, 'pdf_total' => 0, 'articles_indexed' => 0, 'article_chunks' => 0],
+            app(QueueSupervision::class)->totals(),
+        );
+        $this->actingAs($this->admin())->get(route('admin.outils.files-attente'))
+            ->assertSee('data-marqueur="totaux"', false)
+            ->assertSee(__('admin.queue_console.col_processed_24h'));
+    }
 }

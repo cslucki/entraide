@@ -152,6 +152,7 @@ class QueueConsole extends Component
             'failedTotal' => $supervision->failedTotal(),
             'pdfs' => $supervision->pendingPdfs(),
             'pdfTotal' => $supervision->pendingPdfTotal(),
+            'totals' => $supervision->totals(),
             'articles' => $supervision->pendingArticles(),
             'workerQueues' => QueueSupervision::WORKER_QUEUES,
         ]);

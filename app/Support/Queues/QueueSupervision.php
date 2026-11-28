@@ -6,6 +6,7 @@ use App\Jobs\ExtractBlogPostFileText;
 use App\Jobs\ProcessImageVariants;
 use App\Models\BlogPost;
 use App\Models\BlogPostFile;
+use App\Models\DossierChunk;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierFileIndexingDispatcher;
 use App\Services\Knowledge\LoopConversationKnowledgeDispatcher;
@@ -39,7 +40,10 @@ final class QueueSupervision
 
     public const CONNECTION = 'database';
 
-    public function __construct(private readonly QueueWorkerHeartbeat $heartbeat) {}
+    public function __construct(
+        private readonly QueueWorkerHeartbeat $heartbeat,
+        private readonly QueueJobCounter $counter,
+    ) {}
 
     /**
      * La connexion EFFECTIVE de chaque traitement. `sync` = execute pendant
@@ -67,7 +71,7 @@ final class QueueSupervision
     }
 
     /**
-     * @return list<array{queue: string, pending: int, running: int, oldest_seconds: int|null}>
+     * @return list<array{queue: string, pending: int, running: int, oldest_seconds: int|null, processed_24h: int, failed_24h: int}>
      */
     public function queues(): array
     {
@@ -89,6 +93,8 @@ final class QueueSupervision
                 'pending' => (int) ($row->total ?? 0) - $running,
                 'running' => $running,
                 'oldest_seconds' => $oldest,
+                'processed_24h' => $this->counter->last24h($queue, QueueJobCounter::PROCESSED),
+                'failed_24h' => $this->counter->last24h($queue, QueueJobCounter::FAILED),
             ];
         }, self::WORKER_QUEUES);
     }
@@ -167,6 +173,25 @@ final class QueueSupervision
                 'age_seconds' => (int) max(0, now()->getTimestamp() - $file->created_at->getTimestamp()),
             ])
             ->all();
+    }
+
+    /**
+     * Le travail DEJA fait, cumule : PDF dont le texte est extrait, articles
+     * presents dans l'index IA (au moins un morceau vectorise).
+     *
+     * @return array{pdf_extracted: int, pdf_total: int, articles_indexed: int, article_chunks: int}
+     */
+    public function totals(): array
+    {
+        $pdfs = BlogPostFile::query()->withoutGlobalScopes()->where('kind', BlogPostFile::KIND_PDF);
+        $chunks = DossierChunk::query()->withoutGlobalScopes()->whereNotNull('blog_post_id');
+
+        return [
+            'pdf_extracted' => (clone $pdfs)->whereNotNull('extracted_at')->count(),
+            'pdf_total' => (clone $pdfs)->count(),
+            'articles_indexed' => (clone $chunks)->distinct()->count('blog_post_id'),
+            'article_chunks' => (clone $chunks)->count(),
+        ];
     }
 
     public function pendingPdfTotal(): int
