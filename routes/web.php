@@ -154,6 +154,7 @@ use App\Http\Controllers\WorkshopPageController;
 use App\Http\Controllers\WorkshopRegistrationController;
 use App\Http\Middleware\OrgAdminMiddleware;
 use App\Livewire\Admin\ImageOptimizer;
+use App\Livewire\Admin\QueueConsole;
 use App\Livewire\Admin\RssArticleFiche;
 use App\Livewire\Admin\RssEditorialHistory;
 use App\Livewire\Admin\RssSourceArticles;
@@ -1399,6 +1400,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // garde `boot()` dans le composant. « Optimiser » enregistre un lot et le
     // MET EN FILE : aucune conversion dans la requete.
     Route::get('/images', ImageOptimizer::class)->name('images');
+
+    // TASK-1909 — console « Files d'attente » : supervision du worker planifie
+    // `queue:work database` (AGENTS.md section 16). Composant Livewire pleine
+    // page, SuperAdmin (groupe `admin` + garde `boot()`), meme modele que
+    // `/admin/images`.
+    Route::get('/outils/files-attente', QueueConsole::class)->name('outils.files-attente');
 
     // TASK-1875 — lot MANUEL : UNE image par requete, enchainees par le
     // navigateur du SuperAdmin (PROD sans worker). CSRF du groupe `web`,
