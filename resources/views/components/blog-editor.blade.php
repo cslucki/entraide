@@ -354,11 +354,6 @@
             class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="{{ __('blog.editor_code') }}">
             <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
         </button>
-        {{-- Media embed --}}
-        <button type="button" @click="openMediaDialog()" :class="btnClass('mediaEmbed')"
-            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="{{ __('blog.editor_media_embed') }}">
-            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-        </button>
         {{-- Table dropdown --}}
         <div x-data="{ tableOpen: false }" class="relative shrink-0" @click.outside="tableOpen = false; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.remove('bp-toolbar-open-dropdown'))">
             <button type="button" @click="if (activeStates?.table) { tableOpen = !tableOpen; $nextTick(() => $el.closest('.bp-toolbar-scroll')?.classList.toggle('bp-toolbar-open-dropdown', tableOpen)); } else { exec('insertTable'); }"
@@ -428,29 +423,6 @@
             <span x-text="activeStates?.imageResized ? '100%' : '50%'"></span>
         </button>
         <input type="file" accept="image/*" class="hidden" x-ref="imageInput" @change="uploadImage($event)">
-
-        {{-- TASK-1907 : PDF et audio prives --}}
-        {{-- TASK-1908 : icones seules. PDF = symbole document + bandeau « PDF » evide (masque : lisible en clair et en sombre). --}}
-        <button type="button" @click="triggerFileUpload('pdf')" title="{{ __('blog.editor_insert_pdf') }}" aria-label="{{ __('blog.editor_insert_pdf') }}"
-            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
-            <svg class="w-4 h-4 inline" viewBox="0 0 24 24" aria-hidden="true">
-                <defs>
-                    <mask id="bp-pdf-icon-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
-                        <rect width="24" height="24" fill="white"/>
-                        <text x="12" y="18.6" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="7.4" font-weight="700" fill="black">PDF</text>
-                    </mask>
-                </defs>
-                <path d="M6 12V4.5A1.5 1.5 0 017.5 3h7.6L19 6.9V12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                <path d="M14.6 3v4.4H19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                <rect x="2" y="12" width="20" height="9" rx="2" fill="currentColor" mask="url(#bp-pdf-icon-mask)"/>
-            </svg>
-        </button>
-        <button type="button" @click="triggerFileUpload('audio')" title="{{ __('blog.editor_insert_audio') }}" aria-label="{{ __('blog.editor_insert_audio') }}"
-            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
-            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-        </button>
-        <input type="file" accept="application/pdf,.pdf" class="hidden" x-ref="pdfInput" @change="uploadFile($event, 'pdf')">
-        <input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a" class="hidden" x-ref="audioInput" @change="uploadFile($event, 'audio')">
 
         <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
 
@@ -571,6 +543,36 @@
                 </label>
             </div>
         </div>
+
+        {{-- TASK-1908 : groupe medias (Video, PDF, Audio) a droite, entre deux separateurs, avant le mode sombre --}}
+        <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
+        {{-- Media embed --}}
+        <button type="button" @click="openMediaDialog()" :class="btnClass('mediaEmbed')"
+            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition" title="{{ __('blog.editor_media_embed') }}">
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        </button>
+        {{-- TASK-1907 : PDF et audio prives --}}
+        {{-- TASK-1908 : icones seules. PDF = symbole document + bandeau « PDF » evide (masque : lisible en clair et en sombre). --}}
+        <button type="button" @click="triggerFileUpload('pdf')" title="{{ __('blog.editor_insert_pdf') }}" aria-label="{{ __('blog.editor_insert_pdf') }}"
+            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
+            <svg class="w-4 h-4 inline" viewBox="0 0 24 24" aria-hidden="true">
+                <defs>
+                    <mask id="bp-pdf-icon-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+                        <rect width="24" height="24" fill="white"/>
+                        <text x="12" y="18.6" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="7.4" font-weight="700" fill="black">PDF</text>
+                    </mask>
+                </defs>
+                <path d="M6 12V4.5A1.5 1.5 0 017.5 3h7.6L19 6.9V12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                <path d="M14.6 3v4.4H19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                <rect x="2" y="12" width="20" height="9" rx="2" fill="currentColor" mask="url(#bp-pdf-icon-mask)"/>
+            </svg>
+        </button>
+        <button type="button" @click="triggerFileUpload('audio')" title="{{ __('blog.editor_insert_audio') }}" aria-label="{{ __('blog.editor_insert_audio') }}"
+            class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+        </button>
+        <input type="file" accept="application/pdf,.pdf" class="hidden" x-ref="pdfInput" @change="uploadFile($event, 'pdf')">
+        <input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a" class="hidden" x-ref="audioInput" @change="uploadFile($event, 'audio')">
 
         {{-- Spacer + Editor dark mode + Fullscreen --}}
         <span class="shrink-0 w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></span>
