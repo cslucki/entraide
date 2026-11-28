@@ -430,15 +430,24 @@
         <input type="file" accept="image/*" class="hidden" x-ref="imageInput" @change="uploadImage($event)">
 
         {{-- TASK-1907 : PDF et audio prives --}}
-        <button type="button" @click="triggerFileUpload('pdf')" title="{{ __('blog.editor_insert_pdf') }}"
+        {{-- TASK-1908 : icones seules. PDF = symbole document + bandeau « PDF » evide (masque : lisible en clair et en sombre). --}}
+        <button type="button" @click="triggerFileUpload('pdf')" title="{{ __('blog.editor_insert_pdf') }}" aria-label="{{ __('blog.editor_insert_pdf') }}"
             class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
-            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-            <span class="ml-0.5">PDF</span>
+            <svg class="w-4 h-4 inline" viewBox="0 0 24 24" aria-hidden="true">
+                <defs>
+                    <mask id="bp-pdf-icon-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+                        <rect width="24" height="24" fill="white"/>
+                        <text x="12" y="18.6" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="7.4" font-weight="700" fill="black">PDF</text>
+                    </mask>
+                </defs>
+                <path d="M6 12V4.5A1.5 1.5 0 017.5 3h7.6L19 6.9V12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                <path d="M14.6 3v4.4H19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                <rect x="2" y="12" width="20" height="9" rx="2" fill="currentColor" mask="url(#bp-pdf-icon-mask)"/>
+            </svg>
         </button>
-        <button type="button" @click="triggerFileUpload('audio')" title="{{ __('blog.editor_insert_audio') }}"
+        <button type="button" @click="triggerFileUpload('audio')" title="{{ __('blog.editor_insert_audio') }}" aria-label="{{ __('blog.editor_insert_audio') }}"
             class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition">
-            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-            <span class="ml-0.5">Audio</span>
+            <svg class="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
         </button>
         <input type="file" accept="application/pdf,.pdf" class="hidden" x-ref="pdfInput" @change="uploadFile($event, 'pdf')">
         <input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,.mp3,.m4a" class="hidden" x-ref="audioInput" @change="uploadFile($event, 'audio')">
