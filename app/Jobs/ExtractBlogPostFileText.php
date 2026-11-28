@@ -33,12 +33,60 @@ class ExtractBlogPostFileText implements ShouldQueue
 
     public int $tries = 2;
 
-    public int $timeout = 120;
+    /**
+     * TASK-1909 : sous le `retry_after` (90 s) de la connexion `database`,
+     * sinon un job encore en cours serait repris une seconde fois.
+     */
+    public int $timeout = 80;
+
+    /** Un PDF depose depuis moins longtemps est laisse a son job de depot. */
+    public const FILET_APRES_MINUTES = 10;
 
     /** Au-dela, le texte est tronque : la recherche et l'IA n'en ont pas besoin de plus. */
     public const MAX_CHARS = 200_000;
 
     public function __construct(public readonly string $fileId) {}
+
+    /**
+     * TASK-1909 — connexion ASYNCHRONE du depot, ou null.
+     *
+     * Celle de l'indexation des articles (`queue.article_indexing_connection`,
+     * `database` par defaut), a defaut `QUEUE_CONNECTION`. Si elle resout sur
+     * `sync` (retour arriere, ou PROD sans reglage), null : le depot ne lance
+     * RIEN, sinon l'extraction tournerait dans la requete d'envoi ; la
+     * commande planifiee `blog:extract-file-texts` s'en charge.
+     */
+    public static function uploadConnection(): ?string
+    {
+        $connection = (string) (config('queue.article_indexing_connection') ?: config('queue.default'));
+
+        if ($connection === '' || config("queue.connections.{$connection}.driver", 'sync') === 'sync') {
+            return null;
+        }
+
+        return $connection;
+    }
+
+    /**
+     * TASK-1909 — met l'extraction en file des le depot (< 1 min avec le
+     * worker planifie). Retourne false quand rien n'est lance (audio, ou
+     * connexion `sync`) : la commande planifiee reste le filet.
+     */
+    public static function queueAfterUpload(BlogPostFile $file): bool
+    {
+        $connection = self::uploadConnection();
+
+        if ($file->kind !== BlogPostFile::KIND_PDF || $connection === null) {
+            return false;
+        }
+
+        static::dispatch($file->id)
+            ->onConnection($connection)
+            ->onQueue(self::QUEUE)
+            ->afterCommit();
+
+        return true;
+    }
 
     public function handle(PdfTextExtractor $extractor, DossierArticleIndexingDispatcher $indexing): void
     {

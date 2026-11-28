@@ -2,11 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ExtractBlogPostFileText;
 use App\Jobs\IndexDossierArticleChunks;
+use App\Models\BlogPostFile;
+use App\Models\Organization;
+use App\Models\User;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -81,5 +87,66 @@ class TASK1909ArticleIndexingQueueTest extends TestCase
         $source = file_get_contents(config_path('queue.php'));
 
         $this->assertStringContainsString("env('ARTICLE_INDEXING_QUEUE_CONNECTION', 'database')", $source);
+    }
+
+    // ---- Etape 3 : extraction du texte des PDF au depot ----
+
+    private const PDF = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n";
+
+    private function deposerPdf(): string
+    {
+        Storage::fake(BlogPostFile::DISK);
+        $org = Organization::factory()->create(['is_public' => true, 'slug' => 't1909-org', 'is_active' => true]);
+        $auteur = User::factory()->create(['organization_id' => $org->id, 'is_admin' => false]);
+
+        return (string) $this->actingAs($auteur)->postJson(
+            route('organization.blog.files.store', [$org]),
+            ['file' => UploadedFile::fake()->createWithContent('Guide.pdf', self::PDF)],
+        )->assertCreated()->json('id');
+    }
+
+    public function test_le_depot_d_un_pdf_met_l_extraction_en_file_database_sans_l_executer(): void
+    {
+        config(['queue.default' => 'sync', 'queue.article_indexing_connection' => 'database']);
+
+        $id = $this->deposerPdf();
+
+        $this->assertSame(1, DB::table('jobs')->where('queue', ExtractBlogPostFileText::QUEUE)->count());
+        $this->assertNull(BlogPostFile::withoutGlobalScopes()->find($id)->extracted_at, 'rien n est extrait pendant la requete d envoi');
+    }
+
+    public function test_en_sync_le_depot_ne_lance_rien_et_la_commande_reste_le_chemin_principal(): void
+    {
+        config(['queue.default' => 'sync', 'queue.article_indexing_connection' => 'sync']);
+
+        $id = $this->deposerPdf();
+
+        // Rien en file, et surtout rien d'execute pendant la requete d'envoi.
+        $this->assertSame(0, DB::table('jobs')->count());
+        $this->assertNull(BlogPostFile::withoutGlobalScopes()->find($id)->extracted_at);
+        $this->artisan('blog:extract-file-texts')->assertSuccessful();
+        $this->assertNotNull(BlogPostFile::withoutGlobalScopes()->find($id)->extracted_at, 'en sync, la commande traite aussitot');
+    }
+
+    public function test_la_commande_filet_laisse_un_pdf_recent_a_son_job_de_depot(): void
+    {
+        config(['queue.default' => 'sync', 'queue.article_indexing_connection' => 'database']);
+
+        $id = $this->deposerPdf();
+
+        $this->artisan('blog:extract-file-texts')->assertSuccessful();
+        $this->assertNull(BlogPostFile::withoutGlobalScopes()->find($id)->extracted_at, 'pas de doublon avec le job du depot');
+
+        $this->travel(ExtractBlogPostFileText::FILET_APRES_MINUTES + 1)->minutes();
+        $this->artisan('blog:extract-file-texts')->assertSuccessful();
+        $this->assertNotNull(BlogPostFile::withoutGlobalScopes()->find($id)->extracted_at, 'au-dela du delai, le filet rattrape');
+    }
+
+    public function test_le_job_d_extraction_tient_sous_le_retry_after_de_database(): void
+    {
+        $this->assertLessThan(
+            (int) config('queue.connections.database.retry_after'),
+            (new ExtractBlogPostFileText('x'))->timeout,
+        );
     }
 }
