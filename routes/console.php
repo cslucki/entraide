@@ -2,6 +2,7 @@
 
 use App\Console\Commands\CheckAiBudgets;
 use App\Console\Commands\FeedPublishScheduled;
+use App\Jobs\ExtractBlogPostFileText;
 use App\Jobs\ProcessImageVariants;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierFileIndexingDispatcher;
@@ -45,7 +46,16 @@ Schedule::command('feed:publish-scheduled')->everyMinute();
 // quarantaine le 23/08/2026, qui se rapportent et ne se consomment pas.
 // `TASK1511SchedulerIndexingTest` lit la ligne effectivement planifiee et
 // rougit si l'une de ces deux regles est rompue.
+//
+// TASK-1909 — connexion `database` EXPLICITE. Sans argument, `queue:work` lit
+// `QUEUE_CONNECTION`, qui vaut `sync` en PROD (mesure 28/11/2026) : le worker
+// bouclait sans jamais rien consommer. Seuls les jobs ROUTES sur `database`
+// (indexation des articles, extraction des PDF : `article_indexing_connection`)
+// passent desormais par lui ; les autres files restent servies en `sync` tant
+// que leurs jobs ne sont pas routes. `jobs` etait vide en PROD le 28/11 : aucun
+// job ancien a rejouer.
 Schedule::command('queue:work', [
+    'database',
     '--queue' => DossierFileIndexingDispatcher::DEDICATED_QUEUE
         .','.DossierArticleIndexingDispatcher::DEDICATED_QUEUE
         // TASK-1539 : la compilation des conversations rejoint l'allowlist.
@@ -57,7 +67,9 @@ Schedule::command('queue:work', [
         // passe avant. Un job par image, borne a 75 s et a 25 Mpx. Utile
         // seulement si la connexion par defaut est asynchrone : en PROD
         // (`sync`, 21/11/2026) les images exigent un worker dedie (T1874).
-        .','.ProcessImageVariants::QUEUE,
+        .','.ProcessImageVariants::QUEUE
+        // TASK-1909 : extraction du texte des PDF d'article, EN DERNIER.
+        .','.ExtractBlogPostFileText::QUEUE,
     // Sans valeur, et sans cle : `'--stop-when-empty' => true` rendrait
     // `--stop-when-empty='1'`, que Symfony REFUSE (« does not accept a
     // value »). La commande planifiee aurait echoue chaque minute, en

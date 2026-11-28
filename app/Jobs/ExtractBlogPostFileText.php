@@ -25,6 +25,12 @@ class ExtractBlogPostFileText implements ShouldQueue
 {
     use Dispatchable, Queueable;
 
+    /**
+     * TASK-1909 — file DEDIEE, dans l'allowlist du worker planifie
+     * (routes/console.php) et du worker local d'indexation.
+     */
+    public const QUEUE = 'blog-files-extraction';
+
     public int $tries = 2;
 
     public int $timeout = 120;
