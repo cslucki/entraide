@@ -101,6 +101,10 @@ class DossierArticleIndexingAfterCommitTest extends TestCase
         config()->set('queue.connections.database.connection', config('database.default'));
         config()->set('queue.connections.database.table', 'jobs');
         config()->set('queue.connections.database.after_commit', false);
+        // TASK-1909 : l'indexation des articles a sa propre connexion (defaut
+        // `database`, mise a `sync` par les phpunit*.xml) ; ce test vise la file
+        // database, comme en PROD.
+        config()->set('queue.article_indexing_connection', 'database');
     }
 
     private function assertQueuedDatabasePayloadContains(string $organizationId, string $dossierId, string $blogPostId): void

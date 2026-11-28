@@ -242,6 +242,8 @@
                             ['route' => 'admin.outils.integrite', 'label' => __('admin.integrity.nav_label'), 'icon' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'],
                             // TASK-1873 — optimisation des images (variantes WebP, rattrapage borne).
                             ['route' => 'admin.images', 'label' => __('admin.image_optimizer.nav_label'), 'icon' => 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'],
+                            // TASK-1909 — supervision du worker planifie (indexation IA des articles, texte des PDF).
+                            ['route' => 'admin.outils.files-attente', 'label' => __('admin.queue_console.nav_label'), 'icon' => 'M4 6h16M4 10h16M4 14h10M4 18h7m9-4v6m0 0l-2-2m2 2l2-2'],
                             // TASK-1744 (demande Cyril, 02/11) — lire les
                             // notifications emises et en rejouer une.
                             //

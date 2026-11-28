@@ -44,6 +44,13 @@ class DossierArticleIndexingDispatcher
         // `dispatchForEntries($entries)` sans queue. La forme signature aurait
         // donc laisse ce chemin sur `default`, en affichant le bon defaut.
         $pending->onQueue($queue !== null && $queue !== '' ? $queue : self::DEDICATED_QUEUE);
+
+        // TASK-1909 : hors de la requete. En PROD la connexion par defaut est
+        // `sync` : sans connexion imposee, l'indexation tournerait pendant
+        // l'enregistrement de l'article. Voir `queue.article_indexing_connection`.
+        if ($connexion = config('queue.article_indexing_connection')) {
+            $pending->onConnection($connexion);
+        }
     }
 
     public function dispatchForBlogPost(BlogPost $post): int

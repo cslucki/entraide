@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ExtractBlogPostFileText;
 use App\Jobs\ProcessImageVariants;
 use App\Services\Dossiers\DossierArticleIndexingDispatcher;
 use App\Services\Dossiers\DossierFileIndexingDispatcher;
@@ -84,6 +85,8 @@ class TASK1511SchedulerIndexingTest extends TestCase
                 // TASK-1873 : la derivation des images. Meme raison : un job
                 // d'image dispatche sans worker resterait en file a jamais.
                 ProcessImageVariants::QUEUE,
+                // TASK-1909 : extraction du texte des PDF d'article.
+                ExtractBlogPostFileText::QUEUE,
             ],
             $queues,
             'la liste est une allowlist fermee : y ajouter une queue est une decision, pas un detail'
@@ -94,6 +97,17 @@ class TASK1511SchedulerIndexingTest extends TestCase
      * Un worker non borne survivrait a la minute suivante et s'empilerait ;
      * un worker qui n'accepte pas ses propres options echoue en silence.
      */
+    /**
+     * TASK-1909 — sans connexion explicite, `queue:work` lit `QUEUE_CONNECTION`,
+     * qui vaut `sync` en PROD : le worker bouclait sans rien consommer.
+     */
+    public function test_the_worker_reads_the_database_connection_explicitly(): void
+    {
+        $command = (string) $this->indexingEvent()->command;
+
+        $this->assertMatchesRegularExpression("/queue:work '?database'? /", $command, 'la connexion `database` doit etre explicite');
+    }
+
     public function test_the_worker_is_bounded_and_its_options_are_actually_accepted(): void
     {
         $command = (string) $this->indexingEvent()->command;

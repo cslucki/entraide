@@ -189,4 +189,26 @@ return [
 
     'notifications_managed_queue_name' => env('NOTIFICATIONS_MANAGED_QUEUE_NAME', 'notifications'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Indexation IA des articles — connexion DEDIEE (TASK-1909)
+    |--------------------------------------------------------------------------
+    |
+    | En PROD, `QUEUE_CONNECTION=sync` (mesure 28/11/2026) : sans cette ligne,
+    | `IndexDossierArticleChunks` tourne DANS la requete de l'auteur qui
+    | enregistre son article (decoupage + vectorisation de tous les chunks,
+    | texte des PDF compris depuis TASK-1907), sans reprise.
+    |
+    | Defaut `database` : le job est ecrit dans `jobs` et consomme par le
+    | `queue:work database` planifie chaque minute (routes/console.php).
+    | Retour arriere SANS redeploiement : poser `sync` (comportement d'avant).
+    | Vide : aucune connexion imposee, `QUEUE_CONNECTION` decide.
+    |
+    | Les suites de tests posent `sync` (phpunit*.xml) : les tests existants
+    | constatent l'indexation dans le meme processus, comme avant.
+    |
+    */
+
+    'article_indexing_connection' => env('ARTICLE_INDEXING_QUEUE_CONNECTION', 'database'),
+
 ];
